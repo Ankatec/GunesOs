@@ -1,0 +1,48 @@
+{
+  "status": "success",
+  "results": [
+    {
+      "status": "success",
+      "path": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmxjyaafmq/gunesOS-logo-sun.png",
+      "absolute_path": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmxjyaafmq/gunesOS-logo-sun.png",
+      "url": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmxjyaafmq/gunesOS-logo-sun.png",
+      "message": "Image generated successfully.\n\nNote: The image is on CDN and will be displayed automatically. Just describe what you created briefly, no need to mention filenames or URLs.",
+      "description": "A retro operating system logo featuring a bright golden sun with rays, text 'GüneşOS' below in a clean sans-serif font, centered on dark navy background, vintage computing aesthetic",
+      "style": "minimalist",
+      "filename": "gunesOS-logo-sun.png"
+    },
+    {
+      "status": "success",
+      "path": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmzzqaafma/desktop-wallpaper-teal.png",
+      "absolute_path": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmzzqaafma/desktop-wallpaper-teal.png",
+      "url": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmzzqaafma/desktop-wallpaper-teal.png",
+      "message": "Image generated successfully.\n\nNote: The image is on CDN and will be displayed automatically. Just describe what you created briefly, no need to mention filenames or URLs.",
+      "description": "A retro Windows 98 style desktop wallpaper with teal to dark blue gradient, subtle cloud pattern, nostalgic computing aesthetic, clean and simple",
+      "style": "photorealistic",
+      "filename": "desktop-wallpaper-teal.jpg"
+    },
+    {
+      "status": "success",
+      "path": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmxmaaafla/icon-mycomputer.png",
+      "absolute_path": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmxmaaafla/icon-mycomputer.png",
+      "url": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmxmaaafla/icon-mycomputer.png",
+      "message": "Image generated successfully.\n\nNote: The image is on CDN and will be displayed automatically. Just describe what you created briefly, no need to mention filenames or URLs.",
+      "description": "A retro pixel art style computer monitor icon for 'My Computer', classic beige CRT monitor with blue screen, Windows 98 aesthetic, centered composition",
+      "style": "minimalist",
+      "filename": "icon-mycomputer.png"
+    },
+    {
+      "status": "success",
+      "path": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmzcqaaflq/icon-browser-globe.png",
+      "absolute_path": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmzcqaaflq/icon-browser-globe.png",
+      "url": "https://mgx-backend-cdn.metadl.com/generate/images/1158115/2026-04-27/nnvmzcqaaflq/icon-browser-globe.png",
+      "message": "Image generated successfully.\n\nNote: The image is on CDN and will be displayed automatically. Just describe what you created briefly, no need to mention filenames or URLs.",
+      "description": "A retro pixel art style globe with browser window frame icon, classic internet explorer aesthetic, blue and green globe, centered composition",
+      "style": "minimalist",
+      "filename": "icon-browser-globe.png"
+    }
+  ],
+  "success_count": 4,
+  "failed_count": 0,
+  "message": "Generated 4/4 images"
+}
