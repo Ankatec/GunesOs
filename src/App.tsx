@@ -38,4 +38,4 @@ const App = () => (
 
 export default App;
 export { AppRoutes };
- <BrowserRouter basename="/gunesos">
+
