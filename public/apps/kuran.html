@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Vakit & Kuran Pro - Ankara Tecno</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Amiri:wght@400;700&display=swap');
+        
+        :root { --bg-main: #020617; --panel-bg: #0f172a; --card-bg: #1e293b; --accent: #3b82f6; --theme-color: #3b82f6; --theme-bg: rgba(59, 130, 246, 0.1); }
+        
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: var(--bg-main); 
+            color: white; 
+            margin: 0; 
+            overflow: hidden; 
+            background-size: cover; 
+            background-position: center; 
+            background-attachment: fixed;
+            transition: background-image 0.5s ease-in-out;
+        }
+        
+        /* Arka plan resimlerini okunabilir kılan karanlık filtre */
+        .bg-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(2, 6, 23, 0.85); /* %85 Koyu Mavi/Siyah Karartma */
+            z-index: -1;
+        }
+
+        .font-arabic { font-family: 'Amiri', serif; line-height: 2.5; }
+        .glass-panel { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 16px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        
+        header { padding-top: 45px; height: 115px; display: flex; justify-content: space-between; align-items: center; padding-left: 1rem; padding-right: 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        main { height: calc(100vh - 115px); overflow-y: auto; padding: 1rem; }
+        
+        .bottom-sheet { position: fixed; top: 100vh; left: 0; right: 0; bottom: 0; background: #020617; z-index: 150; transition: top 0.4s cubic-bezier(0.4, 0, 0.2, 1); overflow-y: hidden; display: flex; flex-direction: column; }
+        .bottom-sheet.active { top: 0; }
+        
+        .time-card { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); border-radius: 12px; padding: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
+        
+        .ayah-separator { display: inline-block; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="%233b82f6" stroke-width="5"/></svg>') no-repeat center; background-size: contain; width: 30px; height: 30px; text-align: center; line-height: 30px; font-size: 11px; margin: 0 8px; color: #3b82f6; font-family: sans-serif; font-weight: bold; }
+
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+        
+        input[type="range"].vol-slider { -webkit-appearance: none; background: rgba(255,255,255,0.1); height: 3px; border-radius: 5px; outline: none; }
+        input[type="range"].vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; background: white; border-radius: 50%; cursor: pointer; }
+
+        #year-scroller { display: flex; gap: 12px; overflow-x: auto; padding: 15px 5px; -webkit-overflow-scrolling: touch; border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
+        #year-scroller button { flex: 0 0 auto; min-width: 65px; height: 40px; }
+        
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Zaman Damgası Fontu */
+        .digital-font { font-family: 'Courier New', Courier, monospace; letter-spacing: -1px; }
+    </style>
+</head>
+<body>
+
+    <div class="bg-overlay"></div>
+
+    <header>
+        <div class="flex flex-col">
+            <div class="flex items-center gap-2">
+                <p id="miladi-date" class="text-blue-400 text-[10px] font-extrabold uppercase tracking-widest">Yükleniyor...</p>
+                <span class="text-white/20 text-[10px]">|</span>
+                <p id="hicri-date" class="text-emerald-500/80 text-[10px] font-bold tracking-widest">...</p>
+            </div>
+            <p id="live-clock" class="text-white font-black text-xl tracking-widest mt-1">00:00:00</p>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <button onclick="openPanel('quran-panel')" class="w-10 h-10 glass-panel flex items-center justify-center text-emerald-400 shadow-md">
+                <i class="fas fa-book-open"></i>
+            </button>
+            <button onclick="openPanel('reciter-panel')" class="w-10 h-10 glass-panel flex items-center justify-center text-blue-400 shadow-md transition-colors">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button onclick="openPanel('settings-panel')" class="w-10 h-10 glass-panel flex items-center justify-center text-gray-400 shadow-md transition-colors hover:text-white">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto space-y-4 pb-16">
+        
+        <!-- Üst Vakit ve Konum Kartı -->
+        <div class="glass-panel p-6 text-center relative shadow-xl flex flex-col items-center justify-center">
+            <button onclick="requestDeviceLocation()" class="absolute top-4 right-4 text-white/30 hover:text-blue-400 transition-colors" title="Konumu Yenile">
+                <i class="fas fa-location-crosshairs"></i>
+            </button>
+            
+            <p id="location-title" class="text-[10px] font-bold uppercase text-white/40 tracking-widest mb-0 truncate max-w-[80%]"><i class="fas fa-map-marker-alt mr-1"></i> Konum Aranıyor...</p>
+            
+            <div id="countdown" class="text-6xl font-black tracking-tighter drop-shadow-md leading-tight mt-2 text-white">--:--</div>
+            <p id="dynamic-label" class="text-[9px] text-blue-400 font-black uppercase tracking-[0.3em] mt-1">VAKTİNE KALAN</p>
+            
+            <div class="mt-4 flex items-center justify-center gap-4 text-white/50 w-full border-t border-white/5 pt-3">
+                <button onclick="quickChangeReciter(-1)" class="hover:text-white p-2"><i class="fas fa-chevron-left text-xs"></i></button>
+                <div class="flex items-center gap-2 cursor-pointer" onclick="openPanel('reciter-panel')">
+                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <p id="active-reciter-name" class="text-[9px] font-bold text-white/70 uppercase tracking-widest truncate max-w-[120px]">Hafız Yükleniyor...</p>
+                </div>
+                <button onclick="quickChangeReciter(1)" class="hover:text-white p-2"><i class="fas fa-chevron-right text-xs"></i></button>
+            </div>
+
+            <!-- Mini Player -->
+            <div id="mini-quran-player" class="hidden w-full mt-2 p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/10 fade-in relative group overflow-hidden">
+                <div class="flex items-center justify-between relative z-10">
+                    <div class="text-left flex-1 cursor-pointer flex items-center gap-3" onclick="openQuranSayfaTakip()">
+                        <div class="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                            <i class="fas fa-chevron-right text-xs"></i>
+                        </div>
+                        <div>
+                            <p id="mini-surah-name" class="text-[10px] font-bold text-emerald-400 uppercase leading-none">Sure</p>
+                            <p id="mini-active-reciter" class="text-[8px] text-white/40 font-bold mt-1 uppercase truncate max-w-[80px]">Hafız...</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-2">
+                        <div class="flex gap-4 text-white/60 items-center">
+                            <button onclick="prevSurah()"><i class="fas fa-backward-step text-xs hover:text-white"></i></button>
+                            <button onclick="toggleQuran()"><i class="fas fa-play text-sm text-emerald-400 drop-shadow-md" id="mini-play-pause"></i></button>
+                            <button onclick="nextSurah()"><i class="fas fa-forward-step text-xs hover:text-white"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="prayer-times-container" class="grid grid-cols-3 gap-2">
+            <!-- Vakitler JS ile Buraya Gelecek -->
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 mt-2">
+            <button onclick="openPanel('qibla-panel')" class="glass-panel py-4 flex flex-col items-center gap-1 hover:bg-white/5 transition-colors">
+                <i class="fas fa-compass text-emerald-400 text-sm"></i><span class="text-[8px] font-bold uppercase tracking-widest">Kıble</span>
+            </button>
+            <button onclick="toggleAdhan()" class="glass-panel py-4 flex flex-col items-center gap-1 hover:bg-white/5 transition-colors">
+                <i id="btn-icon" class="fas fa-play text-red-500 text-sm"></i><span class="text-[8px] font-bold uppercase tracking-widest">Ezan</span>
+            </button>
+            <button onclick="openPanel('dini-gunler-panel')" class="glass-panel py-4 flex flex-col items-center gap-1 hover:bg-white/5 transition-colors">
+                <i class="fas fa-moon text-blue-400 text-sm"></i><span class="text-[8px] font-bold uppercase tracking-widest">Kandiller</span>
+            </button>
+        </div>
+
+        <!-- İstatistik & Zaman Damgaları -->
+        <div class="space-y-2 mt-2">
+            <div class="glass-panel p-4 flex items-center justify-between border-l-2 border-emerald-500">
+                <div class="flex items-center gap-3">
+                    <i class="fas fa-headphones text-emerald-400 text-xl"></i>
+                    <div class="text-left">
+                        <p class="text-[9px] font-bold uppercase text-white/50 tracking-widest">Toplam Kuran Dinleme</p>
+                        <p id="total-listen-time" class="text-sm font-bold text-white mt-0.5">0 Sa 0 Dk 0 Sn</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-2">
+                <div class="glass-panel p-4 border-t-2 border-amber-500 flex flex-col items-center text-center">
+                    <p class="text-[7px] font-bold uppercase text-white/50 tracking-widest">Hz. Muhammed (SAV) Doğumu</p>
+                    <p id="dogus-sec" class="text-xl font-black text-amber-400 mt-2 digital-font">0</p>
+                    <p class="text-[7px] text-white/30 mt-1">Geçen Gün</p>
+                </div>
+                <div class="glass-panel p-4 border-t-2 border-red-500 flex flex-col items-center text-center">
+                    <p class="text-[7px] font-bold uppercase text-white/50 tracking-widest">Hz. Muhammed (SAV) Vuslatı</p>
+                    <p id="vuslat-sec" class="text-xl font-black text-red-400 mt-2 digital-font">0</p>
+                    <p class="text-[7px] text-white/30 mt-1">Geçen Gün</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- AYARLAR PANELİ -->
+    <div id="settings-panel" class="bottom-sheet p-0">
+        <div class="sticky top-0 z-50 bg-[#0f172a] p-5 border-b border-white/5 pt-10 flex justify-between items-center shadow-xl">
+            <h3 class="text-lg font-bold text-gray-300"><i class="fas fa-cog mr-2"></i>Genel Ayarlar</h3>
+            <button onclick="closePanels()" class="text-2xl text-white/50 hover:text-white">×</button>
+        </div>
+        <div class="p-5 overflow-y-auto custom-scrollbar space-y-6">
+            
+            <!-- Arka Plan Seçimi -->
+            <div>
+                <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 block">Arka Plan Görseli</label>
+                <select id="bg-select" onchange="saveSettings()" class="w-full bg-slate-800 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-500">
+                    <option value="https://images.unsplash.com/photo-1565552643983-61614b8a2113?q=50&w=1080&auto=format&fit=crop">Kabe (Mekke)</option>
+                    <option value="https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?q=50&w=1080&auto=format&fit=crop">Mescid-i Nebevi (Medine)</option>
+                    <option value="https://images.unsplash.com/photo-1601614392476-0f7cb679d61c?q=50&w=1080&auto=format&fit=crop">Mescid-i Aksa</option>
+                    <option value="none">Sade (Klasik Gece)</option>
+                </select>
+            </div>
+
+            <!-- Müezzin Seçimi -->
+            <div>
+                <label class="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 block">Müezzin (Ezan Makamı) Seçimi</label>
+                <select id="muezzin-select" onchange="saveSettings()" class="w-full bg-slate-800 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-500">
+                    <option value="https://api.aladhan.com/audio/adhaan/ar-makkah.mp3">Mekke (Mescid-i Haram)</option>
+                    <option value="https://api.aladhan.com/audio/adhaan/ar-madinah.mp3">Medine (Mescid-i Nebevi)</option>
+                    <option value="https://api.aladhan.com/audio/adhaan/ar-al-aqsa.mp3">Mescid-i Aksa</option>
+                    <option value="https://api.aladhan.com/audio/adhaan/ar-mishary-rashid-alafasy.mp3">Mishary Rashid Alafasy</option>
+                    <option value="https://api.aladhan.com/audio/adhaan/ar-abdul-basit.mp3">AbdulBaset AbdulSamad</option>
+                </select>
+            </div>
+
+            <!-- Doğuş / Vuslat Ayarları -->
+            <div class="space-y-4 pt-4 border-t border-white/5">
+                <div>
+                    <label class="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-2 block"><i class="fas fa-star mr-1"></i> Doğuş Tarihi (Gün Hesaplayıcı)</label>
+                    <input type="date" id="input-dogus" onchange="saveSettings()" class="w-full bg-slate-800 border border-amber-500/30 rounded-xl p-3 text-sm text-white focus:outline-none">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-2 block"><i class="fas fa-hourglass-end mr-1"></i> Vuslat Tarihi (Gün Hesaplayıcı)</label>
+                    <input type="date" id="input-vuslat" onchange="saveSettings()" class="w-full bg-slate-800 border border-red-500/30 rounded-xl p-3 text-sm text-white focus:outline-none">
+                </div>
+            </div>
+
+            <p class="text-[10px] text-white/30 text-center mt-6">Tüm ayarlar tarayıcınızda (yerel olarak) saklanır.</p>
+        </div>
+    </div>
+
+    <!-- DİNİ GÜNLER PANELİ -->
+    <div id="dini-gunler-panel" class="bottom-sheet p-0">
+        <div class="sticky top-0 z-50 bg-[#0f172a] p-5 border-b border-white/5 pt-10 flex flex-col shadow-xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-blue-400"><i class="fas fa-moon mr-2"></i>Dini Gün ve Geceler</h3>
+                <button onclick="closePanels()" class="text-2xl text-white/50 hover:text-white">×</button>
+            </div>
+            <!-- Yıl Seçici (2024 - 2050) -->
+            <div id="year-scroller" class="custom-scrollbar">
+                <!-- JS İle Dolacak -->
+            </div>
+        </div>
+        <div class="p-5 overflow-y-auto custom-scrollbar pb-20">
+            <div id="dini-gunler-list" class="space-y-2">
+                <p class="text-center text-xs text-white/40 mt-10">Lütfen bir yıl seçin...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kuran-ı Kerim Paneli -->
+    <div id="quran-panel" class="bottom-sheet p-0">
+        <div class="sticky top-0 z-50 bg-[#0f172a] p-5 border-b border-white/5 shadow-xl flex justify-between items-center pt-10">
+            <h3 class="text-xl font-bold text-emerald-400"><i class="fas fa-book-open mr-2"></i>Kuran-ı Kerim</h3>
+            <button onclick="closePanels()" class="text-2xl text-white/50 hover:text-white transition-colors">×</button>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-5 pb-24 relative">
+            <div id="surah-list-container">
+                <p class="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-4 text-center">Okumak & Dinlemek İçin Sure Seçin</p>
+                <div id="surah-list" class="space-y-2"></div>
+            </div>
+
+            <div id="reading-view-container" class="hidden fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <button onclick="showQuranView('list')" class="text-[9px] text-emerald-400 font-bold uppercase tracking-widest flex items-center gap-1 bg-emerald-500/10 px-3 py-2 rounded-lg hover:bg-emerald-500/20 transition-colors">
+                        <i class="fas fa-arrow-left"></i> Surelere Dön
+                    </button>
+                    <button onclick="showQuranView('takip')" class="text-[9px] text-blue-400 font-bold uppercase tracking-widest flex items-center gap-1 bg-blue-500/10 px-3 py-2 rounded-lg hover:bg-blue-500/20 transition-colors">
+                        Arapça Metin <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+                
+                <div class="bg-slate-900 rounded-2xl p-6 text-center border border-white/5 shadow-[0_10px_30px_rgba(0,0,0,0.5)] mb-6">
+                    <h3 id="surah-name" class="text-xl font-bold text-emerald-400">Sure Seçin</h3>
+                    <p id="active-reciter-display" class="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">Hafız...</p>
+                    
+                    <div class="mt-6">
+                        <input type="range" id="quran-slider" class="w-full accent-emerald-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer" value="0" step="0.1" oninput="seekAudio(this.value)">
+                        <div class="flex justify-between text-[10px] text-white/30 mt-2 font-mono">
+                            <span id="q-current">00:00</span><span id="q-total">00:00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mt-6 px-2">
+                        <div class="flex gap-4">
+                            <button onclick="downloadSurahText()" class="text-white hover:text-emerald-400 transition-colors" title="Metin İndir (.TXT)"><i class="fas fa-file-alt text-lg"></i></button>
+                            <button onclick="downloadAudio()" class="text-white hover:text-blue-400 transition-colors" title="Ses İndir (.MP3)"><i class="fas fa-download text-lg"></i></button>
+                        </div>
+                        
+                        <div class="flex items-center gap-6">
+                            <button onclick="prevSurah()"><i class="fas fa-backward-step text-xl text-white/40 hover:text-white"></i></button>
+                            <button onclick="toggleQuran()"><i id="q-icon" class="fas fa-play text-4xl text-emerald-400 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]"></i></button>
+                            <button onclick="nextSurah()"><i class="fas fa-forward-step text-xl text-white/40 hover:text-white"></i></button>
+                        </div>
+                        
+                        <div class="w-12"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="sayfa-takip-container" class="hidden fade-in">
+                 <button onclick="showQuranView('reading')" class="text-[9px] text-emerald-400 font-bold uppercase tracking-widest flex items-center gap-1 bg-emerald-500/10 px-3 py-2 rounded-lg hover:bg-emerald-500/20 transition-colors mb-4">
+                        <i class="fas fa-arrow-left"></i> Oynatıcıya Dön
+                </button>
+                <div class="glass-panel p-6">
+                    <div id="text-loading-indicator" class="text-center text-emerald-400 my-4 hidden"><i class="fas fa-spinner fa-spin text-2xl"></i><p class="text-xs mt-2">Ayetler Yükleniyor...</p></div>
+                    <div id="arabic-text-content" class="font-arabic text-2xl text-right text-white/90 leading-loose" dir="rtl"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hafız Seçim Paneli -->
+    <div id="reciter-panel" class="bottom-sheet p-0">
+        <div class="sticky top-0 z-50 bg-[#0f172a] p-5 border-b border-white/5 pt-10 flex justify-between shadow-xl">
+            <h3 class="text-lg font-bold text-blue-400"><i class="fas fa-microphone mr-2"></i>Hafız Seçimi <span class="text-xs text-white/30">(Tümü)</span></h3>
+            <button onclick="closePanels()" class="text-2xl text-white/50 hover:text-white">×</button>
+        </div>
+        <div class="p-5 overflow-y-auto custom-scrollbar pb-20" id="custom-reciter-list">
+            <p class="text-center text-white/50 text-xs mt-10"><i class="fas fa-spinner fa-spin mr-2"></i>Tüm Dünya Hafızları API'den Çekiliyor...</p>
+        </div>
+    </div>
+
+    <!-- Kıble Paneli -->
+    <div id="qibla-panel" class="bottom-sheet p-0 flex flex-col">
+        <div class="sticky top-0 z-50 bg-[#0f172a] p-5 border-b border-white/5 pt-10 flex justify-between shadow-xl">
+            <h3 class="text-lg font-bold text-emerald-400"><i class="fas fa-compass mr-2"></i>Kıble Pusulası</h3>
+            <button onclick="closePanels()" class="text-2xl text-white/50 hover:text-white">×</button>
+        </div>
+        <div class="flex-1 flex items-center justify-center p-5">
+             <div class="text-center text-white/50">
+                 <i class="fas fa-kaaba text-6xl text-white mb-4"></i>
+                 <p class="text-sm">Pusula sensörü cihazınızda aktif edilmelidir.</p>
+             </div>
+        </div>
+    </div>
+
+    <!-- Gizli Ses Dosyaları -->
+    <audio id="q-audio"></audio>
+    <audio id="adhan-audio"></audio>
+
+    <script>
+        // --- TEMEL DEĞİŞKENLER ---
+        let surahs = [];
+        let currentSurahNum = 1;
+        let recitersData = [];
+        let activeReciterIndex = 0;
+        let activeReciterObj = null;
+        
+        let totalListenSeconds = parseInt(localStorage.getItem('kuranTotalListenSeconds')) || 0;
+        let qAudioLastTime = 0;
+
+        const qAudio = document.getElementById('q-audio');
+        const adhanAudio = document.getElementById('adhan-audio');
+        
+        // --- BAŞLATMA ---
+        async function init() {
+            loadSettings();
+            updateClock();
+            setInterval(updateClock, 1000);
+            setInterval(updateTimestamps, 1000);
+            updateTimestamps();
+            
+            setupAudioListeners();
+            buildYearScroller();
+            
+            fetchSurahList();
+            fetchRecitersFromAPI();
+            
+            requestDeviceLocation();
+        }
+
+        // --- KONUM & VAKİT İŞLEMLERİ ---
+        function requestDeviceLocation() {
+            document.getElementById('location-title').innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Konum Bulunuyor...';
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        fetchCityNameAndPrayerTimes(lat, lon);
+                    },
+                    error => {
+                        console.warn("Cihaz konum izni yok veya hata oluştu:", error.message || error);
+                        fetchIPLocation();
+                    },
+                    { timeout: 5000 }
+                );
+            } else {
+                fetchIPLocation();
+            }
+        }
+
+        async function fetchIPLocation() {
+            try {
+                const res = await fetch('https://get.geojs.io/v1/ip/geo.json');
+                const data = await res.json();
+                if(data && data.latitude && data.longitude) {
+                    fetchCityNameAndPrayerTimes(parseFloat(data.latitude), parseFloat(data.longitude));
+                } else {
+                    throw new Error("Geçersiz IP konum verisi");
+                }
+            } catch (e) {
+                console.error("IP Konum hatası:", e.message || e);
+                document.getElementById('location-title').innerHTML = '<i class="fas fa-map-marker-alt mr-1"></i> Konya, TR (Konum Bulunamadı)';
+                fetchPrayerTimesByCoords(37.87135, 32.48464);
+            }
+        }
+
+        async function fetchCityNameAndPrayerTimes(lat, lon) {
+            try {
+                const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=tr`);
+                const data = await res.json();
+                const city = data.city || data.locality || "Bilinmeyen Konum";
+                document.getElementById('location-title').innerHTML = `<i class="fas fa-map-marker-alt mr-1"></i> ${city}, ${data.countryCode}`;
+                fetchPrayerTimesByCoords(lat, lon);
+            } catch (e) {
+                document.getElementById('location-title').innerHTML = `<i class="fas fa-map-marker-alt mr-1"></i> GPS: ${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+                fetchPrayerTimesByCoords(lat, lon);
+            }
+        }
+
+        async function fetchPrayerTimesByCoords(lat, lon) {
+            try {
+                const res = await fetch(`https://api.aladhan.com/v1/timings?latitude=${lat}&longitude=${lon}&method=13`);
+                const data = await res.json();
+                const timings = data.data.timings;
+                
+                document.getElementById('hicri-date').innerText = `${data.data.date.hijri.day} ${data.data.date.hijri.month.tr || data.data.date.hijri.month.en} ${data.data.date.hijri.year}`;
+                
+                const vakitler = [
+                    { key: 'Fajr', name: 'İmsak' }, { key: 'Sunrise', name: 'Güneş' },
+                    { key: 'Dhuhr', name: 'Öğle' }, { key: 'Asr', name: 'İkindi' },
+                    { key: 'Maghrib', name: 'Akşam' }, { key: 'Isha', name: 'Yatsı' }
+                ];
+
+                let html = '';
+                vakitler.forEach(v => {
+                    html += `<div class="time-card">
+                                <p class="text-[9px] text-white/50 uppercase font-bold tracking-widest">${v.name}</p>
+                                <p class="text-sm font-black mt-1">${timings[v.key]}</p>
+                             </div>`;
+                });
+                document.getElementById('prayer-times-container').innerHTML = html;
+            } catch (error) {
+                console.error("Vakitler alınamadı:", error);
+            }
+        }
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('live-clock').innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            document.getElementById('miladi-date').innerText = now.toLocaleDateString('tr-TR', options);
+        }
+
+        // --- ZAMAN DAMGALARI & İSTATİSTİK ---
+        function saveSettings() {
+            const dogus = document.getElementById('input-dogus').value;
+            const vuslat = document.getElementById('input-vuslat').value;
+            const muezzin = document.getElementById('muezzin-select').value;
+            const bg = document.getElementById('bg-select').value;
+            
+            if(dogus) localStorage.setItem('dogusDate', dogus);
+            if(vuslat) localStorage.setItem('vuslatDate', vuslat);
+            if(muezzin) localStorage.setItem('selectedMuezzin', muezzin);
+            if(bg) localStorage.setItem('selectedBg', bg);
+            
+            adhanAudio.src = muezzin;
+            applyBackground(bg);
+            updateTimestamps();
+        }
+
+        function loadSettings() {
+            // Varsayılan: Hz. Muhammed (SAV) Doğumu (20 Nisan 571) ve Vuslatı (8 Haziran 632)
+            const dogus = localStorage.getItem('dogusDate') || "0571-04-20";
+            const vuslat = localStorage.getItem('vuslatDate') || "0632-06-08";
+            const muezzin = localStorage.getItem('selectedMuezzin') || "https://api.aladhan.com/audio/adhaan/ar-makkah.mp3";
+            const bg = localStorage.getItem('selectedBg') || "https://images.unsplash.com/photo-1565552643983-61614b8a2113?q=50&w=1080&auto=format&fit=crop";
+            
+            document.getElementById('input-dogus').value = dogus;
+            document.getElementById('input-vuslat').value = vuslat;
+            document.getElementById('muezzin-select').value = muezzin;
+            document.getElementById('bg-select').value = bg;
+            
+            adhanAudio.src = muezzin;
+            applyBackground(bg);
+        }
+
+        function applyBackground(url) {
+            if(url && url !== "none") {
+                document.body.style.backgroundImage = `url('${url}')`;
+            } else {
+                document.body.style.backgroundImage = 'none';
+            }
+        }
+
+        function updateTimestamps() {
+            const now = new Date();
+            // Yılların 4 haneli olduğundan emin olun (Örn: 571 için 0571)
+            const dogusStr = document.getElementById('input-dogus').value || "0571-04-20";
+            const vuslatStr = document.getElementById('input-vuslat').value || "0632-06-08";
+            
+            const dogus = new Date(dogusStr + "T00:00:00");
+            const vuslat = new Date(vuslatStr + "T00:00:00");
+            
+            const msPerDay = 1000 * 60 * 60 * 24;
+            const dDays = Math.floor((now - dogus) / msPerDay);
+            const vDays = Math.floor(Math.abs(now - vuslat) / msPerDay);
+            
+            document.getElementById('dogus-sec').innerText = dDays.toLocaleString('tr-TR');
+            document.getElementById('vuslat-sec').innerText = vDays.toLocaleString('tr-TR');
+
+            renderTotalListenTime();
+        }
+
+        function renderTotalListenTime() {
+            const h = Math.floor(totalListenSeconds / 3600);
+            const m = Math.floor((totalListenSeconds % 3600) / 60);
+            const s = Math.floor(totalListenSeconds % 60);
+            document.getElementById('total-listen-time').innerText = `${h} Sa ${m} Dk ${s} Sn`;
+        }
+
+        // --- HAFIZ (RECITER) API ÇEKİMİ (TÜMÜ) ---
+        async function fetchRecitersFromAPI() {
+            try {
+                // mp3quran V3 API (Tüm hafızlar)
+                const res = await fetch('https://mp3quran.net/api/v3/reciters?language=tr');
+                const data = await res.json();
+                
+                recitersData = data.reciters.map(r => {
+                    const m = r.moshaf[0]; // Hafs okuyuşunu varsayılan al
+                    return {
+                        id: r.id,
+                        name: r.name,
+                        server: m ? m.server : "",
+                        surahList: m && m.surah_list ? m.surah_list.split(',').map(Number) : []
+                    };
+                }).filter(r => r.server !== "" && r.surahList.length > 0);
+                
+                // Alfabetik sıralama (A-Z)
+                recitersData.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+                
+                activeReciterObj = recitersData[0];
+                updateReciterUI();
+                renderReciterList();
+                if(surahs.length > 0) renderSurahList(); // Sureler varsa tekrar çiz
+            } catch (e) {
+                console.error("Hafızlar çekilemedi", e);
+                document.getElementById('custom-reciter-list').innerHTML = `<p class="text-center text-red-400">Hafız listesi yüklenemedi.</p>`;
+            }
+        }
+
+        function renderReciterList() {
+            document.getElementById('custom-reciter-list').innerHTML = recitersData.map(r => `
+                <div onclick="changeReciter(${r.id})" class="p-4 glass-panel flex justify-between items-center text-[11px] font-bold cursor-pointer hover:bg-white/5 ${activeReciterObj.id == r.id ? 'border-emerald-500 text-emerald-400' : 'text-white/50 border-transparent'} mb-2">
+                    ${r.name} ${activeReciterObj.id == r.id ? '<i class="fas fa-check-circle"></i>' : ''}
+                </div>`).join('');
+        }
+
+        function changeReciter(id) {
+            const index = recitersData.findIndex(r => r.id === id);
+            if(index !== -1) {
+                activeReciterIndex = index;
+                activeReciterObj = recitersData[index];
+                updateReciterUI();
+                renderReciterList();
+                renderSurahList(); // Yeni hafızın desteklediği sureleri listele
+                
+                // Eğer seçili sure yeni hafızda yoksa, hafızın ilk desteklediği sureye geç
+                if(!activeReciterObj.surahList.includes(currentSurahNum)) {
+                    currentSurahNum = activeReciterObj.surahList[0];
+                }
+
+                if(qAudio.src) {
+                    const wasPlaying = !qAudio.paused;
+                    let paddedNum = String(currentSurahNum).padStart(3, '0');
+                    qAudio.src = `${activeReciterObj.server}${paddedNum}.mp3`;
+                    
+                    const selectedSurah = surahs.find(s => s.number === currentSurahNum);
+                    if(selectedSurah) {
+                        document.getElementById('surah-name').innerText = selectedSurah.englishName;
+                        document.getElementById('mini-surah-name').innerText = selectedSurah.englishName;
+                        fetchArabicText(currentSurahNum);
+                    }
+
+                    if(wasPlaying) qAudio.play();
+                }
+                closePanels();
+            }
+        }
+
+        function quickChangeReciter(direction) {
+            if(recitersData.length === 0) return;
+            let newIndex = activeReciterIndex + direction;
+            if(newIndex < 0) newIndex = recitersData.length - 1;
+            if(newIndex >= recitersData.length) newIndex = 0;
+            changeReciter(recitersData[newIndex].id);
+        }
+
+        function updateReciterUI() {
+            if(!activeReciterObj) return;
+            document.getElementById('active-reciter-name').innerText = activeReciterObj.name;
+            document.getElementById('active-reciter-display').innerText = activeReciterObj.name;
+            document.getElementById('mini-active-reciter').innerText = activeReciterObj.name;
+        }
+
+        // --- KURAN ÇALAR FONKSİYONLARI ---
+        async function fetchSurahList() {
+            try {
+                const res = await fetch('https://api.alquran.cloud/v1/meta');
+                const data = await res.json();
+                surahs = data.data.surahs.references;
+                if(activeReciterObj) renderSurahList();
+            } catch (e) { console.log("Sure listesi hatası", e); }
+        }
+
+        function renderSurahList() {
+            if(!activeReciterObj) return;
+            const availableSurahs = activeReciterObj.surahList;
+            
+            // Sadece bu hafızın okuduğu sureleri filtreleyip gösteriyoruz
+            const filteredSurahs = surahs.filter(s => availableSurahs.includes(s.number));
+
+            document.getElementById('surah-list').innerHTML = filteredSurahs.map(s => `
+                <div onclick="playSurah(${s.number})" class="glass-panel p-4 flex justify-between items-center cursor-pointer transition-colors ${currentSurahNum === s.number ? 'border-emerald-500 bg-emerald-500/10' : 'hover:bg-white/5 border-transparent'} mb-2">
+                    <span class="font-bold text-[11px] text-white/90">${s.number}. ${s.englishName}</span>
+                    <span class="text-emerald-400 font-arabic text-xl">${s.name}</span>
+                </div>`).join('');
+        }
+
+        function playSurah(num) {
+            if(!activeReciterObj) return alert("Hafızlar yükleniyor, lütfen bekleyin.");
+            currentSurahNum = num;
+            
+            let paddedNum = String(num).padStart(3, '0');
+            qAudio.src = `${activeReciterObj.server}${paddedNum}.mp3`;
+            qAudio.currentTime = 0; 
+            
+            const selectedSurah = surahs.find(s => s.number === num);
+            if(selectedSurah) {
+                document.getElementById('surah-name').innerText = selectedSurah.englishName;
+                document.getElementById('mini-surah-name').innerText = selectedSurah.englishName;
+            }
+            
+            document.getElementById('mini-quran-player').classList.remove('hidden');
+            showQuranView('reading');
+            qAudio.play(); 
+            renderSurahList(); 
+            fetchArabicText(num);
+        }
+
+        function toggleQuran() { 
+            if(!qAudio.src) return playSurah(currentSurahNum); 
+            if(qAudio.paused) { qAudio.play(); } else { qAudio.pause(); }
+        }
+
+        function nextSurah() { 
+            if(!activeReciterObj) return;
+            const list = activeReciterObj.surahList;
+            const idx = list.indexOf(currentSurahNum);
+            if (idx !== -1 && idx < list.length - 1) {
+                playSurah(list[idx + 1]);
+            }
+        }
+
+        function prevSurah() { 
+            if(!activeReciterObj) return;
+            const list = activeReciterObj.surahList;
+            const idx = list.indexOf(currentSurahNum);
+            if (idx > 0) {
+                playSurah(list[idx - 1]);
+            }
+        }
+        
+        function seekAudio(val) { qAudio.currentTime = val; }
+
+        function fmt(s) { 
+            if(isNaN(s)) return "00:00";
+            return `${Math.floor(s/60).toString().padStart(2,'0')}:${Math.floor(s%60).toString().padStart(2,'0')}`; 
+        }
+
+        function setupAudioListeners() {
+            qAudio.addEventListener('play', () => { updatePlayIcons(true); qAudioLastTime = Date.now(); });
+            qAudio.addEventListener('pause', () => updatePlayIcons(false));
+            
+            qAudio.addEventListener('timeupdate', () => {
+                if (!isNaN(qAudio.duration)) {
+                    document.getElementById('quran-slider').value = qAudio.currentTime;
+                    document.getElementById('quran-slider').max = qAudio.duration;
+                    document.getElementById('q-current').innerText = fmt(qAudio.currentTime);
+                    document.getElementById('q-total').innerText = fmt(qAudio.duration);
+                }
+                
+                if(!qAudio.paused) {
+                    let now = Date.now();
+                    let diff = Math.floor((now - qAudioLastTime) / 1000);
+                    if(diff >= 1) {
+                        totalListenSeconds += diff;
+                        localStorage.setItem('kuranTotalListenSeconds', totalListenSeconds);
+                        qAudioLastTime = now;
+                    }
+                }
+            });
+
+            qAudio.addEventListener('ended', () => { nextSurah(); });
+        }
+
+        function updatePlayIcons(isPlaying) {
+            const cls = isPlaying ? "fas fa-pause" : "fas fa-play";
+            document.getElementById('q-icon').className = cls + " text-4xl text-emerald-400 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]";
+            document.getElementById('mini-play-pause').className = cls + " text-sm text-emerald-400 drop-shadow-md";
+        }
+
+        async function fetchArabicText(num) {
+            const content = document.getElementById('arabic-text-content');
+            content.innerHTML = ''; 
+            document.getElementById('text-loading-indicator').style.display = 'block';
+            try {
+                const res = await fetch(`https://api.alquran.cloud/v1/surah/${num}/quran-uthmani`);
+                const data = await res.json();
+                let bismillah = (num !== 1 && num !== 9) ? `<div class="text-center text-3xl text-emerald-400 mb-6 font-arabic">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</div>` : '';
+                content.innerHTML = bismillah + data.data.ayahs.map(a => `<span>${a.text}</span><span class="ayah-separator">${a.numberInSurah}</span>`).join(' ');
+                document.getElementById('text-loading-indicator').style.display = 'none';
+            } catch (e) {
+                document.getElementById('text-loading-indicator').innerHTML = "Metin yüklenemedi.";
+            }
+        }
+
+        // --- DİNİ GÜNLER ---
+        function buildYearScroller() {
+            const scroller = document.getElementById('year-scroller');
+            const currentYear = new Date().getFullYear();
+            for(let y = 2024; y <= 2050; y++) {
+                const btn = document.createElement('button');
+                btn.className = `px-5 py-2 rounded-xl text-[10px] font-bold mx-1 transition-colors ${y === currentYear ? 'bg-blue-500 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`;
+                btn.innerText = y;
+                btn.onclick = () => { 
+                    document.querySelectorAll('#year-scroller button').forEach(b => b.className = 'px-5 py-2 rounded-xl text-[10px] font-bold mx-1 bg-white/5 text-white/40 hover:bg-white/10');
+                    btn.className = 'px-5 py-2 rounded-xl text-[10px] font-bold mx-1 bg-blue-500 text-white';
+                    generateDiniGunler(y);
+                };
+                scroller.appendChild(btn);
+            }
+            generateDiniGunler(currentYear);
+        }
+
+        function generateDiniGunler(gregYear) {
+            const list = document.getElementById('dini-gunler-list');
+            list.innerHTML = `<p class="text-center text-xs text-white/40 mt-10"><i class="fas fa-spinner fa-spin mr-2"></i> ${gregYear} Hesaplanıyor...</p>`;
+            
+            setTimeout(() => {
+                const gunler = getIslamicHolidaysForGregorianYear(gregYear);
+                list.innerHTML = gunler.map(g => `
+                    <div class="glass-panel p-4 flex justify-between items-center border-l-2 ${g.isMubarak ? 'border-emerald-500' : 'border-blue-500'} mb-2">
+                        <div class="text-left">
+                            <p class="text-xs font-bold text-white">${g.name}</p>
+                            <p class="text-[9px] text-white/40 mt-1">${g.hijri}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[11px] font-bold text-${g.isMubarak ? 'emerald' : 'blue'}-400">${g.gregDateStr}</p>
+                        </div>
+                    </div>
+                `).join('');
+            }, 300);
+        }
+
+        function getIslamicHolidaysForGregorianYear(year) {
+            const refDate = new Date(Date.UTC(2024, 2, 11));
+            const daysDiff = (year - 2024) * 354.367; 
+            const ramazan1 = new Date(refDate.getTime() + (year - 2024) * 365.25 * 86400000 - daysDiff * 86400000);
+            
+            const addDays = (date, days) => new Date(date.getTime() + days * 86400000);
+            const fmt = (date) => date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'short' });
+
+            return [
+                { name: "Üç Ayların Başlangıcı", hijri: "1 Receb", gregDateStr: fmt(addDays(ramazan1, -60)), isMubarak: false },
+                { name: "Regaib Kandili", hijri: "Receb", gregDateStr: fmt(addDays(ramazan1, -57)), isMubarak: true },
+                { name: "Miraç Kandili", hijri: "27 Receb", gregDateStr: fmt(addDays(ramazan1, -33)), isMubarak: true },
+                { name: "Berat Kandili", hijri: "15 Şaban", gregDateStr: fmt(addDays(ramazan1, -15)), isMubarak: true },
+                { name: "Ramazan Başlangıcı", hijri: "1 Ramazan", gregDateStr: fmt(ramazan1), isMubarak: false },
+                { name: "Kadir Gecesi", hijri: "27 Ramazan", gregDateStr: fmt(addDays(ramazan1, 26)), isMubarak: true },
+                { name: "Ramazan Bayramı (1. Gün)", hijri: "1 Şevval", gregDateStr: fmt(addDays(ramazan1, 30)), isMubarak: false },
+                { name: "Kurban Bayramı (1. Gün)", hijri: "10 Zilhicce", gregDateStr: fmt(addDays(ramazan1, 99)), isMubarak: false },
+                { name: "Hicri Yılbaşı", hijri: "1 Muharrem", gregDateStr: fmt(addDays(ramazan1, 119)), isMubarak: false },
+                { name: "Aşure Günü", hijri: "10 Muharrem", gregDateStr: fmt(addDays(ramazan1, 128)), isMubarak: true },
+                { name: "Mevlid Kandili", hijri: "12 Rebiülevvel", gregDateStr: fmt(addDays(ramazan1, 190)), isMubarak: true }
+            ];
+        }
+
+        // --- PANELLER VE DİĞER ---
+        function openPanel(id) { closePanels(); document.getElementById(id).classList.add('active'); }
+        function closePanels() { document.querySelectorAll('.bottom-sheet').forEach(p => p.classList.remove('active')); }
+
+        function showQuranView(view) {
+            document.getElementById('surah-list-container').classList.add('hidden');
+            document.getElementById('reading-view-container').classList.add('hidden');
+            document.getElementById('sayfa-takip-container').classList.add('hidden');
+            
+            if(view === 'list') document.getElementById('surah-list-container').classList.remove('hidden');
+            else if(view === 'reading') document.getElementById('reading-view-container').classList.remove('hidden');
+            else if(view === 'takip') document.getElementById('sayfa-takip-container').classList.remove('hidden');
+        }
+        function openQuranSayfaTakip() { openPanel('quran-panel'); showQuranView('takip'); }
+
+        function toggleAdhan() {
+            const i = document.getElementById('btn-icon');
+            if (adhanAudio.paused) {
+                adhanAudio.play(); 
+                i.className = "fas fa-stop text-red-500 text-sm";
+            } else { 
+                adhanAudio.pause(); 
+                adhanAudio.currentTime = 0;
+                i.className = "fas fa-play text-red-500 text-sm"; 
+            }
+        }
+
+        // İndirmeler
+        function downloadAudio() {
+            if(!qAudio.src) return alert("Önce bir sure seçin.");
+            const a = document.createElement('a'); a.href = qAudio.src; a.download = `Sure_${currentSurahNum}.mp3`; a.click();
+        }
+        function downloadSurahText() {
+            if(!currentSurahNum) return;
+            const contentText = document.getElementById('arabic-text-content').innerText;
+            if(!contentText) return;
+            const blob = new Blob([contentText], { type: "text/plain;charset=utf-8" });
+            const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Sure_${currentSurahNum}.txt`; link.click();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

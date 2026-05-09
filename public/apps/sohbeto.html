@@ -1,0 +1,2751 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0e1621">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Sohbet Pro</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+        html,body{height:100%;overflow:hidden}
+        body{font-family:'Segoe UI','Inter',system-ui,-apple-system,sans-serif;background:#0e1621;color:#e2e8f0}
+        input,button,textarea{font-family:inherit}
+        .hidden{display:none!important}
+
+        .screen{display:none;height:100vh;height:100dvh;flex-direction:column;position:fixed;inset:0;z-index:1}
+        .screen.active{display:flex}
+
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+        @keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
+        @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes slideDown{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:translateY(0)}}
+        @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes scaleIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+        @keyframes ringPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.15);opacity:.7}}
+
+        /* ===== WELCOME ===== */
+        .welcome-wrap{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;position:relative;overflow:hidden;-ms-overflow-style:none;scrollbar-width:none;touch-action:none;overscroll-behavior:none}
+        .welcome-wrap::-webkit-scrollbar{display:none;width:0;height:0}
+        .login-wrap::-webkit-scrollbar{display:none;width:0;height:0}
+        .welcome-wrap::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 30% 20%,rgba(82,136,193,.08) 0%,transparent 50%),radial-gradient(ellipse at 70% 80%,rgba(139,92,246,.06) 0%,transparent 50%);animation:fadeIn 1s ease}
+        .welcome-box{text-align:center;width:100%;max-width:360px;position:relative;z-index:1;animation:slideUp .6s ease}
+        .welcome-logo{display:none}
+        .welcome-box h1{font-size:30px;font-weight:800;margin-bottom:4px;color:#fff;letter-spacing:-.5px;background:linear-gradient(135deg,#fff 0%,#5288c1 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+        .welcome-box .sub{font-size:13px;color:#7c8da6;margin-bottom:28px;line-height:1.5}
+        .welcome-box .sub span{color:#5288c1;font-weight:600}
+
+        .profile-pic-select{width:100px;height:100px;border-radius:50%;margin:0 auto 20px;position:relative;cursor:pointer;transition:all .3s}
+        .profile-pic-select:hover{transform:scale(1.05)}
+        .profile-pic-select .pic-circle{width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,#1e3a5f,#2b5278);border:3px solid rgba(82,136,193,.4);display:flex;align-items:center;justify-content:center;font-size:40px;overflow:hidden;transition:all .3s}
+        .profile-pic-select .pic-circle img{width:100%;height:100%;object-fit:cover}
+        .profile-pic-select .pic-badge{position:absolute;bottom:2px;right:2px;width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#5288c1,#3b6fa0);display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid #0e1621;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+
+        .avatar-picker{padding:16px;background:rgba(36,47,61,.95);border:1px solid #2b3a4a;border-radius:16px;margin-bottom:16px;animation:scaleIn .2s ease;display:none}
+        .avatar-picker.show{display:block}
+        .avatar-picker-title{font-size:12px;color:#7c8da6;margin-bottom:10px;font-weight:700;letter-spacing:.5px}
+        .avatar-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+        .avatar-option{width:100%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;border:2px solid transparent;transition:all .15s;background:rgba(36,47,61,.6)}
+        .avatar-option:hover{border-color:#5288c1;transform:scale(1.1)}
+        .avatar-option.selected{border-color:#5288c1;box-shadow:0 0 12px rgba(82,136,193,.4)}
+        .avatar-upload{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;border:1px dashed #2b3a4a;border-radius:10px;cursor:pointer;color:#5a6a7e;font-size:12px;transition:all .15s}
+        .avatar-upload:hover{border-color:#5288c1;color:#5288c1}
+
+        .btn-main{width:100%;background:linear-gradient(135deg,#5288c1,#3b6fa0);color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.5px;position:relative;overflow:hidden}
+        .btn-main::after{content:'';position:absolute;top:0;left:-100%;width:200%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.1),transparent);animation:shimmer 3s infinite}
+        .btn-main:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(82,136,193,.3)}
+        .btn-main:active{transform:scale(.97) translateY(0)}
+        .btn-main:disabled{background:#3a5268;cursor:not-allowed;opacity:.6;transform:none;box-shadow:none}
+        .btn-main:disabled::after{display:none}
+        .welcome-features{display:flex;gap:10px;margin-top:20px;justify-content:center;flex-wrap:wrap}
+        .feature-tag{font-size:10px;padding:4px 10px;border-radius:20px;background:rgba(82,136,193,.1);border:1px solid rgba(82,136,193,.2);color:#7eb3e0;display:flex;align-items:center;gap:4px}
+        .welcome-footer{position:absolute;bottom:0;left:0;right:0;padding:20px;text-align:center;padding-bottom:max(20px,env(safe-area-inset-bottom))}
+        .welcome-footer .brand{font-size:14px;font-weight:800;color:#5288c1;letter-spacing:1px}
+        .welcome-footer .year{font-size:12px;color:#5a6a7e;margin-top:2px}
+        @media (max-width:420px),(max-height:720px){
+            .welcome-wrap{justify-content:center;padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}
+            .welcome-box h1{font-size:24px}.welcome-box .sub{margin-bottom:14px}
+            .profile-pic-select{width:72px;height:72px;margin-bottom:10px}
+            .welcome-features{display:none}
+            .welcome-footer{position:relative;padding:6px 16px 10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
+            .welcome-footer .brand{font-size:12px;letter-spacing:.5px;white-space:nowrap}
+            .welcome-footer .year{font-size:10px}
+        }
+
+        
+        /* ===== LOGIN/WELCOME fixed full-screen ===== */
+        #screenWelcome,#screenLogin{height:100vh;height:100dvh;overflow:hidden;touch-action:none;overscroll-behavior:none}
+        #screenWelcome .welcome-wrap,#screenLogin .welcome-wrap{flex:1;justify-content:center;overflow:hidden;padding:14px;padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(10px,env(safe-area-inset-bottom))}
+        #screenWelcome .welcome-wrap::-webkit-scrollbar,#screenLogin .welcome-wrap::-webkit-scrollbar{display:none}
+        #screenWelcome .welcome-box,#screenLogin .welcome-box{max-width:320px}
+        #screenWelcome .welcome-box h1,#screenLogin .welcome-box h1{font-size:24px;margin-bottom:2px}
+        #screenWelcome .welcome-box .sub,#screenLogin .welcome-box .sub{font-size:12px;margin-bottom:10px}
+        #screenWelcome .profile-pic-select,#screenLogin .profile-pic-select{width:70px;height:70px;margin-bottom:8px}
+        #screenWelcome .profile-pic-select .pic-circle,#screenLogin .profile-pic-select .pic-circle{font-size:28px}
+        #screenWelcome .profile-pic-select .pic-badge,#screenLogin .profile-pic-select .pic-badge{width:22px;height:22px;font-size:10px}
+        #screenWelcome .avatar-picker,#screenLogin .avatar-picker{padding:12px;border-radius:12px;margin-bottom:10px}
+        #screenWelcome .avatar-grid,#screenLogin .avatar-grid{gap:6px}
+        #screenWelcome .input-field,#screenLogin .input-field{padding:11px 14px;font-size:13px;margin-bottom:7px}
+        #screenWelcome .btn-main,#screenLogin .btn-main{padding:12px;font-size:13px}
+        #screenWelcome #codeWrap,#screenLogin #loginCodeWrap{margin-top:8px}
+        #screenWelcome .welcome-features,#screenLogin .welcome-features{display:none}
+        #screenWelcome .welcome-footer,#screenLogin .welcome-footer{position:relative;padding:4px 12px 8px}
+        #screenWelcome .welcome-footer .brand,#screenLogin .welcome-footer .brand{font-size:11px;letter-spacing:.4px}
+        #screenWelcome .welcome-footer .year,#screenLogin .welcome-footer .year{font-size:9px}
+        @media (max-height:640px){
+            #screenWelcome .welcome-wrap,#screenLogin .welcome-wrap{padding-top:max(8px,env(safe-area-inset-top));padding-bottom:max(6px,env(safe-area-inset-bottom))}
+            #screenWelcome .welcome-box,#screenLogin .welcome-box{max-width:300px}
+            #screenWelcome .welcome-box h1,#screenLogin .welcome-box h1{font-size:20px}
+            #screenWelcome .welcome-box .sub,#screenLogin .welcome-box .sub{font-size:11px;margin-bottom:8px}
+            #screenWelcome .profile-pic-select,#screenLogin .profile-pic-select{width:56px;height:56px;margin-bottom:6px}
+            #screenWelcome .profile-pic-select .pic-circle,#screenLogin .profile-pic-select .pic-circle{font-size:22px}
+            #screenWelcome .avatar-picker,#screenLogin .avatar-picker{padding:10px;margin-bottom:8px}
+            #screenWelcome .input-field,#screenLogin .input-field{padding:9px 12px;font-size:12px;margin-bottom:5px}
+            #screenWelcome .btn-main,#screenLogin .btn-main{padding:10px;font-size:12px}
+            #screenWelcome .welcome-footer,#screenLogin .welcome-footer{padding:2px 10px 6px}
+        }
+        /* ===== Card-3dot menu ===== */
+        .card-more-btn{background:none;border:none;color:#7c8da6;font-size:22px;cursor:pointer;padding:6px 8px;position:absolute;top:8px;right:44px;transition:all .15s;line-height:1}
+        .card-more-btn:hover{color:#fff}
+        .card-more-menu{position:absolute;top:42px;right:12px;background:#1a2736;border:1px solid #2b3a4a;border-radius:10px;min-width:170px;padding:6px;z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.5);text-align:left}
+        .card-more-menu .card-more-item{padding:10px 12px;font-size:13px;color:#c8d1dc;cursor:pointer;border-radius:8px;display:flex;align-items:center;gap:8px}
+        .card-more-menu .card-more-item:hover{background:rgba(82,136,193,.15);color:#fff}
+        .card-more-menu .card-more-item.danger{color:#f87171}
+        .card-more-menu .card-more-item.danger:hover{background:rgba(239,68,68,.15)}
+
+        /* ===== TOP NOTIFICATION ===== */
+        .top-notif{position:fixed;top:0;left:0;right:0;z-index:200;padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top));animation:slideDown .4s ease}
+        .top-notif-inner{background:linear-gradient(135deg,rgba(36,47,61,.97),rgba(26,39,54,.97));border:1px solid rgba(82,136,193,.3);border-radius:14px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.5);backdrop-filter:blur(16px)}
+        .top-notif-icon{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#5288c1,#3b6fa0);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+        .top-notif-body{flex:1;min-width:0}
+        .top-notif-sender{font-size:12px;font-weight:800;color:#5288c1;margin-bottom:2px}
+        .top-notif-text{font-size:12px;color:#c8d1dc;line-height:1.4}
+        .top-notif-text .pw-highlight{color:#fbbf24;font-weight:800;font-family:ui-monospace,monospace;letter-spacing:2px}
+        .top-notif-text .no-highlight{color:#22c55e;font-weight:700}
+        .top-notif-close{background:none;border:none;color:#5a6a7e;font-size:18px;cursor:pointer;padding:4px;flex-shrink:0}
+        .top-notif-close:hover{color:#fff}
+        .top-notif-time{font-size:10px;color:#5a6a7e;margin-top:4px}
+
+        /* ===== LOGIN ===== */
+        .login-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;position:relative;overflow-y:auto;overflow-x:hidden;-ms-overflow-style:none;scrollbar-width:none}
+        .login-wrap::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 50% 50%,rgba(139,92,246,.06) 0%,transparent 50%)}
+        .login-box{text-align:center;width:100%;max-width:360px;position:relative;z-index:1;animation:slideUp .5s ease}
+        .login-icon{font-size:56px;margin-bottom:16px;display:inline-block;animation:float 3s ease-in-out infinite;filter:drop-shadow(0 4px 16px rgba(139,92,246,.3))}
+        .login-box h2{font-size:24px;font-weight:800;margin-bottom:6px;background:linear-gradient(135deg,#fff,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+        .login-no{font-size:15px;color:#5288c1;margin-bottom:24px;font-weight:700;letter-spacing:1px}
+        .input-field{width:100%;background:rgba(36,47,61,.8);border:1px solid #2b3a4a;color:#fff;border-radius:12px;padding:15px 18px;font-size:15px;outline:none;margin-bottom:14px;transition:all .2s;backdrop-filter:blur(8px)}
+        .input-field:focus{border-color:#5288c1;box-shadow:0 0 0 3px rgba(82,136,193,.2),0 4px 16px rgba(82,136,193,.1)}
+        .input-field::placeholder{color:#5a6a7e}
+        .login-hint{font-size:11px;color:#5a6a7e;margin-top:14px;line-height:1.5}
+        .timer-text{font-size:13px;color:#fbbf24;margin-top:8px;font-weight:600}
+        .error-text{color:#f87171;font-size:12px;margin-top:10px;animation:slideUp .2s ease}
+
+        /* ===== MAIN APP ===== */
+        .app-container{display:flex;flex-direction:column;height:100%}
+        .chat-topbar{display:flex;align-items:center;padding:10px 12px;background:linear-gradient(180deg,#1a2736,#17212b);border-bottom:1px solid #1e2b38;gap:8px;flex-shrink:0;min-height:56px;backdrop-filter:blur(12px)}
+        .icon-btn{background:none;border:none;color:#7c8da6;font-size:22px;cursor:pointer;padding:6px 8px;border-radius:10px;transition:all .15s;line-height:1}
+        .icon-btn:hover{background:rgba(82,136,193,.1);color:#5288c1}
+        .icon-btn:active{transform:scale(.9)}
+        .topbar-info{flex:1;min-width:0}
+        .topbar-title{font-size:16px;font-weight:800;color:#fff;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.3px}
+        .topbar-status{font-size:11px;font-weight:600}
+        .topbar-status.offline{color:#ef4444}
+        .topbar-status.online{color:#22c55e}
+
+        /* ===== CONVERSATION LIST ===== */
+        .conv-list-container{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+        .conv-tabs{display:flex;background:#17212b;border-bottom:1px solid #1e2b38;flex-shrink:0}
+        .conv-tab{flex:1;text-align:center;padding:12px;font-size:13px;font-weight:700;color:#7c8da6;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;letter-spacing:.5px}
+        .conv-tab.active{color:#5288c1;border-bottom-color:#5288c1}
+        .conv-tab:hover{color:#a0b8d0}
+        .conv-badge{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;margin-left:4px;font-weight:800}
+        .conv-item{display:flex;align-items:center;padding:12px 16px;gap:12px;cursor:pointer;transition:all .15s;border-bottom:1px solid rgba(30,43,56,.3)}
+        .conv-item:hover{background:rgba(82,136,193,.06)}
+        .conv-item:active{background:rgba(82,136,193,.12)}
+        .conv-avatar{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;position:relative;overflow:hidden}
+        .conv-avatar img{width:100%;height:100%;object-fit:cover}
+        .conv-info{flex:1;min-width:0}
+        .conv-name{font-size:14px;font-weight:700;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .conv-preview{font-size:12px;color:#5a6a7e;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .conv-meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+        .conv-time{font-size:10px;color:#5a6a7e}
+        .conv-unread{background:linear-gradient(135deg,#5288c1,#3b6fa0);color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:800}
+        .conv-empty{padding:60px 20px;text-align:center;color:#5a6a7e;font-size:13px;line-height:1.6}
+
+        /* ===== CHAT VIEW ===== */
+        .chat-view{flex:1;display:flex;flex-direction:column;overflow:hidden}
+         .chat-area{flex:1;overflow-y:auto;padding:12px 14px;-webkit-overflow-scrolling:touch;scroll-behavior:auto}
+         .topbar-back{background:none;border:none;color:#5288c1;font-size:24px;cursor:pointer;padding:6px 4px;border-radius:10px;line-height:1;flex-shrink:0}
+         .topbar-back:hover{background:rgba(82,136,193,.1)}
+         .topbar-avatar{width:38px;height:38px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0;cursor:pointer;border:1px solid rgba(82,136,193,.3)}
+         .topbar-avatar img{width:100%;height:100%;object-fit:cover}
+         .app-container.chat-mode .bottom-nav{display:none}
+        .chat-inputbar{display:flex;align-items:flex-end;padding:8px 10px;background:#17212b;border-top:1px solid #1e2b38;gap:8px;flex-shrink:0;padding-bottom:max(8px,env(safe-area-inset-bottom))}
+        .input-wrap{flex:1;display:flex;align-items:flex-end;background:rgba(36,47,61,.9);border:1px solid #2b3a4a;border-radius:22px;padding:4px 6px 4px 16px;transition:all .2s;min-height:44px}
+        .input-wrap:focus-within{border-color:#5288c1;box-shadow:0 0 0 2px rgba(82,136,193,.15)}
+        .input-wrap .chat-input{flex:1;background:transparent;border:none;color:#fff;font-size:14px;outline:none;padding:8px 0;resize:none;max-height:100px;min-height:20px;line-height:1.4}
+        .input-wrap .chat-input::placeholder{color:#5a6a7e}
+        .btn-mic{background:none;border:none;color:#7c8da6;font-size:20px;cursor:pointer;padding:6px;border-radius:50%;transition:all .15s;flex-shrink:0;line-height:1}
+        .btn-mic:hover{color:#5288c1;background:rgba(82,136,193,.1)}
+        .btn-mic.active{color:#22c55e;background:rgba(34,197,94,.1)}
+        .btn-send{background:linear-gradient(135deg,#5288c1,#3b6fa0);color:#fff;border:none;border-radius:50%;width:42px;height:42px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;box-shadow:0 2px 8px rgba(82,136,193,.3)}
+        .btn-send:hover{transform:scale(1.05);box-shadow:0 4px 16px rgba(82,136,193,.4)}
+        .btn-send:active{transform:scale(.95)}
+        .btn-send:disabled{background:#3a5268;opacity:.5;cursor:not-allowed;box-shadow:none;transform:none}
+
+        /* ===== BOTTOM NAV ===== */
+        .bottom-nav{display:flex;background:linear-gradient(180deg,#1a2736,#0e1621);border-top:1px solid #1e2b38;flex-shrink:0;padding-bottom:max(4px,env(safe-area-inset-bottom))}
+        .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 0 6px;cursor:pointer;transition:all .15s;position:relative}
+        .nav-item .nav-icon{font-size:22px;margin-bottom:2px;transition:all .15s}
+        .nav-item .nav-label{font-size:10px;font-weight:700;color:#5a6a7e;letter-spacing:.3px;transition:all .15s}
+        .nav-item.active .nav-icon{transform:scale(1.1)}
+        .nav-item.active .nav-label{color:#5288c1}
+        .nav-item:hover .nav-label{color:#7eb3e0}
+        .nav-item .nav-badge{position:absolute;top:4px;right:calc(50% - 18px);background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:800;min-width:16px;text-align:center}
+
+        /* ===== CONTACTS ===== */
+        .contacts-view{flex:1;display:flex;flex-direction:column;overflow:hidden}
+        .contacts-header{padding:16px;font-size:13px;color:#5a6a7e;font-weight:700;letter-spacing:.5px;flex-shrink:0}
+        .contact-search-wrap{position:relative;margin-top:8px}
+        .contact-search-wrap input{width:100%;background:rgba(36,47,61,.6);border:1px solid #2b3a4a;color:#fff;border-radius:10px;padding:10px 14px 10px 36px;font-size:13px;outline:none;transition:all .2s}
+        .contact-search-wrap input:focus{border-color:#5288c1;box-shadow:0 0 0 2px rgba(82,136,193,.15)}
+        .contact-search-wrap input::placeholder{color:#5a6a7e}
+        .contact-search-wrap .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none;color:#5a6a7e}
+        .contact-list-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+        .contact-item{display:flex;align-items:center;padding:12px 16px;gap:12px;cursor:pointer;transition:all .15s;border-bottom:1px solid rgba(30,43,56,.3)}
+        .contact-item:hover{background:rgba(82,136,193,.06)}
+        .contact-item:active{background:rgba(82,136,193,.12)}
+        .contact-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;flex-shrink:0;position:relative;overflow:hidden}
+        .contact-avatar img{width:100%;height:100%;object-fit:cover}
+        .contact-info{flex:1;min-width:0}
+        .contact-name{font-size:14px;font-weight:700;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .contact-number{font-size:11px;color:#5a6a7e;margin-top:1px}
+        .contact-p2p{width:10px;height:10px;border-radius:50%;background:#ef4444;flex-shrink:0;transition:all .3s}
+        .contact-p2p.on{background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,.5)}
+
+        /* ===== GROUPS ===== */
+        .groups-view{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;text-align:center}
+        .groups-view .groups-icon{font-size:64px;margin-bottom:16px;opacity:.5}
+        .groups-view h3{font-size:18px;font-weight:800;color:#7c8da6;margin-bottom:8px}
+        .groups-view p{font-size:13px;color:#5a6a7e;line-height:1.5}
+
+        /* ===== MESSAGES ===== */
+        .msg{margin-bottom:8px;max-width:82%;position:relative;word-break:break-word;animation:slideUp .2s ease}
+        .msg-own{margin-left:auto}
+        .msg-other{margin-right:auto}
+        .msg-bubble{padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;position:relative}
+        .msg-own .msg-bubble{background:linear-gradient(135deg,#2b5278,#1e3a5f);border-bottom-right-radius:4px;box-shadow:0 2px 8px rgba(43,82,120,.3)}
+        .msg-other .msg-bubble{background:linear-gradient(135deg,#1e2d3d,#182533);border-bottom-left-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+        .msg-private .msg-bubble{background:linear-gradient(135deg,#1a3326,#143028);border-bottom-left-radius:4px;border-left:2px solid #22c55e}
+        .msg-sender{font-size:11px;font-weight:700;color:#5288c1;margin-bottom:3px}
+        .msg-meta{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:3px}
+        .msg-time{font-size:10px;color:rgba(255,255,255,.35)}
+        .tick{font-size:14px;font-weight:700;line-height:1;display:inline-block}
+        .tick.gray{color:rgba(255,255,255,.45)}
+        .tick.blue{color:#3b9bff;text-shadow:0 0 6px rgba(59,155,255,.85),0 0 12px rgba(59,155,255,.55);animation:tickPulse 1.6s ease-in-out infinite}
+        @keyframes tickPulse{0%,100%{text-shadow:0 0 4px rgba(59,155,255,.6),0 0 10px rgba(59,155,255,.35);transform:scale(1)}50%{text-shadow:0 0 10px rgba(59,155,255,1),0 0 20px rgba(59,155,255,.7);transform:scale(1.15)}}
+        .msg-tag{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:800;margin-left:4px;letter-spacing:.3px}
+        .tag-p2p{background:rgba(34,197,94,.2);color:#4ade80}
+        .tag-wss{background:rgba(71,85,105,.3);color:#94a3b8}
+        .tag-priv{background:rgba(234,88,12,.2);color:#fb923c}
+
+        /* ===== DROPDOWN ===== */
+        .dropdown{position:absolute;top:56px;right:10px;background:rgba(36,47,61,.95);border:1px solid #2b3a4a;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:200px;z-index:50;padding:4px;overflow:hidden;backdrop-filter:blur(16px);animation:slideUp .15s ease}
+        .dropdown-item{padding:12px 14px;font-size:13px;color:#c8d1dc;cursor:pointer;border-radius:8px;display:flex;align-items:center;gap:10px;transition:background .1s}
+        .dropdown-item:hover{background:rgba(82,136,193,.1)}
+        .dropdown-item.danger{color:#f87171}
+        .dropdown-item.danger:hover{background:rgba(248,113,113,.1)}
+        .dropdown-divider{height:1px;background:#2b3a4a;margin:4px 0}
+
+        /* ===== LOG PANEL - 50% height ===== */
+        .log-panel{position:fixed;bottom:0;left:0;right:0;height:50vh;background:rgba(15,23,42,.98);z-index:30;display:flex;flex-direction:column;border-top:2px solid #5288c1;border-radius:18px 18px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.4);animation:slideUp .2s ease}
+        .log-panel-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1e293b;flex-shrink:0}
+        .log-panel-header span{font-size:12px;font-weight:700;color:#7c8da6;letter-spacing:.5px}
+        .log-content{flex:1;overflow-y:auto;padding:10px 14px;font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:11px;color:#38bdf8}
+
+        /* ===== FULL SCREEN MODALS ===== */
+        .fs-modal{position:fixed;inset:0;background:#0e1621;z-index:60;display:flex;flex-direction:column;animation:fadeIn .15s ease}
+        .fs-modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #1e2b38;flex-shrink:0;background:#17212b}
+        .fs-modal-header h3{font-size:18px;font-weight:800}
+        .fs-modal-body{flex:1;overflow-y:auto;padding:20px;-webkit-overflow-scrolling:touch}
+
+        /* Settings specific */
+        .settings-profile{text-align:center;margin-bottom:24px}
+        .settings-profile-pic{width:90px;height:90px;border-radius:50%;margin:0 auto 12px;position:relative;cursor:pointer;transition:all .3s}
+        .settings-profile-pic:hover{transform:scale(1.05)}
+        .settings-profile-pic .pic-circle{width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,#1e3a5f,#2b5278);border:3px solid rgba(82,136,193,.3);display:flex;align-items:center;justify-content:center;font-size:36px;overflow:hidden}
+        .settings-profile-pic .pic-circle img{width:100%;height:100%;object-fit:cover}
+        .settings-profile-pic .pic-edit{position:absolute;bottom:0;right:0;width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#5288c1,#3b6fa0);display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #17212b}
+        .settings-profile-pic-hint{font-size:11px;color:#5a6a7e;margin-top:4px}
+        .settings-field{margin-bottom:18px}
+        .settings-field label{display:block;font-size:12px;font-weight:700;color:#7c8da6;margin-bottom:6px;letter-spacing:.3px}
+        .settings-field .input-field{margin-bottom:0}
+        .settings-field textarea.input-field{min-height:70px;resize:vertical;line-height:1.5}
+        .settings-section-title{font-size:13px;font-weight:800;color:#5288c1;margin:24px 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(82,136,193,.15);display:flex;align-items:center;gap:8px}
+        .memory-item{display:flex;align-items:flex-start;gap:10px;padding:12px;background:rgba(36,47,61,.5);border:1px solid #2b3a4a;border-radius:12px;margin-bottom:8px;transition:all .15s}
+        .memory-item:hover{border-color:rgba(82,136,193,.3)}
+        .memory-icon{font-size:18px;flex-shrink:0;margin-top:2px}
+        .memory-text{flex:1;font-size:13px;color:#c8d1dc;line-height:1.4}
+        .memory-date{font-size:10px;color:#5a6a7e;margin-top:4px}
+        .memory-add{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border:1px dashed #2b3a4a;border-radius:12px;cursor:pointer;color:#5a6a7e;font-size:13px;transition:all .15s}
+        .memory-add:hover{border-color:#5288c1;color:#5288c1}
+
+        /* Güvenlik / Çift Kilit */
+        .security-card{background:rgba(36,47,61,.5);border:1px solid #2b3a4a;border-radius:14px;padding:16px;margin-bottom:12px}
+        .security-card h4{font-size:14px;font-weight:800;color:#e2e8f0;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+        .security-card p{font-size:12px;color:#7c8da6;line-height:1.5;margin-bottom:12px}
+        .lock-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+        .lock-row .input-field{flex:1;margin-bottom:0}
+        .lock-row .btn-gen{background:linear-gradient(135deg,#5288c1,#3b6fa0);color:#fff;border:none;border-radius:10px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s}
+        .lock-row .btn-gen:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(82,136,193,.3)}
+        .lock-output{background:rgba(14,22,33,.8);border:1px solid rgba(82,136,193,.2);border-radius:10px;padding:14px;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;color:#fbbf24;word-break:break-all;text-align:center;letter-spacing:2px;min-height:50px;display:flex;align-items:center;justify-content:center}
+        .lock-copy{margin-top:8px;text-align:center}
+        .lock-copy button{background:rgba(82,136,193,.15);border:1px solid rgba(82,136,193,.3);color:#5288c1;padding:8px 20px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s}
+        .lock-copy button:hover{background:rgba(82,136,193,.25)}
+
+        /* Etkinlikler */
+        .event-card{background:rgba(36,47,61,.5);border:1px solid #2b3a4a;border-radius:14px;padding:16px;margin-bottom:12px;transition:all .15s}
+        .event-card:hover{border-color:rgba(82,136,193,.3)}
+        .event-card .event-date{font-size:11px;color:#5288c1;font-weight:700;margin-bottom:6px}
+        .event-card .event-title{font-size:15px;font-weight:800;color:#e2e8f0;margin-bottom:4px}
+        .event-card .event-desc{font-size:12px;color:#7c8da6;line-height:1.5}
+        .event-card .event-badge{display:inline-block;font-size:10px;padding:3px 10px;border-radius:20px;margin-top:8px;font-weight:700}
+        .event-badge.active{background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.3)}
+        .event-badge.upcoming{background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
+        .event-badge.past{background:rgba(107,114,128,.15);color:#6b7280;border:1px solid rgba(107,114,128,.3)}
+
+        /* ===== INCOMING CALL SCREEN ===== */
+        .call-screen{position:fixed;inset:0;z-index:300;background:linear-gradient(180deg,#0a1628,#0e1621,#0a1628);display:flex;flex-direction:column;align-items:center;justify-content:center;animation:fadeIn .3s ease}
+        .call-avatar{width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:44px;margin-bottom:20px;animation:ringPulse 2s ease-in-out infinite;position:relative}
+        .call-avatar::after{content:'';position:absolute;inset:-12px;border-radius:50%;border:2px solid rgba(82,136,193,.2);animation:ringPulse 2s ease-in-out infinite .3s}
+        .call-avatar::before{content:'';position:absolute;inset:-24px;border-radius:50%;border:1px solid rgba(82,136,193,.1);animation:ringPulse 2s ease-in-out infinite .6s}
+        .call-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;position:relative;z-index:1}
+        .call-name{font-size:22px;font-weight:800;color:#fff;margin-bottom:4px}
+        .call-status{font-size:14px;color:#7c8da6;margin-bottom:32px;animation:pulse 1.5s infinite}
+        .call-actions{display:flex;gap:24px;margin-bottom:32px}
+        .call-btn{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;border:none;transition:all .2s}
+        .call-btn:active{transform:scale(.9)}
+        .call-btn.accept{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 4px 20px rgba(34,197,94,.4)}
+        .call-btn.accept:hover{box-shadow:0 6px 28px rgba(34,197,94,.6);transform:scale(1.05)}
+        .call-btn.reject{background:linear-gradient(135deg,#374151,#1f2937);box-shadow:0 4px 20px rgba(0,0,0,.4)}
+        .call-btn.reject:hover{box-shadow:0 6px 28px rgba(0,0,0,.6);transform:scale(1.05)}
+        .call-btn-label{font-size:10px;color:#7c8da6;margin-top:6px;text-align:center;font-weight:600}
+        .call-quick-msgs{width:100%;max-width:320px;padding:0 20px}
+        .call-quick-msgs-title{font-size:11px;color:#5a6a7e;text-align:center;margin-bottom:10px;font-weight:600}
+        .quick-msg-btn{width:100%;padding:12px 16px;background:rgba(36,47,61,.6);border:1px solid #2b3a4a;border-radius:12px;color:#c8d1dc;font-size:13px;cursor:pointer;margin-bottom:8px;transition:all .15s;text-align:left}
+        .quick-msg-btn:hover{background:rgba(82,136,193,.1);border-color:rgba(82,136,193,.3)}
+        .quick-msg-btn:active{transform:scale(.97)}
+
+        /* ===== CONTACT PROFILE CARD ===== */
+        .contact-card-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease;backdrop-filter:blur(4px)}
+        .contact-card{background:linear-gradient(180deg,#1a2736,#0e1621);border:1px solid #2b3a4a;border-radius:20px;width:85%;max-width:320px;padding:28px 20px;text-align:center;animation:scaleIn .25s ease;box-shadow:0 16px 48px rgba(0,0,0,.6)}
+        .contact-card-avatar{width:90px;height:90px;border-radius:12px;margin:0 auto 14px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:800;border:2px solid rgba(82,136,193,.3)}
+        .contact-card-avatar img{width:100%;height:100%;object-fit:cover}
+        .contact-card-name{font-size:18px;font-weight:800;color:#fff;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .contact-card-number{font-size:13px;color:#5a6a7e;margin-bottom:18px}
+        .contact-card-actions{display:flex;justify-content:center;gap:16px;margin-bottom:16px}
+        .contact-card-btn{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;border:none;transition:all .2s;flex-direction:column}
+        .contact-card-btn:active{transform:scale(.9)}
+        .contact-card-btn span{font-size:8px;color:#7c8da6;margin-top:2px;font-weight:600}
+        .contact-card-btn.call-audio{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 4px 16px rgba(34,197,94,.3)}
+        .contact-card-btn.call-video{background:linear-gradient(135deg,#5288c1,#3b6fa0);box-shadow:0 4px 16px rgba(82,136,193,.3)}
+        .contact-card-btn.msg-btn{background:linear-gradient(135deg,#8b5cf6,#7c3aed);box-shadow:0 4px 16px rgba(139,92,246,.3)}
+        .contact-card-btn.info-btn{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 4px 16px rgba(245,158,11,.3)}
+        .contact-card-close{background:none;border:none;color:#5a6a7e;font-size:24px;cursor:pointer;padding:8px;position:absolute;top:8px;right:12px;transition:all .15s}
+        .contact-card-close:hover{color:#fff}
+
+        /* ===== ACTIVE CALL SCREEN ===== */
+        .active-call-screen{position:fixed;inset:0;z-index:250;background:linear-gradient(180deg,#0a1628,#0e1621,#0a1628);display:flex;flex-direction:column;align-items:center;justify-content:center;animation:fadeIn .3s ease}
+        .active-call-avatar{width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:44px;margin-bottom:20px;position:relative;overflow:hidden}
+        .active-call-avatar img{width:100%;height:100%;object-fit:cover}
+        .active-call-name{font-size:22px;font-weight:800;color:#fff;margin-bottom:4px}
+        .active-call-duration{font-size:16px;color:#22c55e;font-weight:600;font-family:ui-monospace,monospace;letter-spacing:2px;margin-bottom:8px}
+        .active-call-status{font-size:13px;color:#7c8da6;margin-bottom:32px}
+        .active-call-actions{display:flex;gap:20px;margin-bottom:24px}
+        .active-call-btn{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;border:none;transition:all .2s}
+        .active-call-btn:active{transform:scale(.9)}
+        .active-call-btn.mute-btn{background:rgba(36,47,61,.8);border:1px solid #2b3a4a;color:#e2e8f0}
+        .active-call-btn.mute-btn.active{background:rgba(239,68,68,.2);border-color:#ef4444;color:#ef4444}
+        .active-call-btn.speaker-btn{background:rgba(36,47,61,.8);border:1px solid #2b3a4a;color:#e2e8f0}
+        .active-call-btn.speaker-btn.active{background:rgba(82,136,193,.2);border-color:#5288c1;color:#5288c1}
+        .active-call-btn.video-btn{background:rgba(36,47,61,.8);border:1px solid #2b3a4a;color:#e2e8f0}
+        .active-call-btn.video-btn.active{background:rgba(82,136,193,.2);border-color:#5288c1;color:#5288c1}
+        .active-call-btn.end-btn{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 4px 16px rgba(239,68,68,.4)}
+        .active-call-btn-label{font-size:9px;color:#7c8da6;margin-top:4px;text-align:center;font-weight:600}
+
+        /* ===== VIDEO CALL ===== */
+        .video-container{position:fixed;inset:0;z-index:260;background:#000;display:none;flex-direction:column}
+        .video-container.active{display:flex}
+        .video-remote{flex:1;background:#111;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+        .video-remote video{width:100%;height:100%;object-fit:cover}
+        .video-remote .video-placeholder{font-size:80px;opacity:.3}
+        .video-local{position:absolute;top:max(60px,env(safe-area-inset-top));right:16px;width:120px;height:160px;border-radius:14px;overflow:hidden;border:2px solid rgba(82,136,193,.4);box-shadow:0 4px 16px rgba(0,0,0,.5);z-index:2}
+        .video-local video{width:100%;height:100%;object-fit:cover}
+        .video-controls{position:absolute;bottom:0;left:0;right:0;padding:20px;padding-bottom:max(20px,env(safe-area-inset-bottom));display:flex;justify-content:center;gap:16px;background:linear-gradient(transparent,rgba(0,0,0,.7));z-index:3}
+        .video-call-name{position:absolute;top:max(16px,env(safe-area-inset-top));left:16px;font-size:16px;font-weight:700;color:#fff;z-index:3;text-shadow:0 2px 8px rgba(0,0,0,.5)}
+        .video-call-duration{position:absolute;top:max(40px,env(safe-area-inset-top));left:16px;font-size:13px;color:#22c55e;font-family:ui-monospace,monospace;letter-spacing:1px;z-index:3}
+
+        /* ===== CONTACT INFO MODAL ===== */
+        .contact-info-modal{position:fixed;inset:0;background:#0e1621;z-index:110;display:flex;flex-direction:column;animation:fadeIn .15s ease}
+        .contact-info-header{display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid #1e2b38;gap:12px;background:#17212b;flex-shrink:0}
+        .contact-info-header h3{font-size:16px;font-weight:800;flex:1}
+        .contact-info-body{flex:1;overflow-y:auto;padding:20px}
+        .contact-info-avatar{width:80px;height:80px;border-radius:12px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;border:2px solid rgba(82,136,193,.3);overflow:hidden}
+        .contact-info-avatar img{width:100%;height:100%;object-fit:cover}
+        .contact-info-name{text-align:center;font-size:20px;font-weight:800;color:#fff;margin-bottom:2px}
+        .contact-info-number{text-align:center;font-size:13px;color:#5a6a7e;margin-bottom:20px}
+        .contact-info-field{background:rgba(36,47,61,.5);border:1px solid #2b3a4a;border-radius:12px;padding:14px;margin-bottom:10px}
+        .contact-info-field label{font-size:11px;color:#5a6a7e;font-weight:700;letter-spacing:.3px;display:block;margin-bottom:4px}
+        .contact-info-field .value{font-size:14px;color:#e2e8f0}
+
+        /* Avatar colors */
+        .avatar-c0{background:rgba(82,136,193,.15);color:#5288c1}
+        .avatar-c1{background:rgba(139,92,246,.15);color:#a78bfa}
+        .avatar-c2{background:rgba(34,197,94,.15);color:#22c55e}
+        .avatar-c3{background:rgba(251,191,36,.15);color:#fbbf24}
+        .avatar-c4{background:rgba(248,113,113,.15);color:#f87171}
+        .avatar-c5{background:rgba(236,72,153,.15);color:#ec4899}
+        .avatar-c6{background:rgba(14,165,233,.15);color:#0ea5e9}
+        .avatar-c7{background:rgba(168,85,247,.15);color:#a855f7}
+
+        ::-webkit-scrollbar{width:4px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:#2b3a4a;border-radius:2px}
+        ::-webkit-scrollbar-thumb:hover{background:#3b4a5a}
+        .spinner{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+
+        /* Swipe container */
+        .swipe-container{flex:1;overflow:hidden;position:relative}
+        .swipe-page{position:absolute;inset:0;transition:transform .3s ease,opacity .3s ease;will-change:transform}
+        .swipe-page.left{transform:translateX(-100%);opacity:0;pointer-events:none}
+        .swipe-page.right{transform:translateX(100%);opacity:0;pointer-events:none}
+        .swipe-page.center{transform:translateX(0);opacity:1;pointer-events:auto}
+    </style>
+</head>
+<body>
+<div id="audioContainer" hidden></div>
+<input type="file" id="fileInput" accept="image/*" style="display:none">
+
+<!-- ========== WELCOME SCREEN ========== -->
+<div id="screenWelcome" class="screen active">
+    <div class="welcome-wrap">
+        <div class="welcome-box">
+            <div class="welcome-logo">💬</div>
+            <h1>Sohbet Pro</h1>
+            <p class="sub">Güvenli <span>Sanal Numara</span> Sistemi</p>
+            <div class="profile-pic-select" id="welcomePicSelect" onclick="toggleAvatarPicker()">
+                <div class="pic-circle" id="welcomePicCircle">👤</div>
+                <div class="pic-badge">📷</div>
+            </div>
+            <div class="avatar-picker" id="avatarPicker">
+                <div class="avatar-picker-title">PROFİL RESMİ SEÇ</div>
+                <div class="avatar-grid" id="avatarGrid"></div>
+                <div class="avatar-upload" onclick="document.getElementById('fileInput').click()">📁 Galeriden Yükle</div>
+            </div>
+            <input type="tel" id="welcomeNumber" class="input-field" value="+90" placeholder="+905551234567" maxlength="20" autocomplete="off" style="margin-top:14px;text-align:center;font-family:ui-monospace,monospace">
+            <button id="btnSendCode" class="btn-main" style="margin-top:10px">📩 DOĞRULAMA KODU GÖNDER</button>
+            <div id="codeWrap" class="hidden" style="margin-top:10px">
+                <input type="text" id="welcomeCode" class="input-field" placeholder="6 haneli kod" maxlength="6" autocomplete="off" style="text-align:center;font-size:22px;letter-spacing:8px;font-family:ui-monospace,monospace">
+                <button id="btnStart" class="btn-main" style="margin-top:8px">DOĞRULA & BAŞLA</button>
+            </div>
+        </div>
+    </div>
+    <div class="welcome-footer">
+        <div class="brand">Ankara Tecno</div>
+        <div class="year">2026</div>
+    </div>
+</div>
+
+<!-- ========== TOP NOTIFICATION ========== -->
+<div id="topNotif" class="top-notif hidden">
+    <div class="top-notif-inner">
+        <div class="top-notif-icon">🔐</div>
+        <div class="top-notif-body">
+            <div class="top-notif-sender">Sohbet Pro Sistem</div>
+            <div class="top-notif-text" id="notifText"></div>
+            <div class="top-notif-time" id="notifTime"></div>
+        </div>
+        <button class="top-notif-close" onclick="hideNotif()">✕</button>
+    </div>
+</div>
+
+<!-- ========== LOGIN SCREEN ========== -->
+<div id="screenLogin" class="screen">
+    <div class="welcome-wrap">
+        <div class="welcome-box">
+            <h1>Sohbet Pro</h1>
+            <p class="sub">Güvenli <span>Sanal Numara</span> Sistemi</p>
+            <div class="profile-pic-select" id="loginPicSelect">
+                <div class="pic-circle" id="loginPicCircle">👤</div>
+                <div class="pic-badge">📷</div>
+            </div>
+            <input type="tel" id="loginNumber" class="input-field" value="+90" placeholder="+905551234567" maxlength="20" autocomplete="off" style="margin-top:14px;text-align:center;font-family:ui-monospace,monospace">
+            <button id="btnLoginSendCode" class="btn-main" style="margin-top:10px">📩 DOĞRULAMA KODU GÖNDER</button>
+            <div id="loginCodeWrap" class="hidden" style="margin-top:10px">
+                <input type="text" id="loginCode" class="input-field" placeholder="6 haneli kod" maxlength="6" autocomplete="off" style="text-align:center;font-size:22px;letter-spacing:8px;font-family:ui-monospace,monospace">
+                <button id="btnLoginVerify" class="btn-main" style="margin-top:8px">DOĞRULA & BAŞLA</button>
+            </div>
+            <div class="welcome-features">
+                <span class="feature-tag">🔒 Şifreli</span>
+                <span class="feature-tag">🎙️ Sesli</span>
+                <span class="feature-tag">⚡ Anlık</span>
+                <span class="feature-tag">🛡️ Güvenli</span>
+            </div>
+        </div>
+    </div>
+    <div class="welcome-footer">
+        <div class="brand">Ankara Tecno</div>
+        <div class="year">2026</div>
+    </div>
+</div>
+
+<!-- ========== MAIN APP ========== -->
+<div id="screenChat" class="screen">
+    <div class="app-container">
+        <div class="chat-topbar" id="chatTopbar">
+            <button id="topbarBack" class="topbar-back hidden" onclick="backToList()">←</button>
+            <div id="topbarAvatar" class="topbar-avatar hidden" onclick="openTopbarContactCard()"></div>
+            <div class="topbar-info">
+                <span id="topbarTitle" class="topbar-title">Sohbet Pro</span>
+                <span id="topbarStatus" class="topbar-status offline">● Çevrimdışı</span>
+            </div>
+            <button id="topbarVideoCall" class="icon-btn hidden" onclick="topbarStartVideoCall()" title="Görüntülü Ara">📹</button>
+            <button id="topbarAudioCall" class="icon-btn hidden" onclick="topbarStartAudioCall()" title="Sesli Ara">📞</button>
+            <button id="btnMenu" class="icon-btn">⋮</button>
+        </div>
+
+        <!-- SOHBETLER VIEW -->
+        <div id="viewSohbetler" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+            <div class="swipe-container" id="swipeContainer">
+                <!-- Page: Conversation List -->
+                <div id="pageConvList" class="swipe-page center" style="overflow-y:auto">
+                    <div id="convListGenel" class="conv-list-container"></div>
+                    <div id="convListOzel" class="conv-list-container"></div>
+                    <span id="convOzelBadge" class="hidden"></span>
+                </div>
+                <!-- Page: Chat -->
+                <div id="pageChat" class="swipe-page right">
+                    <div class="chat-view" style="height:100%">
+                        <div id="chatMessages" class="chat-area"></div>
+                        <div class="chat-inputbar">
+                            <div class="input-wrap">
+                                <textarea id="chatInput" class="chat-input" placeholder="Mesajınızı yazın..." rows="1" autocomplete="off"></textarea>
+                                <button id="btnMic" class="btn-mic hidden" title="Mikrofon">🎤</button>
+                            </div>
+                            <button id="btnSend" class="btn-send" disabled>➤</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KİŞİLER VIEW -->
+        <div id="viewKisiler" class="contacts-view hidden">
+            <div class="contacts-header" id="contactsHeader">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                    <span>REHBER</span>
+                    <span id="contactCount" style="font-size:11px;color:#5288c1;font-weight:800">0</span>
+                </div>
+                <div class="contact-search-wrap">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="contactSearch" placeholder="Kişi ara...">
+                </div>
+                <button id="btnAddContact" class="btn-main" style="margin-top:10px;padding:10px;font-size:13px">➕ Kişi Ekle</button>
+            </div>
+            <div id="contactList" class="contact-list-scroll"></div>
+        </div>
+
+        <!-- ADD CONTACT MODAL -->
+        <div id="addContactModal" class="fs-modal hidden">
+            <div class="fs-modal-header">
+                <h3>➕ Kişi Ekle</h3>
+                <button class="icon-btn" onclick="document.getElementById('addContactModal').classList.add('hidden')">✕</button>
+            </div>
+            <div class="fs-modal-body">
+                <div class="settings-field">
+                    <label>📌 İsim</label>
+                    <input type="text" id="newContactName" class="input-field" placeholder="Kişi adı" maxlength="40">
+                </div>
+                <div class="settings-field">
+                    <label>📞 Numara</label>
+                    <input type="tel" id="newContactNumber" class="input-field" placeholder="+905551234567" maxlength="20" style="font-family:ui-monospace,monospace">
+                </div>
+                <button class="btn-main" style="margin-top:18px" onclick="saveNewContact()">KAYDET</button>
+                <div id="newContactError" class="error-text hidden" style="margin-top:10px"></div>
+            </div>
+        </div>
+
+        <!-- GRUPLAR VIEW -->
+        <div id="viewGruplar" class="groups-view hidden">
+            <div class="groups-icon">👥</div>
+            <h3>Grup Sohbetleri</h3>
+            <p>Grup sohbetleri yakında aktif olacak.</p>
+        </div>
+
+        <!-- GRUPLAR VIEW -->
+        <div id="viewGruplar" class="groups-view hidden">
+            <div class="groups-icon">👥</div>
+            <h3>Grup Sohbetleri</h3>
+            <p>Grup sohbetleri yakında aktif olacak.</p>
+        </div>
+
+        <!-- Bottom Nav -->
+        <div class="bottom-nav">
+            <div class="nav-item active" data-view="sohbetler" onclick="switchView('sohbetler')">
+                <span class="nav-icon">💬</span>
+                <span class="nav-label">Sohbetler</span>
+                <span id="navBadgeSohbet" class="nav-badge hidden">0</span>
+            </div>
+            <div class="nav-item" data-view="kisiler" onclick="switchView('kisiler')">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Kişiler</span>
+            </div>
+            <div class="nav-item" data-view="gruplar" onclick="switchView('gruplar')">
+                <span class="nav-icon">👥</span>
+                <span class="nav-label">Gruplar</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dropdown -->
+    <div id="menuDropdown" class="dropdown hidden">
+        <div class="dropdown-item" id="menuSettings">⚙️ Ayarlar</div>
+        <div class="dropdown-item" id="menuEvents">🎉 Etkinlikler</div>
+        <div class="dropdown-item" id="menuLogToggle">📜 Sunucu Logu</div>
+        <div class="dropdown-item" id="menuLogout" style="color:#f87171">🚪 Çıkış Yap</div>
+    </div>
+
+    <!-- Log panel - 50% -->
+    <div id="logPanel" class="log-panel hidden">
+        <div class="log-panel-header">
+            <span>📜 SUNUCU LOGU</span>
+            <button class="icon-btn" onclick="document.getElementById('logPanel').classList.add('hidden')">✕</button>
+        </div>
+        <div id="logContainer" class="log-content"></div>
+    </div>
+
+    <!-- Settings Full Screen -->
+    <div id="settingsModal" class="fs-modal hidden">
+        <div class="fs-modal-header">
+            <h3>⚙️ Ayarlar</h3>
+            <button class="icon-btn" onclick="document.getElementById('settingsModal').classList.add('hidden')">✕</button>
+        </div>
+        <div class="fs-modal-body">
+            <div class="settings-profile">
+                <div class="settings-profile-pic" onclick="document.getElementById('fileInput').click()">
+                    <div class="pic-circle" id="settingsPicCircle">👤</div>
+                    <div class="pic-edit">📷</div>
+                </div>
+                <div class="settings-profile-pic-hint">Değiştirmek için tıklayın</div>
+            </div>
+            <div class="settings-field">
+                <label>📌 Ad</label>
+                <input type="text" id="settingsName" class="input-field" placeholder="Adınız" maxlength="30" autocomplete="off">
+            </div>
+            <div class="settings-field">
+                <label>📝 Biyografi</label>
+                <textarea id="settingsBio" class="input-field" placeholder="Kendinizi tanıtın..." maxlength="200"></textarea>
+            </div>
+
+            <div class="settings-section-title">🔒 Güvenlik</div>
+            <div class="security-card">
+                <h4>🔐 Çift Kilit Oluşturucu</h4>
+                <p>İki katmanlı şifre oluşturun. İstediğiniz uzunlukta güvenli şifre üretir.</p>
+                <div class="lock-row">
+                    <input type="number" id="lockLength" class="input-field" placeholder="Uzunluk" min="4" max="64" value="16" style="width:80px;text-align:center">
+                    <button class="btn-gen" onclick="generateDoubleLock()">Oluştur</button>
+                </div>
+                <div class="lock-output" id="lockOutput">—</div>
+                <div class="lock-copy"><button onclick="copyLock()">📋 Kopyala</button></div>
+            </div>
+
+            <div class="settings-section-title">🔖 Hatırlatıcı Anılar</div>
+            <div id="memoriesList"></div>
+            <div class="memory-add" onclick="addMemory()">➕ Anı Ekle</div>
+
+            <button class="btn-main" style="margin-top:24px" onclick="saveSettings()">KAYDET</button>
+        </div>
+    </div>
+
+    <!-- Etkinlikler Full Screen -->
+    <div id="eventsModal" class="fs-modal hidden">
+        <div class="fs-modal-header">
+            <h3>🎉 Etkinlikler</h3>
+            <button class="icon-btn" onclick="document.getElementById('eventsModal').classList.add('hidden')">✕</button>
+        </div>
+        <div class="fs-modal-body" id="eventsBody"></div>
+    </div>
+
+    <!-- Contact Profile Card Overlay -->
+    <div id="contactCardOverlay" class="contact-card-overlay hidden">
+        <div class="contact-card" style="position:relative">
+            <button class="contact-card-close" onclick="closeContactCard()">✕</button>
+            <button class="card-more-btn" id="cardMoreBtn" onclick="toggleCardMoreMenu(event)" title="Daha fazla">⋮</button>
+            <div class="card-more-menu hidden" id="cardMoreMenu">
+                <div class="card-more-item" onclick="cardAutoAdd()">➕ Otomatik Ekle</div>
+                <div class="card-more-item" onclick="cardSendGroupInvite()">👥 Grup Daveti Gönder</div>
+                <div class="card-more-item danger" onclick="deleteContactFromCard()">🗑️ Sil</div>
+            </div>
+            <div class="contact-card-avatar" id="cardAvatar"></div>
+            <div class="contact-card-name" id="cardName">—</div>
+            <div class="contact-card-number" id="cardNumber">—</div>
+            <div class="contact-card-actions">
+                <div style="text-align:center">
+                    <button class="contact-card-btn call-audio" id="cardCallAudio" onclick="startAudioCallFromCard()">📞</button>
+                    <div style="font-size:9px;color:#7c8da6;margin-top:4px;font-weight:600">Ara</div>
+                </div>
+                <div style="text-align:center">
+                    <button class="contact-card-btn call-video" id="cardCallVideo" onclick="startVideoCallFromCard()">📹</button>
+                    <div style="font-size:9px;color:#7c8da6;margin-top:4px;font-weight:600">Görüntülü</div>
+                </div>
+                <div style="text-align:center">
+                    <button class="contact-card-btn msg-btn" id="cardMsg" onclick="sendMessageFromCard()">💬</button>
+                    <div style="font-size:9px;color:#7c8da6;margin-top:4px;font-weight:600">Mesaj</div>
+                </div>
+                <div style="text-align:center">
+                    <button class="contact-card-btn info-btn" id="cardInfo" onclick="showContactInfo()">ℹ️</button>
+                    <div style="font-size:9px;color:#7c8da6;margin-top:4px;font-weight:600">Bilgi</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Call Screen -->
+    <div id="activeCallScreen" class="active-call-screen hidden">
+        <div class="active-call-avatar" id="activeCallAvatar"></div>
+        <div class="active-call-name" id="activeCallName">—</div>
+        <div class="active-call-duration" id="activeCallDuration">00:00</div>
+        <div class="active-call-status" id="activeCallStatus">Bağlanıyor...</div>
+        <div class="active-call-actions">
+            <div style="text-align:center">
+                <button class="active-call-btn mute-btn" id="btnMute" onclick="toggleMute()">🎤</button>
+                <div class="active-call-btn-label">Sessiz</div>
+            </div>
+            <div style="text-align:center">
+                <button class="active-call-btn speaker-btn" id="btnSpeaker" onclick="toggleSpeaker()">🔊</button>
+                <div class="active-call-btn-label">Hoparlör</div>
+            </div>
+            <div style="text-align:center">
+                <button class="active-call-btn video-btn" id="btnVideoToggle" onclick="toggleVideoInCall()">📹</button>
+                <div class="active-call-btn-label">Kamera</div>
+            </div>
+            <div style="text-align:center">
+                <button class="active-call-btn end-btn" onclick="endActiveCall()">📵</button>
+                <div class="active-call-btn-label">Bitir</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Call Container -->
+    <div id="videoContainer" class="video-container">
+        <div class="video-call-name" id="videoCallName">—</div>
+        <div class="video-call-duration" id="videoCallDuration">00:00</div>
+        <div class="video-remote" id="videoRemote">
+            <div class="video-placeholder">📹</div>
+        </div>
+        <div class="video-local" id="videoLocal"></div>
+        <div class="video-controls">
+            <button class="active-call-btn mute-btn" id="btnVideoMute" onclick="toggleMute()">🎤</button>
+            <button class="active-call-btn video-btn" id="btnCameraToggle" onclick="toggleCamera()">📷</button>
+            <button class="active-call-btn speaker-btn" id="btnVideoSpeaker" onclick="toggleSpeaker()">🔊</button>
+            <button class="active-call-btn end-btn" onclick="endVideoCall()">📵</button>
+        </div>
+    </div>
+
+    <!-- Contact Info Modal -->
+    <div id="contactInfoModal" class="contact-info-modal hidden">
+        <div class="contact-info-header">
+            <button class="icon-btn" onclick="document.getElementById('contactInfoModal').classList.add('hidden')">←</button>
+            <h3>Kişisel Bilgiler</h3>
+        </div>
+        <div class="contact-info-body">
+            <div class="contact-info-avatar" id="infoAvatar"></div>
+            <div class="contact-info-name" id="infoName">—</div>
+            <div class="contact-info-number" id="infoNumber">—</div>
+            <div class="contact-info-field">
+                <label>📌 Ad</label>
+                <div class="value" id="infoFieldName">—</div>
+            </div>
+            <div class="contact-info-field">
+                <label>📞 Numara</label>
+                <div class="value" id="infoFieldNumber">—</div>
+            </div>
+            <div class="contact-info-field">
+                <label>🔗 Bağlantı Tipi</label>
+                <div class="value" id="infoFieldConnType">—</div>
+            </div>
+            <div class="contact-info-field">
+                <label>🆔 Bağlantı ID</label>
+                <div class="value" id="infoFieldConnId" style="font-family:ui-monospace,monospace;font-size:11px;word-break:break-all">—</div>
+            </div>
+            <div class="contact-info-field">
+                <label>📊 Durum</label>
+                <div class="value" id="infoFieldStatus">—</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Incoming Call Screen -->
+    <div id="callScreen" class="call-screen hidden">
+        <div class="call-avatar avatar-c0" id="callAvatar">📞</div>
+        <div class="call-name" id="callName">—</div>
+        <div class="call-status" id="callStatus">Seni Arıyor...</div>
+        <div class="call-actions">
+            <div style="text-align:center">
+                <button class="call-btn accept" onclick="acceptCall()">📞</button>
+                <div class="call-btn-label">Kabul Et</div>
+            </div>
+            <div style="text-align:center">
+                <button class="call-btn reject" onclick="rejectCall()">📵</button>
+                <div class="call-btn-label">Reddet</div>
+            </div>
+        </div>
+        <div class="call-quick-msgs">
+            <div class="call-quick-msgs-title">Hızlı Yanıt</div>
+            <button class="quick-msg-btn" onclick="quickReply('Sonra görüşek 🙏')">💬 Sonra görüşek 🙏</button>
+            <button class="quick-msg-btn" onclick="quickReply('Acil değilse mesaj at')">💬 Acil değilse mesaj at</button>
+            <button class="quick-msg-btn" onclick="quickReply('Toplantıdayım, sonra ararım')">💬 Toplantıdayım, sonra ararım</button>
+            <button class="quick-msg-btn" onclick="quickReply('Şu an müsait değilim 😔')">💬 Şu an müsait değilim 😔</button>
+            <button class="quick-msg-btn" onclick="quickReply('5 dakika sonra arayın lütfen')">💬 5 dakika sonra arayın lütfen</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===== CACHE BUST: Force reload if stale version detected =====
+(function(){
+    var VER = 'v2026_05_07_p2p_media_profile_2';
+    try {
+        var stored = localStorage.getItem('_sp_ver');
+        if (stored && stored !== VER) {
+            localStorage.setItem('_sp_ver', VER);
+            location.reload(true);
+            return;
+        }
+        localStorage.setItem('_sp_ver', VER);
+    } catch(e){}
+})();
+/* ====================================================================
+   SOHBET PRO - Full Update
+   ==================================================================== */
+
+const CONFIG = {
+    chatHost: "wss://web29.topsportlivers.com/imws",
+    countHost: "wss://web.topsportlivers.com/ws/realtime?K-Access-Token=eyJhbGciOiJSUzI1NiJ9.eyJLLUFjY2Vzcy1Ub2tlbiI6IntcImFnZW50XCI6XCJQQ1wiLFwiZGV2aWNlSWRcIjpcIlwiLFwiZ3Vlc3RcIjpmYWxzZSxcImlkXCI6XCIxOTYxMTE2MjA0NjI2MDg3OTM2XCIsXCJtb2JpbGVcIjpcIlwiLFwibW9iaWxlVXNlclwiOmZhbHNlLFwicGxhdGZvcm1cIjpcIlBDXCIsXCJ1c2VyVHlwZVwiOjEsXCJ1c2VybmFtZVwiOlwidmlzaXRvclwifSIsImp0aSI6IjUzYmE0MmZkLTNmN2ItNDJhYy04NTM2LTMwMzllZWExM2RmZSIsImV4cCI6MTc3NzY2OTIwMH0.aP-GObNZEMMlXwFXSqbQKBEDmCPbryo3C45cRRz4L1_zEpjkINdwpX6xPRIrGQcK74nFtX3a1vqLqrrYLf2g2FQvVmu7-i9f8arQhfOOaCY7hE8fapQxpWdK9L7YM5wR3JSC4Z_v978i8FpgKZchtn4f63d57ZauqvhusfVzP3zdXNBdA722_ukcOr3q_GJ0gBVwQgypOvvmj9YWFVsXJyuB_Rda3PjNua74wjQog7td_CYHw5olxCCV-NE2GOeT7mV-q88ixZIOwv7oPqVBYzlPpNR5dNmG5FSOre0ZdBBQDpPKryH38US0B_BTXVyPkESaE0WvWVvMJ-lk4qQbYw",
+    uid: "19de8146902528c0007220f",
+    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySUQiOiIxOWRlODE0NjkwMjUyOGMwMDA3MjIwZiIsIlBsYXRmb3JtSUQiOjUsImV4cCI6MTc4NTQ5MTE1NywiaWF0IjoxNzc3NzE1MTUyfQ.rN18KyaHTnOBS8yFmCXEYASKva85qHOIJb-iZ-m0X-s",
+    roomId: "14454688",
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    virtualNo: "", seed: "", connectionId: ""
+};
+
+let wsChat = null, wsCount = null, ozelSayac = 0;
+const state = {
+    target: "HERKES", users: new Map(), currentConvTab: "genel", currentView: "sohbetler",
+    chatMode: "list", activeChat: null, outboundQueue: new Map(), sentMsgs: new Map(),
+    nick: "", bio: "", profileEmoji: "👤", profileImage: null,
+    conversations: new Map(), memories: [], peerProfiles: {}, incomingCallFrom: null, incomingCallType: "audio"
+};
+const peers = {};
+let localAudioStream = null;
+let touchStartX = 0, touchStartY = 0, isSwiping = false;
+
+const AVATAR_EMOJIS = ['😎','🤖','🐱','🦊','🐶','🦁','🐸','🦄','🐼','🦋','🌟','🔥','💎','🎮','🎵','⚡','🌙','🍀','🎯','🚀','🛡️','👑','🎭','🧩'];
+
+// ==================== SHA-256 ====================
+async function sha256(text) {
+    const buf = new TextEncoder().encode(text);
+    const hash = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ==================== ROTATING PASSWORD ====================
+async function computeRotatingPassword(seed, timeMs) {
+    const timeBlock = Math.floor((timeMs || Date.now()) / 300000);
+    const hash = await sha256(seed + '::' + timeBlock);
+    const chars = 'abcdefghijkmnopqrstuvwxyz0123456789';
+    let pw = '';
+    for (let i = 0; i < 7; i++) { const byte = parseInt(hash.substring(i * 2, i * 2 + 2), 16); pw += chars[byte % chars.length]; }
+    return pw;
+}
+function getTimeUntilNextRotation() { const now = Date.now(); return ((Math.floor(now / 300000) + 1) * 300000) - now; }
+function formatCountdown(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`; }
+
+// ==================== VIRTUAL NUMBER ====================
+function generateVirtualNumber() {
+    const prefix = Math.random() < 0.5 ? '90606' : '90619';
+    return '+' + prefix + String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+}
+async function generateSeed(nick, virtualNo) { return sha256('SohbetPro::' + nick + '::' + virtualNo + '::' + Date.now()); }
+
+// ==================== DOUBLE LOCK GENERATOR ====================
+function generateDoubleLock() {
+    const len = parseInt(document.getElementById('lockLength').value) || 16;
+    const clampedLen = Math.max(4, Math.min(64, len));
+    const layer1 = generateRandomString(clampedLen, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789');
+    const layer2 = generateRandomString(clampedLen, '!@#$%^&*()_+-=[]{}|;:,.<>?');
+    const combined = [];
+    for (let i = 0; i < clampedLen; i++) {
+        combined.push(layer1[i]);
+        if (i % 2 === 0 && i < layer2.length) combined.push(layer2[i]);
+    }
+    const result = shuffleArray(combined).join('').substring(0, clampedLen);
+    document.getElementById('lockOutput').innerText = result;
+}
+function generateRandomString(len, chars) {
+    const arr = new Uint32Array(len);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, v => chars[v % chars.length]).join('');
+}
+function shuffleArray(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+}
+function copyLock() {
+    const text = document.getElementById('lockOutput').innerText;
+    if (text && text !== '—') navigator.clipboard.writeText(text).then(() => log("Şifre kopyalandı", "#22c55e")).catch(() => {});
+}
+
+// ==================== IDENTITY (IndexedDB) ====================
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open("EgaNetwork", 3);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains("identity")) db.createObjectStore("identity");
+            if (!db.objectStoreNames.contains("messages")) {
+                const store = db.createObjectStore("messages", { keyPath: "id", autoIncrement: true });
+                store.createIndex("chatId", "chatId", { unique: false });
+                store.createIndex("ts", "ts", { unique: false });
+            }
+            if (!db.objectStoreNames.contains("conversations")) {
+                db.createObjectStore("conversations", { keyPath: "connId" });
+            }
+            if (!db.objectStoreNames.contains("contacts")) {
+                // key = number (string). value = {number,name,connId,addedAt,lastSeen}
+                db.createObjectStore("contacts", { keyPath: "number" });
+            }
+        };
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = (e) => reject(e);
+    });
+}
+async function dbGet(key) { const db = await openDB(); return new Promise(r => { const req = db.transaction("identity","readonly").objectStore("identity").get(key); req.onsuccess=()=>r(req.result||null); req.onerror=()=>r(null); }); }
+async function dbPut(key, val) { const db = await openDB(); return new Promise(r => { const tx = db.transaction("identity","readwrite"); tx.objectStore("identity").put(val,key); tx.oncomplete=()=>r(); }); }
+
+// Message persistence with hash-based IDs
+async function hashMsg(data) { return sha256(data + '::' + Date.now()); }
+async function dbSaveMessage(chatId, msgData) {
+    try {
+        const db = await openDB();
+        const msgHash = await sha256(chatId + '::' + msgData.text + '::' + msgData.ts + '::' + (msgData.msgId||''));
+        const record = { chatId, hash: msgHash, ts: msgData.ts, sender: msgData.sender, text: msgData.text, isOwn: msgData.isOwn, isP2P: msgData.isP2P, isPrivate: msgData.isPrivate, msgId: msgData.msgId || null, status: msgData.status || 'sent' };
+        return new Promise(r => {
+            const tx = db.transaction("messages", "readwrite");
+            tx.objectStore("messages").add(record);
+            tx.oncomplete = () => r();
+            tx.onerror = () => r();
+        });
+    } catch (e) { return; }
+}
+async function dbLoadMessages(chatId, limit = 200) {
+    try {
+        const db = await openDB();
+        return new Promise(r => {
+            const tx = db.transaction("messages", "readonly");
+            const idx = tx.objectStore("messages").index("chatId");
+            const req = idx.getAll(chatId);
+            req.onsuccess = () => { const arr = req.result || []; arr.sort((a,b)=>a.ts-b.ts); r(arr.slice(-limit)); };
+            req.onerror = () => r([]);
+        });
+    } catch (e) { return []; }
+}
+async function dbSaveConversation(connId, conv) {
+    try {
+        const db = await openDB();
+        return new Promise(r => {
+            const tx = db.transaction("conversations", "readwrite");
+            tx.objectStore("conversations").put({ connId, ...conv });
+            tx.oncomplete = () => r();
+            tx.onerror = () => r();
+        });
+    } catch (e) { return; }
+}
+async function dbLoadConversations() {
+    try {
+        const db = await openDB();
+        return new Promise(r => {
+            const tx = db.transaction("conversations", "readonly");
+            const req = tx.objectStore("conversations").getAll();
+            req.onsuccess = () => r(req.result || []);
+            req.onerror = () => r([]);
+        });
+    } catch (e) { return []; }
+}
+async function dbClearMessages(chatId) {
+    try {
+        const db = await openDB();
+        return new Promise(r => {
+            const tx = db.transaction("messages", "readwrite");
+            const idx = tx.objectStore("messages").index("chatId");
+            const req = idx.openCursor(IDBKeyRange.only(chatId));
+            req.onsuccess = (e) => { const c = e.target.result; if (c) { c.delete(); c.continue(); } };
+            tx.oncomplete = () => r();
+        });
+    } catch (e) { return; }
+}
+
+// ==================== CONTACTS (rehber) ====================
+const contactsState = { byNumber: new Map() };
+function normalizeNumber(n) {
+    let s = String(n || '').trim().replace(/[\s\-()]/g, '');
+    if (!s) return '';
+    s = s.replace(/^00/, '+').replace(/[^+\d]/g, '');
+    let digits = s.replace(/^\+/, '');
+    if (digits.startsWith('0') && digits.length === 11) digits = '90' + digits.substring(1);
+    else if (digits.length === 10 && digits.startsWith('5')) digits = '90' + digits;
+    else if (digits.startsWith('0090')) digits = digits.substring(2);
+    return '+' + digits;
+}
+async function dbSaveContact(c) {
+    try { const db = await openDB(); return new Promise(r => { const tx = db.transaction("contacts","readwrite"); tx.objectStore("contacts").put(c); tx.oncomplete=()=>r(); tx.onerror=()=>r(); }); } catch(e){}
+}
+async function dbDeleteContact(number) {
+    try { const db = await openDB(); return new Promise(r => { const tx = db.transaction("contacts","readwrite"); tx.objectStore("contacts").delete(number); tx.oncomplete=()=>r(); tx.onerror=()=>r(); }); } catch(e){}
+}
+async function dbLoadContacts() {
+    try { const db = await openDB(); return new Promise(r => { const tx = db.transaction("contacts","readonly"); const req = tx.objectStore("contacts").getAll(); req.onsuccess=()=>r(req.result||[]); req.onerror=()=>r([]); }); } catch(e){ return []; }
+}
+function getContactByConnId(connId) { for (const c of contactsState.byNumber.values()) if (c.connId === connId) return c; return null; }
+function getContactByNumber(num) { return contactsState.byNumber.get(normalizeNumber(num)) || null; }
+async function loadContactsToState() {
+    const list = await dbLoadContacts();
+    contactsState.byNumber.clear();
+    list.forEach(c => contactsState.byNumber.set(c.number, c));
+}
+async function loadIdentity() {
+    const no = await dbGet("virtualNo"), seed = await dbGet("seed"), nick = await dbGet("nick"),
+          bio = await dbGet("bio"), emoji = await dbGet("profileEmoji"), img = await dbGet("profileImage"),
+          firstDone = await dbGet("firstSessionDone"), mems = await dbGet("memories"), profiles = await dbGet("peerProfiles");
+    if (no) CONFIG.virtualNo = no; if (seed) CONFIG.seed = seed; if (nick) state.nick = nick;
+    if (bio) state.bio = bio; if (emoji) state.profileEmoji = emoji; if (img) state.profileImage = img;
+    if (mems) state.memories = mems; if (profiles && typeof profiles === 'object') state.peerProfiles = profiles;
+    return { hasNo: !!no, hasSeed: !!seed, firstDone: !!firstDone };
+}
+async function saveVirtualNo(num, seed) { CONFIG.virtualNo = num; CONFIG.seed = seed; await dbPut("virtualNo", num); await dbPut("seed", seed); }
+
+// ==================== ENCODING ====================
+const alphabet = "abcçdefgğhıijklmnoöprsştuüvyzxwqABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZXWQ0123456789";
+const CHAR_MAP = { ' ': 0 }; const REV_MAP = { 0: ' ' };
+alphabet.split('').forEach((c, i) => { CHAR_MAP[c] = i + 1; REV_MAP[i + 1] = c; });
+const encodeTxt = (t) => t.split('').map(c => CHAR_MAP[c] !== undefined ? CHAR_MAP[c] : c).join('-');
+const decodeTxt = (e) => e.split('-').map(n => REV_MAP[parseInt(n)] !== undefined ? REV_MAP[parseInt(n)] : n).join('') || e;
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function escapeAttr(s) { return escapeHtml(String(s || '')).replace(/`/g, '&#96;'); }
+function bytesToBase64(bytes) {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(binary);
+}
+function base64ToUtf8(b64) {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+}
+function utf8ToBase64(text) { return bytesToBase64(new TextEncoder().encode(text)); }
+function sanitizeProfileImage(src) {
+    const value = String(src || '');
+    return value.startsWith('data:image/') ? value : '';
+}
+function cleanProfileName(name) { return String(name || '').replace(/###/g, ' ').replace(/[\r\n]+/g, ' ').trim().substring(0, 40); }
+function getPeerProfile(connId) { return (state.peerProfiles && state.peerProfiles[connId]) || null; }
+function getStoredNumberFromNick(nick) { const m = String(nick || '').match(/\[(.*?)\]/); return m ? m[1] : ''; }
+function nameWithKnownNumber(connId, name) {
+    const num = getStoredNumberFromNick(state.users.get(connId));
+    return num ? `${name} [${num}]` : name;
+}
+function getDisplayName(connId, fallbackNick) {
+    const profile = getPeerProfile(connId);
+    if (profile?.name) return nameWithKnownNumber(connId, profile.name);
+    return fallbackNick || state.users.get(connId) || connId.substring(0, 10);
+}
+function getAvatarContent(connId, fallbackNick) {
+    const profile = getPeerProfile(connId);
+    if (profile?.image) return `<img src="${escapeAttr(profile.image)}" alt="Profil fotoğrafı">`;
+    if (profile?.emoji) return `<span>${escapeHtml(profile.emoji)}</span>`;
+    return `<span>${escapeHtml(getInitials(fallbackNick || getDisplayName(connId)).substring(0, 2))}</span>`;
+}
+function renderProfileAvatar(el, connId, baseClass, fallbackNick, spanStyle) {
+    const displayName = getDisplayName(connId, fallbackNick);
+    el.className = `${baseClass} ${getAvatarColor(displayName)}`;
+    const profile = getPeerProfile(connId);
+    if (profile?.image) el.innerHTML = `<img src="${escapeAttr(profile.image)}" alt="Profil fotoğrafı">`;
+    else if (profile?.emoji) el.innerHTML = `<span${spanStyle ? ` style="${spanStyle}"` : ''}>${escapeHtml(profile.emoji)}</span>`;
+    else el.innerHTML = `<span${spanStyle ? ` style="${spanStyle}"` : ''}>${escapeHtml(getInitials(displayName).substring(0, 2))}</span>`;
+}
+async function persistPeerProfiles() { try { await dbPut('peerProfiles', state.peerProfiles || {}); } catch(e) {} }
+function decodeProfileUpdatePacket(packet) {
+    try {
+        const raw = packet.substring('PROFILE_UPDATE###'.length);
+        const parsed = JSON.parse(base64ToUtf8(raw));
+        return { name: cleanProfileName(parsed.name), emoji: String(parsed.emoji || '👤').substring(0, 4), image: sanitizeProfileImage(parsed.image), bio: String(parsed.bio || '').substring(0, 120) };
+    } catch (e) {
+        const parts = packet.split('###');
+        return { name: cleanProfileName(parts[1]), emoji: String(parts[2] || '👤').substring(0, 4), image: sanitizeProfileImage(parts[3]), bio: '' };
+    }
+}
+function applyPeerProfileUpdate(connId, profile) {
+    if (!connId || !profile) return;
+    if (!state.peerProfiles) state.peerProfiles = {};
+    const normalized = { name: cleanProfileName(profile.name), emoji: profile.emoji || '👤', image: sanitizeProfileImage(profile.image), bio: profile.bio || '' };
+    state.peerProfiles[connId] = normalized;
+    if (normalized.name) state.users.set(connId, nameWithKnownNumber(connId, normalized.name));
+    persistPeerProfiles();
+    updateUI();
+    refreshLiveScreensForPeer(connId);
+}
+
+// Aktif/incoming call ekranlarındaki avatar+isim, sohbet topbar'ı, kişi kartı ve info modalı
+function refreshLiveScreensForPeer(connId) {
+    try {
+        const nick = getDisplayName(connId);
+        const cleanName = nick.replace(/\[.*?\]/g, '').trim() || nick;
+        // Active audio/video call
+        if (typeof activeCallConnId !== 'undefined' && activeCallConnId === connId) {
+            const aAv = document.getElementById('activeCallAvatar');
+            const aNm = document.getElementById('activeCallName');
+            if (aAv) renderProfileAvatar(aAv, connId, 'active-call-avatar', nick, 'font-size:44px');
+            if (aNm) aNm.innerText = cleanName;
+        }
+        // Incoming call
+        if (state.incomingCallFrom === connId) {
+            const cAv = document.getElementById('callAvatar');
+            const cNm = document.getElementById('callName');
+            if (cAv) renderProfileAvatar(cAv, connId, 'call-avatar', nick);
+            if (cNm) cNm.innerText = cleanName;
+        }
+        // Open chat topbar
+        if (state.chatMode === 'chat' && state.activeChat === connId) {
+            const tb = document.getElementById('topbarTitle'); if (tb) tb.innerText = cleanName;
+            const tbAv = document.getElementById('topbarAvatar');
+            if (tbAv && !tbAv.classList.contains('hidden')) renderProfileAvatar(tbAv, connId, 'topbar-avatar', nick);
+        }
+        // Contact card overlay
+        if (cardTargetConnId === connId) {
+            const cardAv = document.getElementById('cardAvatar');
+            if (cardAv) renderProfileAvatar(cardAv, connId, 'contact-card-avatar', nick);
+            const cn = document.getElementById('cardName'); if (cn) cn.innerText = cleanName;
+        }
+    } catch(e) {}
+}
+function createProfileUpdatePacket(includeImage = true) {
+    const payload = { name: cleanProfileName(state.nick) || 'Kullanıcı', emoji: state.profileEmoji || '👤', image: includeImage ? sanitizeProfileImage(state.profileImage) : '', bio: state.bio || '' };
+    return 'PROFILE_UPDATE###' + utf8ToBase64(JSON.stringify(payload));
+}
+function sendDataChannelText(targetConnId, text) {
+    const peer = peers[targetConnId];
+    if (peer?.dc?.readyState !== 'open') return false;
+    try { peer.dc.send(text); return true; } catch(e) { return false; }
+}
+function sendWhenP2PReady(targetConnId, text, label, attempts = 24) {
+    if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) return false;
+    if (sendDataChannelText(targetConnId, text)) { if (label) log(`[P2P →] ${label}`, '#22c55e'); return true; }
+    try { initP2P(targetConnId); } catch(e) {}
+    let left = attempts;
+    const timer = setInterval(() => {
+        if (sendDataChannelText(targetConnId, text)) { clearInterval(timer); if (label) log(`[P2P →] ${label}`, '#22c55e'); }
+        else if (--left <= 0) { clearInterval(timer); if (label) log(`[P2P BEKLEME] ${label} gönderilmedi; WSS kullanılmadı`, '#fbbf24'); }
+    }, 250);
+    return false;
+}
+function sendProfileUpdate(targetConnId) {
+    if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) return false;
+    // Profil/isim bilgisi WSS'ye asla gitmez; P2P hazır değilse önce P2P kurulur, sonra gönderilir.
+    return sendWhenP2PReady(targetConnId, createProfileUpdatePacket(true), 'Profil gönderildi');
+}
+function broadcastProfileUpdate() {
+    const targets = new Set([...state.users.keys(), ...Object.keys(peers)]);
+    targets.forEach(connId => sendProfileUpdate(connId));
+}
+let profileBroadcastTimer = null;
+function scheduleProfileBroadcast(delay = 300) {
+    if (profileBroadcastTimer) clearTimeout(profileBroadcastTimer);
+    profileBroadcastTimer = setTimeout(() => { profileBroadcastTimer = null; broadcastProfileUpdate(); }, delay);
+}
+function resizeProfileImage(file, maxSize = 256, quality = 0.72) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = () => { img.onload = () => {
+            const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(img.width * scale));
+            canvas.height = Math.max(1, Math.round(img.height * scale));
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+        }; img.onerror = reject; img.src = reader.result; };
+        reader.onerror = reject; reader.readAsDataURL(file);
+    });
+}
+
+function getMyB64() { return btoa(encodeURIComponent(`P2P###${CONFIG.connectionId}`)); }
+function getTargetB64(connId) { if (connId === "HERKES") return "HERKES"; return btoa(encodeURIComponent(`P2P###${connId}`)); }
+
+// ==================== AES-GCM + GZIP ENCRYPTION ====================
+// Flow: Data > Gzip > AES-256-GCM > Base64  (SEC###iv_b64###ct_b64)
+const _aesKeyCache = new Map();
+
+async function deriveSharedKey(peerConnId) {
+    if (_aesKeyCache.has(peerConnId)) return _aesKeyCache.get(peerConnId);
+    const ids = [CONFIG.connectionId, peerConnId].sort();
+    const sharedSecret = ids.join('::SohbetPro::');
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw', new TextEncoder().encode(sharedSecret), 'PBKDF2', false, ['deriveKey']
+    );
+    const key = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: new TextEncoder().encode('SohbetProAES256v1'), iterations: 100000, hash: 'SHA-256' },
+        keyMaterial, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
+    );
+    _aesKeyCache.set(peerConnId, key);
+    return key;
+}
+
+async function gzipCompress(text) {
+    try {
+        if (typeof CompressionStream === 'undefined') return new TextEncoder().encode(text);
+        const cs = new CompressionStream('gzip');
+        const writer = cs.writable.getWriter();
+        const reader = cs.readable.getReader();
+        writer.write(new TextEncoder().encode(text));
+        writer.close();
+        const chunks = [];
+        while (true) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
+        const totalLen = chunks.reduce((a, c) => a + c.length, 0);
+        const result = new Uint8Array(totalLen);
+        let offset = 0;
+        for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
+        return result;
+    } catch (e) { return new TextEncoder().encode(text); }
+}
+
+async function gzipDecompress(data) {
+    try {
+        if (typeof DecompressionStream === 'undefined') return new TextDecoder().decode(data);
+        const ds = new DecompressionStream('gzip');
+        const writer = ds.writable.getWriter();
+        const reader = ds.readable.getReader();
+        writer.write(data);
+        writer.close();
+        const chunks = [];
+        while (true) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
+        const totalLen = chunks.reduce((a, c) => a + c.length, 0);
+        const result = new Uint8Array(totalLen);
+        let offset = 0;
+        for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
+        return new TextDecoder().decode(result);
+    } catch (e) { return new TextDecoder().decode(data); }
+}
+
+async function secureEncode(plaintext, peerConnId) {
+    // Data > Gzip > AES-GCM > Base64
+    const compressed = await gzipCompress(plaintext);
+    const key = await deriveSharedKey(peerConnId);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, compressed);
+    const ivB64 = btoa(String.fromCharCode(...iv));
+    const encB64 = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+    return `SEC###${ivB64}###${encB64}`;
+}
+
+async function secureDecode(encoded, peerConnId) {
+    // Base64 > AES-GCM > Gzip > Data
+    if (!encoded.startsWith('SEC###')) return encoded;
+    const parts = encoded.split('###');
+    if (parts.length < 3) return encoded;
+    try {
+        const iv = Uint8Array.from(atob(parts[1]), c => c.charCodeAt(0));
+        const encData = Uint8Array.from(atob(parts[2]), c => c.charCodeAt(0));
+        const key = await deriveSharedKey(peerConnId);
+        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encData);
+        return await gzipDecompress(new Uint8Array(decrypted));
+    } catch (e) {
+        log("Şifre çözme hatası", "#ef4444");
+        return null;
+    }
+}
+
+async function sendSecureP2PWhenReady(targetConnId, payload, label, onSent, attempts = 24) {
+    if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) return false;
+    let busy = false;
+    const trySend = async () => {
+        if (busy) return false; busy = true;
+        try {
+            const peer = peers[targetConnId];
+            if (peer?.dc?.readyState !== 'open') return false;
+            peer.dc.send(await secureEncode(payload, targetConnId));
+            if (label) log(`[P2P →] ${label}`, '#22c55e');
+            if (onSent) onSent(true);
+            return true;
+        } catch(e) { return false; }
+        finally { busy = false; }
+    };
+    if (await trySend()) return true;
+    try { initP2P(targetConnId); } catch(e) {}
+    let left = attempts;
+    const timer = setInterval(async () => {
+        if (await trySend()) clearInterval(timer);
+        else if (--left <= 0) { clearInterval(timer); if (label) log(`[P2P BEKLEME] ${label} gönderilmedi; WSS kullanılmadı`, '#fbbf24'); if (onSent) onSent(false); }
+    }, 250);
+    return false;
+}
+
+// ==================== PACKET BUILDER ====================
+function createMsgPacket(text, targetConnId) {
+    const rawBody = `[${getMyB64()}] [${getTargetB64(targetConnId)}] ${text}`;
+    let encBody;
+    if (text.startsWith("[P2P_") || text.startsWith("NUMARA_TALEBI") || text.startsWith("NUMARA_CEVAP") ||
+        text.startsWith("MSG###") || text.startsWith("MSG_ACK###") || text.startsWith("LOG_ISTEGI") ||
+        text.startsWith("LOG_CEVAP") || text.startsWith("ADMIN_ONLINE") || text.startsWith("CALL_") ||
+        text.startsWith("SEC###") || text.startsWith("PROFILE_UPDATE###") ||
+        text.startsWith("LOOKUP###") || text.startsWith("LOOKUP_REPLY###") ||
+        text === "GIRIS_YAPILDI" || text === "BURADAYIM") {
+        encBody = "P2PRAW:" + rawBody;
+    } else { encBody = encodeTxt(rawBody); }
+    const jsonB = new TextEncoder().encode(JSON.stringify({ content: encBody }));
+    const encodeVarint = (val) => { let res = []; while (val >= 0x80) { res.push((val & 0x7f) | 0x80); val >>>= 7; } res.push(val); return res; };
+    const lenField = encodeVarint(jsonB.length);
+    const baseB64 = "ChcxOWMzNzk5ZmQwYTUyOGMwMDA3ZDI1ZBoIMTQzNjYwMTYiIDkzZWIzMDU0OTFlNzdhODA4MDU3MTJhMWM3ZGYxMWI4MAU6CDE5YzM3OTlmSANQZFhlYhR7ImNvbnRlbnQiOiJBTktBUkEifYABqbni9MMziAEBogE0Chd5b3UgaGF2ZSBhIG5ldyBtZXNzYWdlLhIXeW91IGhhdmUgYSBuZXcgbWVzc2FnZS4oAQ==";
+    let bytes = Uint8Array.from(atob(baseB64), c => c.charCodeAt(0));
+    bytes.set(new TextEncoder().encode(CONFIG.uid), 2);
+    bytes.set(new TextEncoder().encode(CONFIG.roomId), 2 + CONFIG.uid.length + 2);
+    const jsonStart = Array.from(bytes).indexOf(123);
+    const finalP = new Uint8Array(jsonStart + lenField.length + jsonB.length + 500);
+    let cur = 0;
+    finalP.set(bytes.slice(0, jsonStart - 1), cur); cur = jsonStart - 1;
+    finalP.set(lenField, cur); cur += lenField.length;
+    finalP.set(jsonB, cur); cur += jsonB.length;
+    const trailer = bytes.slice(jsonStart + bytes[jsonStart - 1]);
+    finalP.set(trailer, cur);
+    return btoa(String.fromCharCode(...finalP.slice(0, cur + trailer.length)));
+}
+
+function wsSend(text, targetConnId) {
+    if (!wsChat || wsChat.readyState !== 1) return false;
+    if (targetConnId && targetConnId !== "HERKES") {
+        // WSS artık sadece P2P kurulumu için: WebRTC sinyalleşmesi + numara lookup cevabı.
+        // Profil, isim, mesaj, okundu bilgisi ve arama sinyali hiçbir koşulda WSS'ye gönderilmez.
+        const allowedForSetupOnly = text.startsWith("[P2P_") || text.startsWith("LOOKUP_REPLY###");
+        if (!allowedForSetupOnly) {
+            log(`[WSS BLOCK] Özel bilgi WSS'ye gönderilmedi → ${targetConnId.substring(0,10)}`, "#fbbf24");
+            return false;
+        }
+    }
+    try { wsChat.send(new TextEncoder().encode(JSON.stringify({ reqIdentifier: 1003, sendID: CONFIG.uid, data: createMsgPacket(text, targetConnId) }))); return true; } catch (e) { return false; }
+}
+
+// ==================== LOG ====================
+function log(m, c = "#38bdf8") {
+    const lc = document.getElementById('logContainer'); if (!lc) return;
+    // Truncate long encrypted payloads in logs
+    let displayMsg = m;
+    if (m.length > 120) displayMsg = m.substring(0, 80) + '... [kısaltıldı, ' + m.length + ' karakter]';
+    const d = document.createElement('div'); d.style.color = c; d.style.padding = '2px 0'; d.style.borderBottom = '1px solid #1e293b';
+    d.innerText = `[${new Date().toLocaleTimeString()}] ${displayMsg}`; lc.appendChild(d); lc.scrollTop = lc.scrollHeight;
+    while (lc.children.length > 300) lc.removeChild(lc.firstChild);
+}
+
+// ==================== LOCALSTORAGE ====================
+const LS_OUTBOX = 'sohbet_outbox_v5';
+function saveOutbox() { try { localStorage.setItem(LS_OUTBOX, JSON.stringify(Array.from(state.outboundQueue.values()))); } catch (e) { } }
+function loadOutbox() { try { const a = JSON.parse(localStorage.getItem(LS_OUTBOX) || '[]'); a.forEach(m => state.outboundQueue.set(m.msgId, m)); } catch (e) { } }
+function newMsgId() { return 'M_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8); }
+
+// ==================== NOTIFICATION ====================
+function showNotif(html, duration) {
+    document.getElementById('notifText').innerHTML = html;
+    document.getElementById('notifTime').innerText = new Date().toLocaleTimeString();
+    document.getElementById('topNotif').classList.remove('hidden');
+    if (duration) setTimeout(hideNotif, duration);
+}
+function hideNotif() { document.getElementById('topNotif').classList.add('hidden'); }
+
+// ==================== AVATAR PICKER ====================
+function initAvatarGrid() {
+    const grid = document.getElementById('avatarGrid'); grid.innerHTML = '';
+    AVATAR_EMOJIS.forEach(emoji => {
+        const d = document.createElement('div');
+        d.className = 'avatar-option' + (state.profileEmoji === emoji ? ' selected' : '');
+        d.innerText = emoji;
+        d.onclick = async (e) => { state.profileEmoji = emoji; state.profileImage = null; await dbPut("profileEmoji", state.profileEmoji); await dbPut("profileImage", null); document.querySelectorAll('.avatar-option').forEach(el => el.classList.remove('selected')); e.target.classList.add('selected'); updateProfilePics(); scheduleProfileBroadcast(); };
+        grid.appendChild(d);
+    });
+}
+function toggleAvatarPicker() { document.getElementById('avatarPicker').classList.toggle('show'); }
+function updateProfilePics() {
+    const c1 = document.getElementById('welcomePicCircle'), c2 = document.getElementById('settingsPicCircle');
+    if (!c1 || !c2) return;
+    if (state.profileImage) { c1.innerHTML = `<img src="${escapeAttr(state.profileImage)}" alt="Profil fotoğrafı">`; c2.innerHTML = `<img src="${escapeAttr(state.profileImage)}" alt="Profil fotoğrafı">`; }
+    else { c1.innerText = state.profileEmoji; c2.innerText = state.profileEmoji; }
+}
+document.getElementById('fileInput').onchange = async function(e) {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+        state.profileImage = await resizeProfileImage(file);
+        await dbPut("profileImage", state.profileImage);
+        updateProfilePics();
+        scheduleProfileBroadcast();
+        log("Profil fotoğrafı P2P için hazırlandı", "#22c55e");
+    } catch (err) { log("Profil fotoğrafı okunamadı", "#ef4444"); }
+    e.target.value = '';
+};
+
+// ==================== MIC ====================
+document.getElementById('btnMic').onclick = async function () {
+    if (localAudioStream) {
+        localAudioStream.getTracks().forEach(t => t.stop()); localAudioStream = null;
+        this.innerText = '🎤'; this.classList.remove('active'); log("Mikrofon kapalı", "#ef4444");
+        if (state.activeChat && state.activeChat !== 'genel') sendCallSignal(state.activeChat, "CALL_END");
+    } else {
+        try {
+            localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            this.innerText = '🎙️'; this.classList.add('active'); log("Mikrofon aktif", "#22c55e");
+            if (state.activeChat && state.activeChat !== 'genel') sendCallSignal(state.activeChat, "CALL_RING");
+        } catch (e) { log("Mikrofon izni yok!", "#ef4444"); }
+    }
+};
+
+function playBeep(isPrivate) {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = isPrivate ? "triangle" : "sine";
+        osc.frequency.setValueAtTime(isPrivate ? 880 : 440, ctx.currentTime);
+        gain.gain.setValueAtTime(0.08, ctx.currentTime); osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.12); osc.stop(ctx.currentTime + 0.12);
+    } catch (e) { }
+}
+
+// ==================== CALL SCREEN ====================
+function showIncomingCall(senderConnId, type = "audio") {
+    state.incomingCallFrom = senderConnId;
+    state.incomingCallType = type;
+    const nick = getDisplayName(senderConnId);
+    document.getElementById('callName').innerText = nick.replace(/\[.*?\]/g, '').trim() || nick;
+    document.getElementById('callStatus').innerText = type === "video" ? 'Görüntülü arıyor...' : 'Seni Arıyor...';
+    renderProfileAvatar(document.getElementById('callAvatar'), senderConnId, 'call-avatar', nick);
+    document.getElementById('callScreen').classList.remove('hidden');
+    playBeep(true);
+    setTimeout(() => { if (state.incomingCallFrom === senderConnId) rejectCall(); }, 30000);
+}
+
+async function acceptCall() {
+    const callerConnId = state.incomingCallFrom;
+    const callType = state.incomingCallType || "audio";
+    document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio";
+    if (callerConnId) {
+        if (callType === "video") await startVideoCall(callerConnId, true);
+        else await startAudioCall(callerConnId, true);
+        sendCallSignal(callerConnId, "CALL_ACCEPT");
+    }
+}
+
+function rejectCall() {
+    if (state.incomingCallFrom) { sendCallSignal(state.incomingCallFrom, "CALL_REJECT"); }
+    document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio";
+}
+
+async function quickReply(msg) {
+    if (state.incomingCallFrom) {
+        const target = state.incomingCallFrom;
+        const mid = newMsgId();
+        const payload = `MSG###${mid}###${msg}`;
+        renderOwnMsg(target, msg, mid, true);
+        sendSecureP2PWhenReady(target, payload, 'Hızlı yanıt');
+        // Aramayı reddet (CALL_REJECT sadece P2P üzerinden gider)
+        sendCallSignal(target, "CALL_REJECT");
+    }
+    document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio";
+}
+
+// ==================== WEBRTC P2P ====================
+function setupAudioEl(connId, stream) {
+    let el = document.getElementById('audio_' + connId);
+    if (!el) { el = document.createElement('audio'); el.id = 'audio_' + connId; el.autoplay = true; el.playsInline = true; document.getElementById('audioContainer').appendChild(el); }
+    el.srcObject = stream;
+    const playPromise = el.play?.();
+    if (playPromise?.catch) playPromise.catch(() => {});
+}
+
+function showRemoteVideo(connId, stream) {
+    const remoteEl = document.getElementById('videoRemote');
+    if (!remoteEl) return;
+    let videoEl = remoteEl.querySelector('video');
+    if (!videoEl) {
+        videoEl = document.createElement('video');
+        videoEl.autoplay = true;
+        videoEl.playsInline = true;
+        videoEl.style.width = '100%';
+        videoEl.style.height = '100%';
+        videoEl.style.objectFit = 'cover';
+        remoteEl.innerHTML = '';
+        remoteEl.appendChild(videoEl);
+    }
+    videoEl.srcObject = stream;
+    const playPromise = videoEl.play?.();
+    if (playPromise?.catch) playPromise.catch(() => {});
+}
+
+function attachRemoteStream(connId, stream) {
+    if (!stream) return;
+    setupAudioEl(connId, stream);
+    if (stream.getVideoTracks().length) showRemoteVideo(connId, stream);
+}
+
+function attachDataChannel(connId, channel, label) {
+    if (!peers[connId]) peers[connId] = { iceQueue: [] };
+    peers[connId].dc = channel;
+    channel.onopen = () => { log(`P2P aktif${label ? ' (' + label + ')' : ''}`, "#22c55e"); sendProfileUpdate(connId); updateUI(); };
+    channel.onmessage = (e) => handleP2PMsg(connId, e.data);
+    channel.onclose = () => updateUI();
+}
+
+function configurePeerConnection(connId, pc) {
+    pc.ontrack = (e) => {
+        const stream = e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]);
+        attachRemoteStream(connId, stream);
+    };
+    pc.onicecandidate = (e) => { if (e.candidate) sendSignaling(connId, "ICE", JSON.stringify(e.candidate)); };
+    pc.onconnectionstatechange = () => {
+        if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) updateUI();
+    };
+}
+
+function addStreamTracksToPeer(connId, stream) {
+    const pc = peers[connId]?.pc;
+    if (!pc || !stream) return false;
+    let changed = false;
+    const senders = pc.getSenders();
+    stream.getTracks().forEach(track => {
+        const sameTrack = senders.some(s => s.track && s.track.id === track.id);
+        if (sameTrack) return;
+        const reusable = senders.find(s => s.track && s.track.kind === track.kind && s.track.readyState !== 'ended');
+        if (reusable) {
+            if (reusable.track.id !== track.id) { reusable.replaceTrack(track); changed = true; }
+        } else {
+            pc.addTrack(track, stream); changed = true;
+        }
+    });
+    return changed;
+}
+
+function addLocalMediaTracks(connId) {
+    let changed = false;
+    if (localAudioStream) changed = addStreamTracksToPeer(connId, localAudioStream) || changed;
+    if (localVideoStream) changed = addStreamTracksToPeer(connId, localVideoStream) || changed;
+    return changed;
+}
+
+async function renegotiatePeer(connId) {
+    const pc = peers[connId]?.pc;
+    if (!pc || pc.signalingState !== 'stable') return;
+    try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sendSignaling(connId, "OFFER", JSON.stringify(offer));
+    } catch (e) { log("P2P yenileme hatası: " + e.message, "#ef4444"); }
+}
+
+async function initP2P(targetConnId) {
+    const existing = peers[targetConnId];
+    if (existing?.pc && existing.pc.signalingState !== 'closed') {
+        const changed = addLocalMediaTracks(targetConnId);
+        if (existing.dc?.readyState === 'open') sendProfileUpdate(targetConnId);
+        if (changed) await renegotiatePeer(targetConnId);
+        return existing;
+    }
+    const existingQueue = existing?.iceQueue || [];
+    const pc = new RTCPeerConnection({ iceServers: CONFIG.iceServers });
+    peers[targetConnId] = { pc, dc: null, iceQueue: existingQueue };
+    configurePeerConnection(targetConnId, pc);
+    const dc = pc.createDataChannel("chat");
+    attachDataChannel(targetConnId, dc, 'out');
+    addLocalMediaTracks(targetConnId);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    sendSignaling(targetConnId, "OFFER", JSON.stringify(offer));
+    return peers[targetConnId];
+}
+
+async function handleP2PMsg(senderConnId, data) {
+    if (typeof data !== 'string') return;
+    if (data.startsWith("SEC###")) {
+        const decrypted = await secureDecode(data, senderConnId);
+        if (!decrypted) return;
+        return handleP2PMsg(senderConnId, decrypted);
+    }
+    if (data.startsWith("MSG###")) {
+        const [, mid, ...rest] = data.split("###"); const text = rest.join("###");
+        renderIncomingMsg(senderConnId, CONFIG.connectionId, text, true, mid);
+        const peer = peers[senderConnId];
+        if (peer?.dc?.readyState === 'open') {
+            peer.dc.send(`MSG_ACK###${mid}###DELIVERED`);
+            if (state.chatMode === 'chat' && state.activeChat === senderConnId) setTimeout(() => peer.dc.send(`MSG_ACK###${mid}###READ`), 300);
+        }
+    } else if (data.startsWith("MSG_ACK###")) { const parts = data.split("###"); handleAck(parts[1], parts[2]); }
+    else if (data.startsWith("PROFILE_UPDATE###")) {
+        applyPeerProfileUpdate(senderConnId, decodeProfileUpdatePacket(data));
+        log(`[P2P] Profil güncellendi: ${senderConnId.substring(0,8)}`, "#a78bfa");
+    }
+    else if (data.startsWith("CALL_")) { handleCallSignal(senderConnId, data, true); }
+    else { renderIncomingMsg(senderConnId, CONFIG.connectionId, data, true, null); }
+}
+
+// ==================== CALL SIGNALING (P2P Öncelikli) ====================
+function sendCallSignal(targetConnId, text) {
+    // Arama sinyalleri de profil gibi WSS'ye gitmez; gerekirse önce P2P açılır.
+    return sendWhenP2PReady(targetConnId, text, text);
+}
+
+function handleCallSignal(senderConnId, text, viaP2P) {
+    const sNick = getDisplayName(senderConnId);
+    const via = viaP2P ? "P2P" : "WSS";
+    if (text === "CALL_RING" || text === "CALL_RING_VIDEO") {
+        const type = text === "CALL_RING_VIDEO" ? "video" : "audio";
+        showIncomingCall(senderConnId, type);
+        log(`${type === 'video' ? '📹' : '📞'} [${via}] ${sNick} arıyor`, "#5288c1");
+        return;
+    }
+    if (text === "CALL_ACCEPT") {
+        log(`✅ [${via}] ${sNick} aramayı kabul etti`, "#22c55e");
+        if (!document.getElementById('activeCallScreen').classList.contains('hidden')) {
+            document.getElementById('activeCallStatus').innerText = 'Bağlandı';
+            startCallTimer();
+            if (localAudioStream && peers[senderConnId]?.pc) {
+                const changed = addStreamTracksToPeer(senderConnId, localAudioStream);
+                if (changed) renegotiatePeer(senderConnId);
+            }
+        }
+        if (document.getElementById('videoContainer').classList.contains('active')) {
+            log(`📹 [${via}] Görüntülü arama bağlandı`, "#22c55e");
+            startCallTimer();
+            addLocalMediaTracks(senderConnId);
+            renegotiatePeer(senderConnId);
+        }
+        return;
+    }
+    if (text === "CALL_REJECT") {
+        log(`❌ [${via}] ${sNick} aramayı reddetti`, "#ef4444");
+        endActiveCall(true); endVideoCall(true);
+        return;
+    }
+    if (text === "CALL_END") {
+        log(`📵 [${via}] ${sNick} aramayı bitirdi`, "#fbbf24");
+        endActiveCall(true); endVideoCall(true);
+        return;
+    }
+}
+
+async function handleSignaling(senderConnId, type, data) {
+    let json; try { json = JSON.parse(data); } catch (e) { return; }
+    if (type === "OFFER") {
+        const existing = peers[senderConnId];
+        const pc = existing?.pc && existing.pc.signalingState !== 'closed' ? existing.pc : new RTCPeerConnection({ iceServers: CONFIG.iceServers });
+        const existingQueue = existing?.iceQueue || [];
+        peers[senderConnId] = { pc, dc: existing?.dc || null, iceQueue: existingQueue };
+        configurePeerConnection(senderConnId, pc);
+        pc.ondatachannel = (e) => attachDataChannel(senderConnId, e.channel, 'in');
+        addLocalMediaTracks(senderConnId);
+        await pc.setRemoteDescription(new RTCSessionDescription(json));
+        const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
+        sendSignaling(senderConnId, "ANSWER", JSON.stringify(answer));
+        if (peers[senderConnId].iceQueue) { peers[senderConnId].iceQueue.forEach(ice => pc.addIceCandidate(new RTCIceCandidate(ice)).catch(() => {})); peers[senderConnId].iceQueue = []; }
+        if (peers[senderConnId].dc?.readyState === 'open') sendProfileUpdate(senderConnId);
+    } else if (type === "ANSWER") {
+        const pc = peers[senderConnId]?.pc;
+        if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(json));
+            if (peers[senderConnId].iceQueue) { peers[senderConnId].iceQueue.forEach(ice => pc.addIceCandidate(new RTCIceCandidate(ice)).catch(() => {})); peers[senderConnId].iceQueue = []; }
+            sendProfileUpdate(senderConnId);
+        }
+    } else if (type === "ICE") {
+        if (!peers[senderConnId]) peers[senderConnId] = { iceQueue: [] };
+        if (peers[senderConnId].pc?.remoteDescription) peers[senderConnId].pc.addIceCandidate(new RTCIceCandidate(json)).catch(() => {});
+        else { if (!peers[senderConnId].iceQueue) peers[senderConnId].iceQueue = []; peers[senderConnId].iceQueue.push(json); }
+    }
+}
+function sendSignaling(targetConnId, type, data) { wsSend(`[P2P_${type}]${btoa(encodeURIComponent(data))}`, targetConnId); }
+
+// ==================== CONNECTION ====================
+function connectCountServer(onReady) {
+    let pingInt = null, statInt = null;
+    function open() {
+        wsCount = new WebSocket(CONFIG.countHost);
+        wsCount.onopen = () => {
+            if (pingInt) clearInterval(pingInt); if (statInt) clearInterval(statInt);
+            pingInt = setInterval(() => { try { if (wsCount.readyState === 1) wsCount.send("ping"); } catch(e){} }, 15000);
+            statInt = setInterval(() => { try { if (wsCount.readyState === 1) wsCount.send(JSON.stringify({ "sportId": 1, "matchId": 571632 })); } catch(e){} }, 10000);
+        };
+        wsCount.onmessage = (e) => {
+            try { const j = JSON.parse(e.data);
+                if (j.messageType === "connected") { CONFIG.connectionId = j.connectionId; log(`Ağ ID: ${CONFIG.connectionId}`, "#a855f7"); wsCount.send(JSON.stringify({ "sportId": 1, "matchId": 571632 })); if (onReady) { onReady(); onReady = null; } }
+            } catch (ex) { }
+        };
+        wsCount.onclose = () => { setTimeout(open, 3000); };
+        wsCount.onerror = () => { try { wsCount.close(); } catch(e){} };
+    }
+    open();
+}
+
+let chatPingInt = null;
+let chatReconnectAttempts = 0;
+function connectChat(onReady) {
+    wsChat = new WebSocket(`${CONFIG.chatHost}?sendID=${CONFIG.uid}&token=${CONFIG.token}&platformID=5&operationID=${Date.now()}&sdkType=js`);
+    wsChat.binaryType = "arraybuffer";
+    wsChat.onopen = () => {
+        log("Sunucuya bağlandı", "#22c55e"); updateTopbarStatus(true);
+        chatReconnectAttempts = 0;
+        wsChat.send(new TextEncoder().encode(JSON.stringify({ reqIdentifier: 1006, sendID: CONFIG.uid, data: btoa(String.fromCharCode(...[0x0A, CONFIG.uid.length, ...new TextEncoder().encode(CONFIG.uid)])) })));
+        setTimeout(() => {
+            // NOT: Genel duyuru (GIRIS_YAPILDI) artık gönderilmiyor.
+            // WSS sadece P2P kurulumu (signaling + lookup) için kullanılıyor.
+            document.getElementById('btnSend').disabled = false;
+            if (chatPingInt) clearInterval(chatPingInt);
+            chatPingInt = setInterval(() => { try { if (wsChat && wsChat.readyState === 1) wsChat.send('{"type":"ping"}'); } catch(e){} }, 9000);
+            setTimeout(flushOutboundQueue, 1500);
+            // Rehberdeki tüm kişiler için LOOKUP at (online olanları öğren)
+            setTimeout(() => {
+                contactsState.byNumber.forEach(c => { try { wsSend(`LOOKUP###${c.number}`, "HERKES"); } catch(e){} });
+            }, 1200);
+            if (onReady) onReady();
+        }, 700);
+    };
+    wsChat.onclose = () => {
+        updateTopbarStatus(false); log("Bağlantı kesildi - yeniden bağlanılıyor...", "#ef4444");
+        if (chatPingInt) { clearInterval(chatPingInt); chatPingInt = null; }
+        chatReconnectAttempts++;
+        const delay = Math.min(30000, 1000 * Math.pow(1.5, Math.min(chatReconnectAttempts, 8)));
+        setTimeout(() => { try { connectChat(); } catch(e){} }, delay);
+    };
+    wsChat.onerror = () => updateTopbarStatus(false);
+    wsChat.onmessage = async (e) => {
+        if (typeof e.data === "string") return;
+        try {
+            const j = JSON.parse(new TextDecoder().decode(e.data));
+            if (j.reqIdentifier !== 2001) return;
+            const b = Uint8Array.from(atob(j.data), c => c.charCodeAt(0));
+            const s = Array.from(b).indexOf(123);
+            const rawJson = new TextDecoder().decode(b.slice(s, b.lastIndexOf(125) + 1));
+            const msgJson = JSON.parse(rawJson);
+            let dec = msgJson.content;
+            if (dec.startsWith("P2PRAW:")) dec = dec.substring(7); else dec = decodeTxt(dec);
+            const match = dec.match(/^\[(.*?)\]\s*\[(.*?)\]\s*(.*)$/);
+            if (!match) return;
+            const [_, senderB64, targetB64, text] = match;
+            let sNick, sConnId;
+            try { const decSender = decodeURIComponent(atob(senderB64)); [sNick, sConnId] = decSender.split("###"); } catch (er) { return; }
+            if (sConnId === CONFIG.connectionId) return;
+            let tConnId = "HERKES";
+            if (targetB64 !== "HERKES") { try { const dt = decodeURIComponent(atob(targetB64)); tConnId = dt.split("###")[1]; } catch (er) { return; } }
+            if (text.startsWith("[P2P_") && tConnId === CONFIG.connectionId) { if (!state.users.has(sConnId)) { state.users.set(sConnId, sNick); updateUI(); } const pType = text.substring(5, text.indexOf("]")); const pData = decodeURIComponent(atob(text.substring(text.indexOf("]") + 1))); handleSignaling(sConnId, pType, pData); return; }
+            if (text.startsWith("ADMIN_ONLINE") || text.startsWith("NUMARA_TALEBI") || text.startsWith("LOG_ISTEGI") || text.startsWith("NUMARA_CEVAP###")) return;
+            if (text.startsWith("LOG_CEVAP###")) { const parts = text.split("###"); if (parts.length >= 3) { try { log(`[Sunucu]: ${decodeURIComponent(atob(parts.slice(2).join("###")))}`, "#fbbf24"); } catch (er) {} } return; }
+
+            if (text.startsWith("PROFILE_UPDATE###")) { log("[WSS BLOCK] WSS profil güncellemesi yok sayıldı", "#fbbf24"); return; }
+            if (text.startsWith("CALL_")) { log("[WSS BLOCK] WSS arama sinyali yok sayıldı", "#fbbf24"); return; }
+
+            // Encrypted WSS message: SEC###iv###ct
+            if (text.startsWith("SEC###")) {
+                if (tConnId !== "HERKES") { log("[WSS BLOCK] WSS özel mesaj yok sayıldı", "#fbbf24"); return; }
+                const decrypted = await secureDecode(text, sConnId);
+                if (!decrypted) return;
+                // Re-process the decrypted payload as if it came via WSS
+                if (decrypted.startsWith("MSG###")) {
+                    const firstSep = decrypted.indexOf("###", 6); if (firstSep === -1) return;
+                    const mid = decrypted.substring(6, firstSep); const body = decrypted.substring(firstSep + 3);
+                    if (tConnId !== "HERKES" && tConnId !== CONFIG.connectionId) return;
+                    renderIncomingMsg(sConnId, tConnId, body, false, mid);
+                    wsSend(`MSG_ACK###${mid}###DELIVERED`, sConnId);
+                    const isPrivate = tConnId !== "HERKES";
+                    const sameOpen = (isPrivate && state.chatMode === 'chat' && state.activeChat === sConnId) || (!isPrivate && state.chatMode === 'chat' && state.activeChat === 'genel');
+                    if (sameOpen) setTimeout(() => wsSend(`MSG_ACK###${mid}###READ`, sConnId), 400);
+                }
+                return;
+            }
+
+            if (text.startsWith("MSG_ACK###")) { log("[WSS BLOCK] WSS okundu bilgisi yok sayıldı", "#fbbf24"); return; }
+            if (text.startsWith("MSG###")) {
+                if (tConnId !== "HERKES") { log("[WSS BLOCK] WSS özel mesaj yok sayıldı", "#fbbf24"); return; }
+                const firstSep = text.indexOf("###", 6); if (firstSep === -1) return;
+                const mid = text.substring(6, firstSep); const body = text.substring(firstSep + 3);
+                if (tConnId !== "HERKES" && tConnId !== CONFIG.connectionId) return;
+                renderIncomingMsg(sConnId, tConnId, body, false, mid);
+                wsSend(`MSG_ACK###${mid}###DELIVERED`, sConnId);
+                const isPrivate = tConnId !== "HERKES";
+                const sameOpen = (isPrivate && state.chatMode === 'chat' && state.activeChat === sConnId) || (!isPrivate && state.chatMode === 'chat' && state.activeChat === 'genel');
+                if (sameOpen) setTimeout(() => wsSend(`MSG_ACK###${mid}###READ`, sConnId), 400);
+                return;
+            }
+            if (text === "GIRIS_YAPILDI") { sendProfileUpdate(sConnId); return; } // legacy
+            if (text === "BURADAYIM") { sendProfileUpdate(sConnId); return; }
+            // LOOKUP: numarayla peer arama (broadcast)
+            if (text.startsWith("LOOKUP###")) {
+                const askedNum = text.substring(9);
+                if (CONFIG.virtualNo && normalizeNumber(askedNum) === normalizeNumber(CONFIG.virtualNo)) {
+                    wsSend(`LOOKUP_REPLY###${CONFIG.virtualNo}`, sConnId);
+                }
+                return;
+            }
+            if (text.startsWith("LOOKUP_REPLY###")) {
+                const num = normalizeNumber(text.substring(15));
+                handleLookupReply(num, sConnId);
+                return;
+            }
+            if (tConnId !== "HERKES" && tConnId !== CONFIG.connectionId) return;
+            renderIncomingMsg(sConnId, tConnId, text, false, null);
+        } catch (ex) { }
+    };
+}
+
+function updateTopbarStatus(online) {
+    const s = document.getElementById('topbarStatus');
+    if (online) { s.innerText = "● Çevrimiçi"; s.className = "topbar-status online"; }
+    else { s.innerText = "● Çevrimdışı"; s.className = "topbar-status offline"; }
+}
+
+// ==================== MESSAGE RENDER ====================
+function getChatIdForMsg(targetConnId, senderConnId, isOwn) {
+    // Returns the conversation ID this message belongs to
+    if (targetConnId === "HERKES") return "genel";
+    if (isOwn) return targetConnId; // own private message belongs to the target's chat
+    return senderConnId; // incoming private message belongs to sender's chat
+}
+
+function shouldRenderInActiveChat(chatId) {
+    return state.chatMode === 'chat' && state.activeChat === chatId;
+}
+
+function appendMsgToDOM(div) {
+    const container = document.getElementById('chatMessages');
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+function buildOwnMsgEl(text, msgId, isP2P, timeStr, status) {
+    const div = document.createElement('div'); div.className = 'msg msg-own'; div.dataset.msgId = msgId || '';
+    const tag = isP2P ? '<span class="msg-tag tag-p2p">P2P</span>' : '<span class="msg-tag tag-wss">WSS</span>';
+    let tickHtml = '<span class="tick gray" data-tick="sent">✓</span>';
+    if (status === 'delivered') tickHtml = '<span class="tick gray" data-tick="sent">✓</span>';
+    else if (status === 'read') tickHtml = '<span class="tick blue" data-tick="sent">✓</span>';
+    div.innerHTML = `<div class="msg-bubble"><div class="msg-meta" style="justify-content:flex-start;margin-bottom:2px"><span style="font-size:10px;opacity:.5">SEN${tag}</span></div><div>${escapeHtml(text)}</div><div class="msg-meta"><span class="msg-time">${timeStr}</span>${tickHtml}</div></div>`;
+    return div;
+}
+
+function buildIncomingMsgEl(displaySender, text, isP2P, isPrivate, timeStr, msgId) {
+    const div = document.createElement('div'); div.className = `msg ${isPrivate ? 'msg-private' : 'msg-other'}`;
+    if (msgId) div.dataset.msgId = msgId;
+    let tag = isP2P ? '<span class="msg-tag tag-p2p">P2P</span>' : (isPrivate ? '<span class="msg-tag tag-priv">ÖZEL</span>' : '<span class="msg-tag tag-wss">WSS</span>');
+    div.innerHTML = `<div class="msg-bubble"><div class="msg-sender">${escapeHtml(displaySender)} ${tag}</div><div>${escapeHtml(text)}</div><div class="msg-meta"><span class="msg-time">${timeStr}</span></div></div>`;
+    return div;
+}
+
+function renderOwnMsg(targetConnId, text, msgId, isP2P) {
+    const isPrivate = (targetConnId !== "HERKES");
+    const chatId = getChatIdForMsg(targetConnId, null, true);
+    const ts = Date.now();
+    const now = new Date(ts); const timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    const div = buildOwnMsgEl(text, msgId, isP2P, timeStr, 'sent');
+
+    // Only render in DOM if this chat is currently active
+    if (shouldRenderInActiveChat(chatId)) {
+        appendMsgToDOM(div);
+    }
+    state.sentMsgs.set(msgId, { el: div, status: 'sent', chatId });
+
+    // Persist to IndexedDB
+    dbSaveMessage(chatId, { text, ts, sender: 'SEN', isOwn: true, isP2P, isPrivate, msgId, status: 'sent' });
+    updateConversation(targetConnId, text, true, isPrivate);
+}
+
+function renderIncomingMsg(senderConnId, targetConnId, text, isP2P, msgId) {
+    const isPrivate = (targetConnId !== "HERKES");
+    const chatId = getChatIdForMsg(targetConnId, senderConnId, false);
+    const ts = Date.now();
+    const now = new Date(ts); const timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    const displaySender = getDisplayName(senderConnId);
+    const div = buildIncomingMsgEl(displaySender, text, isP2P, isPrivate, timeStr, msgId);
+
+    // Only render in DOM if this chat is currently active
+    if (shouldRenderInActiveChat(chatId)) {
+        appendMsgToDOM(div);
+    }
+    playBeep(isPrivate);
+
+    // Persist to IndexedDB
+    dbSaveMessage(chatId, { text, ts, sender: displaySender, isOwn: false, isP2P, isPrivate, msgId });
+
+    if (isPrivate && !(state.chatMode === 'chat' && state.activeChat === senderConnId)) {
+        ozelSayac++;
+        const badge = document.getElementById('convOzelBadge'); badge.innerText = ozelSayac; badge.classList.remove('hidden');
+        const navBadge = document.getElementById('navBadgeSohbet'); navBadge.innerText = ozelSayac; navBadge.classList.remove('hidden');
+    }
+    updateConversation(senderConnId, text, false, isPrivate);
+}
+
+// ==================== CONVERSATIONS ====================
+function updateConversation(connId, lastMsg, isOwn, isPrivate) {
+    const nick = getDisplayName(connId);
+    const now = new Date(); const timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    const existing = state.conversations.get(connId);
+    const isActiveChat = state.chatMode === 'chat' && state.activeChat === connId;
+    const newUnread = isOwn || isActiveChat ? (existing?.unread || 0) : (existing?.unread || 0) + 1;
+    const conv = { nick, lastMsg: isOwn ? `Sen: ${lastMsg}` : lastMsg, time: timeStr, unread: newUnread, isPrivate, ts: Date.now() };
+    state.conversations.set(connId, conv);
+    if (isPrivate) dbSaveConversation(connId, conv);
+    renderConvList();
+}
+
+function renderConvList() {
+    const genelList = document.getElementById('convListGenel'), ozelList = document.getElementById('convListOzel');
+    genelList.innerHTML = ''; ozelList.innerHTML = '';
+    // Genel Sohbet artık varsayılan olarak gösterilmiyor.
+    let ozelCount = 0;
+    state.conversations.forEach((conv, connId) => {
+        if (!conv.isPrivate) return; ozelCount++;
+        const displayNick = getDisplayName(connId, conv.nick);
+        const d = document.createElement('div'); d.className = 'conv-item';
+        d.innerHTML = `<div class="conv-avatar ${getAvatarColor(displayNick)}" data-card-trigger="1" style="cursor:pointer">${getAvatarContent(connId, displayNick)}</div><div class="conv-info"><div class="conv-name">${escapeHtml(displayNick)}</div><div class="conv-preview">${escapeHtml(conv.lastMsg)}</div></div><div class="conv-meta"><div class="conv-time">${conv.time}</div>${conv.unread > 0 ? `<div class="conv-unread">${conv.unread}</div>` : ''}</div>`;
+        const avEl = d.querySelector('.conv-avatar');
+        if (avEl) avEl.addEventListener('click', (ev) => { ev.stopPropagation(); showContactCard(connId); });
+        d.onclick = () => openChat(connId); ozelList.appendChild(d);
+    });
+    if (ozelCount === 0) ozelList.innerHTML = '<div class="conv-empty">Henüz özel sohbet yok<br>Kişilerden birini seçerek başlayın</div>';
+}
+
+function getAvatarColor(name) { let hash = 0; for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash); return 'avatar-c' + (Math.abs(hash) % 8); }
+function getInitials(name) { const clean = name.replace(/\[.*?\]/g, '').trim(); const parts = clean.split(/\s+/); if (parts.length >= 2 && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase(); return clean.substring(0, 2).toUpperCase(); }
+
+// ==================== SWIPE NAVIGATION ====================
+async function openChat(id) {
+    state.chatMode = 'chat'; state.activeChat = id; state.target = id === 'genel' ? 'HERKES' : id;
+    const displayNick = id === 'genel' ? 'Genel Sohbet' : getDisplayName(id);
+    const cleanName = displayNick.replace(/\[.*?\]/g, '').trim() || displayNick;
+    document.getElementById('topbarTitle').innerText = cleanName;
+    const btnMic = document.getElementById('btnMic');
+    if (id !== 'genel') { btnMic.classList.remove('hidden'); initP2P(id); } else { btnMic.classList.add('hidden'); }
+
+    // Tam ekran sohbet modu: alt nav gizle, üst bar'a back+avatar+call butonları
+    document.querySelector('.app-container').classList.add('chat-mode');
+    document.getElementById('topbarBack').classList.remove('hidden');
+    if (id !== 'genel') {
+        const avEl = document.getElementById('topbarAvatar');
+        avEl.classList.remove('hidden');
+        renderProfileAvatar(avEl, id, 'topbar-avatar', displayNick);
+        document.getElementById('topbarVideoCall').classList.remove('hidden');
+        document.getElementById('topbarAudioCall').classList.remove('hidden');
+    } else {
+        document.getElementById('topbarAvatar').classList.add('hidden');
+        document.getElementById('topbarVideoCall').classList.add('hidden');
+        document.getElementById('topbarAudioCall').classList.add('hidden');
+    }
+
+    // Mesajları yükle: kaydırma animasyonu olmadan, anında en altta göster
+    const container = document.getElementById('chatMessages');
+    const prevBehavior = container.style.scrollBehavior;
+    container.style.scrollBehavior = 'auto';
+    container.innerHTML = '';
+    const msgs = await dbLoadMessages(id, 200);
+    if (msgs.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#5a6a7e;font-size:12px;line-height:1.5">💬 Henüz mesaj yok<br><span style="font-size:10px">İlk mesajı siz gönderin</span></div>';
+    } else {
+        const frag = document.createDocumentFragment();
+        msgs.forEach(m => {
+            const d = new Date(m.ts);
+            const timeStr = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+            let el;
+            if (m.isOwn) {
+                el = buildOwnMsgEl(m.text, m.msgId, m.isP2P, timeStr, m.status || 'sent');
+                if (m.msgId) {
+                    const existing = state.sentMsgs.get(m.msgId);
+                    if (existing) { existing.el = el; } else { state.sentMsgs.set(m.msgId, { el, status: m.status || 'sent', chatId: id }); }
+                }
+            } else {
+                el = buildIncomingMsgEl(m.sender || 'Bilinmiyor', m.text, m.isP2P, m.isPrivate, timeStr, m.msgId);
+            }
+            // Mesajlara giriş animasyonunu kapat
+            el.style.animation = 'none';
+            frag.appendChild(el);
+        });
+        container.appendChild(frag);
+        // Force reflow ve anında en alta in
+        container.scrollTop = container.scrollHeight;
+        requestAnimationFrame(() => { container.scrollTop = container.scrollHeight; container.style.scrollBehavior = prevBehavior || ''; });
+    }
+
+    if (id !== 'genel') { const conv = state.conversations.get(id); if (conv) { conv.unread = 0; renderConvList(); dbSaveConversation(id, conv); } switchConvTab('ozel'); }
+    document.getElementById('pageConvList').className = 'swipe-page left';
+    document.getElementById('pageChat').className = 'swipe-page center';
+}
+
+function backToList() {
+    state.chatMode = 'list'; state.activeChat = null;
+    document.getElementById('topbarTitle').innerText = 'Sohbet Pro';
+    document.querySelector('.app-container').classList.remove('chat-mode');
+    document.getElementById('topbarBack').classList.add('hidden');
+    document.getElementById('topbarAvatar').classList.add('hidden');
+    document.getElementById('topbarVideoCall').classList.add('hidden');
+    document.getElementById('topbarAudioCall').classList.add('hidden');
+    document.getElementById('pageConvList').className = 'swipe-page center';
+    document.getElementById('pageChat').className = 'swipe-page right';
+    renderConvList();
+}
+
+// Topbar'daki avatar/buton handlerları
+function openTopbarContactCard() { if (state.activeChat && state.activeChat !== 'genel') showContactCard(state.activeChat); }
+function topbarStartAudioCall() { if (state.activeChat && state.activeChat !== 'genel') startAudioCall(state.activeChat, false); }
+function topbarStartVideoCall() { if (state.activeChat && state.activeChat !== 'genel') startVideoCall(state.activeChat, false); }
+
+// Touch swipe (sohbet listesi içinde geri dönmek için)
+const swipeContainer = document.getElementById('swipeContainer');
+swipeContainer.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; isSwiping = false; }, { passive: true });
+swipeContainer.addEventListener('touchmove', (e) => {
+    const dx = e.touches[0].clientX - touchStartX, dy = e.touches[0].clientY - touchStartY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 20) isSwiping = true;
+}, { passive: true });
+swipeContainer.addEventListener('touchend', (e) => {
+    if (!isSwiping) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (state.chatMode === 'chat' && dx > 80) backToList();
+}, { passive: true });
+
+// ==================== VIEW SWIPE (Sohbetler ↔ Kişiler ↔ Gruplar) ====================
+const VIEW_ORDER = ['sohbetler', 'kisiler', 'gruplar'];
+let viewTouchStartX = 0, viewTouchStartY = 0, viewIsSwiping = false;
+const screenChatEl = document.getElementById('screenChat');
+if (screenChatEl) {
+    screenChatEl.addEventListener('touchstart', (e) => {
+        viewTouchStartX = e.touches[0].clientX; viewTouchStartY = e.touches[0].clientY; viewIsSwiping = false;
+    }, { passive: true });
+    screenChatEl.addEventListener('touchmove', (e) => {
+        const dx = e.touches[0].clientX - viewTouchStartX, dy = e.touches[0].clientY - viewTouchStartY;
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) viewIsSwiping = true;
+    }, { passive: true });
+    screenChatEl.addEventListener('touchend', (e) => {
+        if (!viewIsSwiping) return;
+        // Sohbet açıkken yatay kaydırma sadece geri dönmek için (yukarıda hallediliyor)
+        if (state.chatMode === 'chat') return;
+        const dx = e.changedTouches[0].clientX - viewTouchStartX;
+        if (Math.abs(dx) < 60) return;
+        const idx = VIEW_ORDER.indexOf(state.currentView);
+        if (idx < 0) return;
+        if (dx < 0 && idx < VIEW_ORDER.length - 1) switchView(VIEW_ORDER[idx + 1]);
+        else if (dx > 0 && idx > 0) switchView(VIEW_ORDER[idx - 1]);
+    }, { passive: true });
+}
+
+// ==================== SEND ====================
+async function sendCurrentMessage() {
+    const inp = document.getElementById('chatInput'); const text = inp.value.trim(); if (!text) return;
+    const msgId = newMsgId(); const target = state.target;
+    const peer = peers[target];
+    if (target !== "HERKES") {
+        // Özel mesajlar WSS'ye asla düşmez: P2P açıksa hemen gönder, değilse P2P kurulunca gönder.
+        const payload = `MSG###${msgId}###${text}`;
+        state.outboundQueue.set(msgId, { msgId, targetConnId: target, text, ts: Date.now(), attempts: 0, p2pOnly: true });
+        saveOutbox();
+        renderOwnMsg(target, text, msgId, true);
+        sendSecureP2PWhenReady(target, payload, 'Mesaj', (sent) => {
+            const queued = state.outboundQueue.get(msgId);
+            if (queued && sent) { queued.attempts = (queued.attempts || 0) + 1; saveOutbox(); }
+        });
+    } else {
+        // Genel sohbet kaldırıldı ama geriye uyumluluk için açık kanal davranışı korunur.
+        if (!wsChat || wsChat.readyState !== 1) { state.outboundQueue.set(msgId, { msgId, targetConnId: target, text, ts: Date.now(), attempts: 0 }); saveOutbox(); renderOwnMsg(target, text, msgId, false); log(`Mesaj kuyrukta`, "#f59e0b"); }
+        else { wsSend(`MSG###${msgId}###${text}`, target); state.outboundQueue.set(msgId, { msgId, targetConnId: target, text, ts: Date.now(), attempts: 1 }); saveOutbox(); renderOwnMsg(target, text, msgId, false); }
+    }
+    inp.value = ''; inp.style.height = 'auto';
+}
+async function flushOutboundQueue() {
+    for (const [msgId, m] of state.outboundQueue) {
+        if (m.targetConnId !== "HERKES") {
+            const payload = `MSG###${m.msgId}###${m.text}`;
+            sendSecureP2PWhenReady(m.targetConnId, payload, 'Kuyruktaki mesaj', (sent) => {
+                if (sent) { m.attempts = (m.attempts || 0) + 1; saveOutbox(); }
+            });
+        } else {
+            if (!wsChat || wsChat.readyState !== 1) continue;
+            wsSend(`MSG###${m.msgId}###${m.text}`, m.targetConnId);
+            m.attempts = (m.attempts || 0) + 1;
+        }
+    }
+    saveOutbox();
+}
+
+// ==================== ACK ====================
+function handleAck(msgId, status) {
+    const entry = state.sentMsgs.get(msgId); if (!entry) return;
+    const tickEl = entry.el.querySelector('[data-tick]'); if (!tickEl) return;
+    if (status === 'DELIVERED' && entry.status !== 'read') { tickEl.innerHTML = '✓'; tickEl.className = 'tick gray'; entry.status = 'delivered'; if (state.outboundQueue.has(msgId)) { state.outboundQueue.delete(msgId); saveOutbox(); } }
+    else if (status === 'READ') { tickEl.innerHTML = '✓'; tickEl.className = 'tick blue'; entry.status = 'read'; if (state.outboundQueue.has(msgId)) { state.outboundQueue.delete(msgId); saveOutbox(); } }
+}
+
+// ==================== UI NAVIGATION ====================
+function switchScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+
+function switchView(view) {
+    state.currentView = view;
+    document.getElementById('viewSohbetler').classList.toggle('hidden', view !== 'sohbetler');
+    document.getElementById('viewKisiler').classList.toggle('hidden', view !== 'kisiler');
+    document.getElementById('viewGruplar').classList.toggle('hidden', view !== 'gruplar');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === view));
+    if (view === 'kisiler') updateContactList();
+    if (view === 'sohbetler') backToList();
+}
+
+function switchConvTab(t) {
+    // Tek liste modu: GENEL ve ÖZEL aynı sayfada gösteriliyor, sadece state ve badge sıfırlama korunur.
+    state.currentConvTab = t || 'genel';
+    document.getElementById('convListGenel').classList.remove('hidden');
+    document.getElementById('convListOzel').classList.remove('hidden');
+    const ob = document.getElementById('convOzelBadge'); if (ob) ob.classList.add('hidden');
+    const nb = document.getElementById('navBadgeSohbet'); if (nb) nb.classList.add('hidden');
+    ozelSayac = 0;
+}
+
+function enterChatScreen() { document.getElementById('topbarTitle').innerText = 'Sohbet Pro'; switchScreen('screenChat'); switchView('sohbetler'); updateUI(); }
+function updateUI() { updateContactList(); renderConvList(); }
+
+function updateContactList(filter) {
+    const list = document.getElementById('contactList'); if (!list) return; list.innerHTML = '';
+    const searchVal = (filter || document.getElementById('contactSearch')?.value || '').toLowerCase().trim();
+    const countEl = document.getElementById('contactCount');
+    let matchCount = 0;
+    const contacts = Array.from(contactsState.byNumber.values());
+    contacts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    contacts.forEach(c => {
+        const number = c.number;
+        const name = c.name || number;
+        const cleanName = name.toLowerCase();
+        if (searchVal && !cleanName.includes(searchVal) && !number.toLowerCase().includes(searchVal)) return;
+        matchCount++;
+        const connId = c.connId || null;
+        const isConnected = connId && peers[connId]?.dc?.readyState === "open";
+        const isOnline = !!connId && state.users.has(connId);
+        const statusText = isConnected ? '🟢 P2P bağlı' : (isOnline ? '🟡 Çevrimiçi' : '⚪ Çevrimdışı');
+        const d = document.createElement('div'); d.className = 'contact-item';
+        d.innerHTML = `<div class="contact-avatar ${getAvatarColor(name)}">${connId ? getAvatarContent(connId, name) : `<span>${escapeHtml(getInitials(name).substring(0,2))}</span>`}</div><div class="contact-info"><div class="contact-name">${escapeHtml(name)}</div><div class="contact-number">${escapeHtml(number)} · ${statusText}</div></div><div class="contact-p2p ${isConnected ? 'on' : ''}"></div>`;
+        const avatarEl = d.querySelector('.contact-avatar');
+        avatarEl.style.cursor = 'pointer';
+        avatarEl.onclick = (e) => {
+            e.stopPropagation();
+            // Profil resmine basınca: contact card aç (Ara / Görüntülü / Mesaj / Bilgi)
+            if (connId) showContactCard(connId);
+            else openContactByNumber(number);
+        };
+        d.onclick = () => { openContactByNumber(number); };
+        list.appendChild(d);
+    });
+    if (countEl) countEl.innerText = contacts.length;
+    if (contacts.length === 0) list.innerHTML = '<div style="padding:40px;text-align:center;color:#5a6a7e;font-size:13px">Rehber boş<br><span style="font-size:11px">Yukarıdan "Kişi Ekle" ile başlayın</span></div>';
+    else if (matchCount === 0 && searchVal) list.innerHTML = '<div style="padding:40px;text-align:center;color:#5a6a7e;font-size:13px">🔍 Sonuç bulunamadı</div>';
+}
+
+// Numara üzerinden kişiyi aç: connId bilinmiyorsa LOOKUP gönder, P2P kur, sohbeti aç
+async function openContactByNumber(number) {
+    const c = getContactByNumber(number); if (!c) return;
+    if (c.connId && state.users.has(c.connId)) {
+        switchView('sohbetler'); openChat(c.connId); return;
+    }
+    // Henüz connId yok ya da peer offline → LOOKUP yayımla
+    log(`[LOOKUP] ${c.number} aranıyor...`, '#fbbf24');
+    wsSend(`LOOKUP###${c.number}`, "HERKES");
+    showNotif(`🔎 ${escapeHtml(c.name)} (${escapeHtml(c.number)}) çevrimiçi mi diye bakıyoruz...`, 4000);
+    // 5 sn içinde reply gelirse handleLookupReply otomatik açar
+    if (!window._pendingLookups) window._pendingLookups = new Map();
+    window._pendingLookups.set(c.number, { ts: Date.now(), name: c.name });
+    setTimeout(() => {
+        if (window._pendingLookups?.has(c.number)) {
+            window._pendingLookups.delete(c.number);
+            showNotif(`⚪ ${escapeHtml(c.name)} şu an çevrimdışı.`, 4000);
+        }
+    }, 6000);
+}
+
+function handleLookupReply(number, connId) {
+    const c = getContactByNumber(number); if (!c) return;
+    c.connId = connId; c.lastSeen = Date.now();
+    contactsState.byNumber.set(c.number, c);
+    dbSaveContact(c);
+    state.users.set(connId, `${c.name} [${c.number}]`);
+    log(`[LOOKUP ✓] ${c.number} → ${connId.substring(0,10)}`, '#22c55e');
+    if (window._pendingLookups?.has(number)) {
+        window._pendingLookups.delete(number);
+        switchView('sohbetler'); openChat(connId);
+    }
+    updateContactList();
+}
+
+// Add Contact modal handlers
+async function saveNewContact() {
+    const nameEl = document.getElementById('newContactName');
+    const numEl = document.getElementById('newContactNumber');
+    const errEl = document.getElementById('newContactError');
+    const name = (nameEl.value || '').trim();
+    const number = normalizeNumber(numEl.value);
+    errEl.classList.add('hidden');
+    if (!name) { errEl.innerText = 'İsim boş olamaz.'; errEl.classList.remove('hidden'); return; }
+    if (!number || number.length < 8) { errEl.innerText = 'Geçerli numara girin.'; errEl.classList.remove('hidden'); return; }
+    if (CONFIG.virtualNo && number === normalizeNumber(CONFIG.virtualNo)) { errEl.innerText = 'Kendi numaranızı ekleyemezsiniz.'; errEl.classList.remove('hidden'); return; }
+    const existing = contactsState.byNumber.get(number);
+    const c = { number, name, connId: existing?.connId || null, addedAt: existing?.addedAt || Date.now(), lastSeen: existing?.lastSeen || null };
+    contactsState.byNumber.set(number, c);
+    await dbSaveContact(c);
+    nameEl.value = ''; numEl.value = '';
+    document.getElementById('addContactModal').classList.add('hidden');
+    log(`Kişi eklendi: ${name} (${number})`, '#22c55e');
+    updateContactList();
+    // Hemen LOOKUP at, online ise connId'yi öğren
+    wsSend(`LOOKUP###${number}`, "HERKES");
+}
+
+document.getElementById('btnAddContact').onclick = () => {
+    document.getElementById('newContactName').value = '';
+    document.getElementById('newContactNumber').value = '';
+    document.getElementById('newContactError').classList.add('hidden');
+    document.getElementById('addContactModal').classList.remove('hidden');
+};
+
+// Contact search listener
+document.getElementById('contactSearch')?.addEventListener('input', () => updateContactList());
+
+// ==================== CONTACT PROFILE CARD ====================
+let cardTargetConnId = null;
+
+function toggleCardMoreMenu(e){ if(e) e.stopPropagation(); var m=document.getElementById('cardMoreMenu'); if(m) m.classList.toggle('hidden'); }
+function closeCardMoreMenu(){ var m=document.getElementById('cardMoreMenu'); if(m) m.classList.add('hidden'); }
+function cardAutoAdd(){
+    closeCardMoreMenu();
+    var connId = cardTargetConnId; if(!connId) return;
+    var existing = getContactByConnId(connId);
+    if (existing) { log('Bu kişi zaten rehberinizde: ' + (existing.name||existing.number), '#fbbf24'); return; }
+    var nick = getDisplayName(connId);
+    var cleanName = nick.replace(/\[.*?\]/g,'').trim();
+    var numPart = nick.match(/\[(.*?)\]/);
+    var number = numPart ? numPart[1] : connId.substring(0,12);
+    var contact = { number: number, name: cleanName || number, connId: connId, addedAt: Date.now() };
+    contactsState.byNumber.set(number, contact);
+    try { dbSaveContact(contact); } catch(e) {}
+    log('Kişi otomatik eklendi: ' + contact.name, '#22c55e');
+    updateUI();
+}
+function cardSendGroupInvite(){
+    closeCardMoreMenu();
+    var connId = cardTargetConnId; if(!connId) return;
+    try {
+        var payload = 'GROUP_INVITE###' + (state.virtualNo||'') + '###' + Date.now();
+        if (typeof sendToPeer === 'function') sendToPeer(connId, payload);
+        else if (wsChat && wsChat.readyState === 1) wsChat.send('TO###' + connId + '###' + btoa(unescape(encodeURIComponent(payload))));
+        log('Grup daveti gönderildi', '#5288c1');
+    } catch(e){ log('Grup daveti gönderilemedi: '+e.message, '#f87171'); }
+}
+
+
+function showContactCard(connId) {
+    cardTargetConnId = connId;
+    const nick = getDisplayName(connId);
+    const avatarEl = document.getElementById('cardAvatar');
+    renderProfileAvatar(avatarEl, connId, 'contact-card-avatar', nick);
+    const cleanName = nick.replace(/\[.*?\]/g, '').trim();
+    document.getElementById('cardName').innerText = cleanName || nick;
+    const numPart = nick.match(/\[(.*?)\]/);
+    document.getElementById('cardNumber').innerText = numPart ? numPart[1] : connId.substring(0, 12);
+    closeCardMoreMenu();
+    document.getElementById('contactCardOverlay').classList.remove('hidden');
+}
+
+function closeContactCard() {
+    document.getElementById('contactCardOverlay').classList.add('hidden');
+    closeCardMoreMenu();
+    cardTargetConnId = null;
+}
+
+async function deleteContactFromCard() {
+    const connId = cardTargetConnId;
+    if (!connId) return;
+    const c = getContactByConnId(connId);
+    if (!c) { closeContactCard(); return; }
+    if (!confirm(`"${c.name || c.number}" rehberden silinsin mi? Mesaj geçmişi de silinecek.`)) return;
+    try { if (peers[connId]?.pc) peers[connId].pc.close(); } catch(e){}
+    delete peers[connId];
+    contactsState.byNumber.delete(c.number);
+    await dbDeleteContact(c.number);
+    closeContactCard();
+    if (state.chatMode === 'chat' && state.activeChat === connId) backToList();
+    updateUI();
+    log(`Kişi silindi: ${c.name || c.number}`, '#ef4444');
+}
+
+document.getElementById('contactCardOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeContactCard();
+});
+
+function startAudioCallFromCard() {
+    if (!cardTargetConnId) return;
+    const connId = cardTargetConnId;
+    closeContactCard();
+    startAudioCall(connId, false); // false = outgoing call, send CALL_RING
+}
+
+function startVideoCallFromCard() {
+    if (!cardTargetConnId) return;
+    const connId = cardTargetConnId;
+    closeContactCard();
+    startVideoCall(connId, false); // false = outgoing call, send CALL_RING
+}
+
+function sendMessageFromCard() {
+    if (!cardTargetConnId) return;
+    const connId = cardTargetConnId;
+    closeContactCard();
+    switchView('sohbetler');
+    openChat(connId);
+}
+
+function showContactInfo() {
+    if (!cardTargetConnId) return;
+    const connId = cardTargetConnId;
+    const nick = getDisplayName(connId);
+    const isConnected = peers[connId]?.dc?.readyState === "open";
+    const avatarEl = document.getElementById('infoAvatar');
+    renderProfileAvatar(avatarEl, connId, 'contact-info-avatar', nick);
+    const cleanName = nick.replace(/\[.*?\]/g, '').trim();
+    document.getElementById('infoName').innerText = cleanName || nick;
+    const numPart = nick.match(/\[(.*?)\]/);
+    document.getElementById('infoNumber').innerText = numPart ? numPart[1] : connId.substring(0, 12);
+    document.getElementById('infoFieldName').innerText = cleanName || nick;
+    document.getElementById('infoFieldNumber').innerText = numPart ? numPart[1] : 'Bilinmiyor';
+    document.getElementById('infoFieldConnType').innerText = isConnected ? '🟢 P2P Doğrudan Bağlantı' : '⚪ WSS Sunucu Üzerinden';
+    document.getElementById('infoFieldConnId').innerText = connId;
+    document.getElementById('infoFieldStatus').innerText = isConnected ? 'Çevrimiçi - P2P Aktif' : 'Çevrimiçi';
+    closeContactCard();
+    document.getElementById('contactInfoModal').classList.remove('hidden');
+}
+
+// ==================== ACTIVE CALL WITH DURATION ====================
+let callTimerInterval = null;
+let callStartTime = null;
+let isMuted = false;
+let isSpeaker = false;
+
+let activeCallConnId = null; // Track which connId the active call is with
+
+async function startAudioCall(connId, isIncoming) {
+    activeCallConnId = connId;
+    const nick = getDisplayName(connId);
+    const avatarEl = document.getElementById('activeCallAvatar');
+    renderProfileAvatar(avatarEl, connId, 'active-call-avatar', nick, 'font-size:44px');
+    document.getElementById('activeCallName').innerText = nick.replace(/\[.*?\]/g, '').trim() || nick;
+    document.getElementById('activeCallDuration').innerText = '00:00';
+    document.getElementById('activeCallScreen').classList.remove('hidden');
+
+    isMuted = false; isSpeaker = false;
+    document.getElementById('btnMute').classList.remove('active');
+    document.getElementById('btnSpeaker').classList.remove('active');
+    document.getElementById('btnVideoToggle').classList.remove('active');
+
+    // First get microphone BEFORE setting up P2P so tracks are available
+    if (!localAudioStream) {
+        try {
+            localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            log("Mikrofon aktif - Sesli arama", "#22c55e");
+        } catch (e) {
+            log("Mikrofon izni yok!", "#ef4444");
+        }
+    }
+
+    // Now init P2P - localAudioStream is available so tracks will be added
+    await initP2P(connId);
+
+    if (isIncoming) {
+        // Incoming call accepted - start timer immediately since both sides are ready
+        document.getElementById('activeCallStatus').innerText = 'Bağlandı';
+        startCallTimer();
+    } else {
+        // Outgoing call - show "Çalıyor..." and wait for CALL_ACCEPT
+        document.getElementById('activeCallStatus').innerText = 'Çalıyor...';
+        // Do NOT start timer yet - wait for CALL_ACCEPT
+        sendCallSignal(connId, "CALL_RING");
+    }
+}
+
+function startCallTimer() {
+    // Clear any existing timer
+    if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+    callStartTime = Date.now();
+    callTimerInterval = setInterval(() => {
+        const elapsed = Date.now() - callStartTime;
+        const mins = Math.floor(elapsed / 60000);
+        const secs = Math.floor((elapsed % 60000) / 1000);
+        const timeStr = mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
+        document.getElementById('activeCallDuration').innerText = timeStr;
+        // Also update video call duration if active
+        if (document.getElementById('videoContainer').classList.contains('active')) {
+            document.getElementById('videoCallDuration').innerText = timeStr;
+        }
+    }, 1000);
+}
+
+function endActiveCall(skipSend) {
+    if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+    if (localAudioStream) {
+        localAudioStream.getTracks().forEach(t => t.stop());
+        localAudioStream = null;
+    }
+    const connId = activeCallConnId || state.activeChat;
+    if (!skipSend && connId && connId !== 'genel') sendCallSignal(connId, "CALL_END");
+    activeCallConnId = null;
+    document.getElementById('activeCallScreen').classList.add('hidden');
+    log("Arama sonlandırıldı", "#f59e0b");
+}
+
+function toggleMute() {
+    isMuted = !isMuted;
+    document.getElementById('btnMute').classList.toggle('active', isMuted);
+    document.getElementById('btnVideoMute').classList.toggle('active', isMuted);
+    if (localAudioStream) {
+        localAudioStream.getAudioTracks().forEach(t => { t.enabled = !isMuted; });
+    }
+    log(isMuted ? "Mikrofon sessiz" : "Mikrofon açık", isMuted ? "#ef4444" : "#22c55e");
+}
+
+function toggleSpeaker() {
+    isSpeaker = !isSpeaker;
+    document.getElementById('btnSpeaker').classList.toggle('active', isSpeaker);
+    document.getElementById('btnVideoSpeaker').classList.toggle('active', isSpeaker);
+    log(isSpeaker ? "Hoparlör açık" : "Hoparlör kapalı", "#5288c1");
+}
+
+async function toggleVideoInCall() {
+    const connId = activeCallConnId || state.activeChat || cardTargetConnId;
+    await startVideoCall(connId, true);
+    if (connId) sendCallSignal(connId, "CALL_RING_VIDEO");
+    document.getElementById('activeCallScreen').classList.add('hidden');
+}
+
+// ==================== VIDEO CALL ====================
+let localVideoStream = null;
+let videoTimerInterval = null; // kept for backward compat, prefer callTimerInterval
+
+async function startVideoCall(connId, isIncoming) {
+    if (!connId) return;
+    activeCallConnId = connId;
+    const nick = getDisplayName(connId);
+
+    try {
+        localVideoStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        // Also set localAudioStream from video stream's audio tracks
+        if (!localAudioStream) {
+            localAudioStream = localVideoStream;
+        }
+
+        const localVideoEl = document.createElement('video');
+        localVideoEl.srcObject = localVideoStream;
+        localVideoEl.autoplay = true;
+        localVideoEl.muted = true;
+        localVideoEl.playsInline = true;
+        document.getElementById('videoLocal').innerHTML = '';
+        document.getElementById('videoLocal').appendChild(localVideoEl);
+
+        document.getElementById('videoCallName').innerText = nick.replace(/\[.*?\]/g, '').trim() || nick;
+        document.getElementById('videoContainer').classList.add('active');
+
+        // Init P2P first so peer connection exists, then add tracks
+        await initP2P(connId);
+
+        // Add/replace all tracks (audio + video) and renegotiate when needed
+        const changed = addStreamTracksToPeer(connId, localVideoStream);
+        if (changed) await renegotiatePeer(connId);
+
+        if (isIncoming) {
+            // Incoming/switching from audio - start timer immediately
+            startCallTimer();
+            log("Görüntülü arama kabul edildi", "#22c55e");
+        } else {
+            // Outgoing call - don't start timer, wait for CALL_ACCEPT
+            document.getElementById('videoCallDuration').innerText = '00:00';
+            sendCallSignal(connId, "CALL_RING_VIDEO");
+            log("Görüntülü arama başlatıldı - Karşı taraf bekleniyor", "#5288c1");
+        }
+    } catch (e) {
+        log("Kamera/mikrofon izni yok: " + e.message, "#ef4444");
+    }
+}
+
+function toggleCamera() {
+    if (localVideoStream) {
+        const videoTracks = localVideoStream.getVideoTracks();
+        videoTracks.forEach(t => { t.enabled = !t.enabled; });
+        document.getElementById('btnCameraToggle').classList.toggle('active', videoTracks[0]?.enabled);
+        log(videoTracks[0]?.enabled ? "Kamera açık" : "Kamera kapalı", "#5288c1");
+    }
+}
+
+function endVideoCall(skipSend) {
+    if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+    if (videoTimerInterval) { clearInterval(videoTimerInterval); videoTimerInterval = null; }
+    if (localVideoStream) {
+        localVideoStream.getTracks().forEach(t => t.stop());
+        localVideoStream = null;
+    }
+    if (localAudioStream) {
+        localAudioStream.getTracks().forEach(t => t.stop());
+        localAudioStream = null;
+    }
+    const connId = activeCallConnId || state.activeChat;
+    if (!skipSend && connId && connId !== 'genel') sendCallSignal(connId, "CALL_END");
+    activeCallConnId = null;
+    document.getElementById('videoContainer').classList.remove('active');
+    document.getElementById('videoLocal').innerHTML = '';
+    document.getElementById('videoRemote').innerHTML = '<div class="video-placeholder">📹</div>';
+    log("Görüntülü arama sonlandırıldı", "#f59e0b");
+}
+
+// ==================== SETTINGS ====================
+function openSettings() {
+    document.getElementById('settingsName').value = state.nick || '';
+    document.getElementById('settingsBio').value = state.bio || '';
+    updateProfilePics(); renderMemories();
+    document.getElementById('settingsModal').classList.remove('hidden');
+}
+function renderMemories() {
+    const list = document.getElementById('memoriesList'); list.innerHTML = '';
+    state.memories.forEach((mem, i) => {
+        const d = document.createElement('div'); d.className = 'memory-item';
+        d.innerHTML = `<div class="memory-icon">${mem.icon || '📌'}</div><div style="flex:1"><div class="memory-text">${escapeHtml(mem.text)}</div><div class="memory-date">${mem.date || ''}</div></div><button class="icon-btn" onclick="removeMemory(${i})" style="color:#f87171;font-size:16px">✕</button>`;
+        list.appendChild(d);
+    });
+}
+function addMemory() {
+    const text = prompt('Anınızı yazın:'); if (!text) return;
+    const icons = ['📌','💡','🎵','📸','❤️','⭐','🎯','🌟'];
+    state.memories.push({ text, icon: icons[Math.floor(Math.random() * icons.length)], date: new Date().toLocaleDateString('tr-TR') });
+    dbPut("memories", state.memories); renderMemories();
+}
+function removeMemory(index) { state.memories.splice(index, 1); dbPut("memories", state.memories); renderMemories(); }
+async function saveSettings() {
+    const name = document.getElementById('settingsName').value.trim(), bio = document.getElementById('settingsBio').value.trim();
+    if (name) { state.nick = name; await dbPut("nick", name); }
+    state.bio = bio; await dbPut("bio", bio);
+    await dbPut("profileEmoji", state.profileEmoji);
+    await dbPut("profileImage", state.profileImage || null);
+    document.getElementById('settingsModal').classList.add('hidden'); scheduleProfileBroadcast(50); log("Ayarlar kaydedildi ve P2P profili gönderildi", "#22c55e");
+}
+
+// ==================== EVENTS ====================
+function openEvents() {
+    const body = document.getElementById('eventsBody');
+    body.innerHTML = `
+        <div class="event-card"><div class="event-date">1 Mayıs 2026</div><div class="event-title">🚀 Sohbet Pro Lansman</div><div class="event-desc">Yeni güvenli mesajlaşma platformu resmi olarak yayında!</div><span class="event-badge active">Aktif</span></div>
+        <div class="event-card"><div class="event-date">5 Mayıs 2026</div><div class="event-title">🎮 Oyun Gecesi</div><div class="event-desc">Çevrimiçi oyun gecesi - tüm kullanıcılar davetli</div><span class="event-badge upcoming">Yakında</span></div>
+        <div class="event-card"><div class="event-date">10 Mayıs 2026</div><div class="event-title">🔒 Güvenlik Güncellemesi</div><div class="event-desc">Çift kilit sistemi ve yeni şifreleme algoritmaları eklenecek</div><span class="event-badge upcoming">Yakında</span></div>
+        <div class="event-card"><div class="event-date">15 Mayıs 2026</div><div class="event-title">🎤 Sesli Sohbet Beta</div><div class="event-desc">Grup sesli sohbet özelliği beta olarak kullanıma açılacak</div><span class="event-badge upcoming">Yakında</span></div>
+        <div class="event-card"><div class="event-date">20 Mayıs 2026</div><div class="event-title">🏆 En Aktif Kullanıcı Ödülü</div><div class="event-desc">Haftanın en aktif kullanıcısına özel rozet</div><span class="event-badge upcoming">Yakında</span></div>
+    `;
+    document.getElementById('eventsModal').classList.remove('hidden');
+}
+
+// ==================== AUTO-RESIZE TEXTAREA ====================
+const chatInput = document.getElementById('chatInput');
+chatInput.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 100) + 'px'; });
+
+// ==================== EVENT HANDLERS ====================
+// ==================== WELCOME (lokal SMS doğrulama) ====================
+let _pendingVerifyCode = null;
+let _pendingVerifyNumber = null;
+
+document.getElementById('btnSendCode').onclick = async () => {
+    const numEl = document.getElementById('welcomeNumber');
+    const num = normalizeNumber(numEl.value);
+    if (!num || num.length < 8) { showNotif('Geçerli bir numara girin (örn. +905551234567).', 4000); return; }
+    const nick = 'Kullanıcı';
+    state.nick = nick; await dbPut("nick", nick);
+    _pendingVerifyNumber = num;
+    _pendingVerifyCode = String(Math.floor(100000 + Math.random() * 900000));
+    document.getElementById('codeWrap').classList.remove('hidden');
+    document.getElementById('welcomeCode').focus();
+    showNotif(`📩 <b>Sohbet Pro</b> doğrulama kodu:<br><span class="pw-highlight" style="font-size:22px;letter-spacing:6px">${_pendingVerifyCode}</span><br><span style="font-size:10px;color:#5a6a7e">Numaranız: ${num}</span>`, 30000);
+    log(`Doğrulama kodu üretildi: ${_pendingVerifyCode}`, '#fbbf24');
+};
+
+document.getElementById('btnStart').onclick = async () => {
+    const codeEl = document.getElementById('welcomeCode');
+    const entered = (codeEl.value || '').trim();
+    if (!_pendingVerifyCode || !_pendingVerifyNumber) { showNotif('Önce doğrulama kodu gönderin.', 4000); return; }
+    if (entered !== _pendingVerifyCode) { showNotif('❌ Kod hatalı, tekrar deneyin.', 4000); codeEl.value = ''; return; }
+    const btn = document.getElementById('btnStart'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>BAĞLANIYOR...';
+    if (!state.nick) { state.nick = 'Kullanıcı'; await dbPut("nick", state.nick); }
+    await dbPut("profileEmoji", state.profileEmoji);
+    const virtualNo = _pendingVerifyNumber;
+    const seed = await generateSeed(state.nick, virtualNo);
+    await saveVirtualNo(virtualNo, seed);
+    const currentPw = await computeRotatingPassword(seed, Date.now());
+    hideNotif();
+    connectCountServer(() => {
+        connectChat(async () => {
+            showNotif(`✅ Numaranız aktif: <span class="no-highlight">${virtualNo}</span><br>Şifreniz: <span class="pw-highlight">${currentPw}</span><br><span style="font-size:10px;color:#5a6a7e">Şifre her 5 dakikada değişir</span>`, 12000);
+            log(`Sanal numara: ${virtualNo}`, "#22c55e");
+            await dbPut("firstSessionDone", true);
+            setTimeout(() => enterChatScreen(), 1500);
+        });
+    });
+    try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume(); } catch (e) { }
+};
+
+document.getElementById('welcomeCode').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnStart').click(); });
+
+// ==================== LOGIN (SMS doğrulama, çıkış sonrası) ====================
+let _loginPendingCode = null;
+let _loginPendingNumber = null;
+
+document.getElementById('btnLoginSendCode').onclick = async () => {
+    const numEl = document.getElementById('loginNumber');
+    const num = normalizeNumber(numEl.value);
+    if (!num || num.length < 8) { showNotif('Geçerli bir numara girin (örn. +905551234567).', 4000); return; }
+    _loginPendingNumber = num;
+    _loginPendingCode = String(Math.floor(100000 + Math.random() * 900000));
+    document.getElementById('loginCodeWrap').classList.remove('hidden');
+    document.getElementById('loginCode').focus();
+    showNotif(`📩 <b>Sohbet Pro</b> doğrulama kodu:<br><span class="pw-highlight" style="font-size:22px;letter-spacing:6px">${_loginPendingCode}</span><br><span style="font-size:10px;color:#5a6a7e">Numaranız: ${num}</span>`, 30000);
+    log(`Login doğrulama kodu üretildi: ${_loginPendingCode}`, '#fbbf24');
+};
+
+document.getElementById('btnLoginVerify').onclick = async () => {
+    const codeEl = document.getElementById('loginCode');
+    const entered = (codeEl.value || '').trim();
+    if (!_loginPendingCode || !_loginPendingNumber) { showNotif('Önce doğrulama kodu gönderin.', 4000); return; }
+    if (entered !== _loginPendingCode) { showNotif('❌ Kod hatalı, tekrar deneyin.', 4000); codeEl.value = ''; return; }
+    const btn = document.getElementById('btnLoginVerify'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>BAĞLANIYOR...';
+    if (!state.nick) { state.nick = 'Kullanıcı'; await dbPut("nick", state.nick); }
+    // Eğer numara değiştiyse yeni seed üret ve kaydet, aynıysa mevcudu kullan
+    if (!CONFIG.virtualNo || CONFIG.virtualNo !== _loginPendingNumber) {
+        const seed = await generateSeed(state.nick, _loginPendingNumber);
+        await saveVirtualNo(_loginPendingNumber, seed);
+    }
+    await dbPut("firstSessionDone", true);
+    hideNotif();
+    btn.disabled = false; btn.innerHTML = 'DOĞRULA & BAŞLA';
+    _loginPendingCode = null; _loginPendingNumber = null;
+    document.getElementById('loginCode').value = '';
+    document.getElementById('loginNumber').value = '';
+    document.getElementById('loginCodeWrap').classList.add('hidden');
+    connectAndChat();
+    try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume(); } catch (e) { }
+};
+
+document.getElementById('loginCode').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnLoginVerify').click(); });
+document.getElementById('loginNumber').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnLoginSendCode').click(); });
+
+function connectAndChat() {
+    enterChatScreen();
+    if (!wsChat || wsChat.readyState !== 1) { connectCountServer(() => connectChat()); try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume(); } catch (e) { } }
+}
+
+document.getElementById('btnSend').onclick = sendCurrentMessage;
+chatInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCurrentMessage(); } });
+
+const menuDropdown = document.getElementById('menuDropdown');
+document.getElementById('btnMenu').onclick = (e) => { e.stopPropagation(); menuDropdown.classList.toggle('hidden'); };
+document.addEventListener('click', (e) => { if (!menuDropdown.contains(e.target) && e.target !== document.getElementById('btnMenu')) menuDropdown.classList.add('hidden'); });
+
+document.getElementById('menuSettings').onclick = () => { menuDropdown.classList.add('hidden'); openSettings(); };
+document.getElementById('menuEvents').onclick = () => { menuDropdown.classList.add('hidden'); openEvents(); };
+document.getElementById('menuLogToggle').onclick = () => { menuDropdown.classList.add('hidden'); document.getElementById('logPanel').classList.toggle('hidden'); };
+document.getElementById('menuLogout').onclick = async () => {
+    menuDropdown.classList.add('hidden');
+    // End any active calls
+    endActiveCall();
+    endVideoCall();
+    // Close WebSocket connections
+    if (wsChat) try { wsChat.close(); wsChat = null; } catch (e) { }
+    if (wsCount) try { wsCount.close(); wsCount = null; } catch (e) { }
+    // Clear all runtime state
+    state.users.clear();
+    state.conversations.clear();
+    state.outboundQueue.clear();
+    state.sentMsgs.clear();
+    state.chatMode = 'list';
+    state.activeChat = null;
+    state.target = 'HERKES';
+    state.currentView = 'sohbetler';
+    state.currentConvTab = 'genel';
+    state.incomingCallFrom = null;
+    ozelSayac = 0;
+    // Clear all peer connections
+    Object.keys(peers).forEach(k => { try { if (peers[k].pc) peers[k].pc.close(); } catch(e){} delete peers[k]; });
+    // Clear UI elements
+    document.getElementById('chatMessages').innerHTML = '';
+    document.getElementById('contactList').innerHTML = '';
+    document.getElementById('convListGenel').innerHTML = '';
+    document.getElementById('convListOzel').innerHTML = '';
+    document.getElementById('logContainer').innerHTML = '';
+    // Reset login (SMS) UI
+    _loginPendingCode = null; _loginPendingNumber = null;
+    var _ln = document.getElementById('loginNumber'); if (_ln) _ln.value = CONFIG.virtualNo || '+90';
+    var _lc = document.getElementById('loginCode'); if (_lc) _lc.value = '';
+    var _lcw = document.getElementById('loginCodeWrap'); if (_lcw) _lcw.classList.add('hidden');
+    // Login ekranındaki profil avatarını güncelle
+    var _lpc = document.getElementById('loginPicCircle');
+    if (_lpc) {
+        if (state.profileImage) _lpc.innerHTML = `<img src="${escapeAttr(state.profileImage)}" alt="Profil fotoğrafı">`;
+        else _lpc.innerText = state.profileEmoji || '👤';
+    }
+    // Reset badges
+    document.getElementById('convOzelBadge').classList.add('hidden');
+    document.getElementById('navBadgeSohbet').classList.add('hidden');
+    // Reset navigation state
+    backToList();
+    switchView('sohbetler');
+    // Switch to login screen
+    switchScreen('screenLogin');
+    log("Çıkış yapıldı", "#f59e0b");
+};
+
+// ==================== TIMERS ====================
+// (Şifre rotasyon zamanlayıcısı kaldırıldı - artık SMS doğrulama kullanılıyor)
+
+// ==================== INIT ====================
+async function init() {
+    // Unregister any service workers to prevent caching issues
+    if ('serviceWorker' in navigator) {
+        try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            registrations.forEach(reg => reg.unregister());
+        } catch (e) {}
+    }
+    // Clear caches
+    if ('caches' in window) {
+        try {
+            const names = await caches.keys();
+            names.forEach(name => caches.delete(name));
+        } catch (e) {}
+    }
+
+    const identity = await loadIdentity(); loadOutbox(); initAvatarGrid(); updateProfilePics();
+    await loadContactsToState();
+    if (identity.hasNo && identity.hasSeed) { connectAndChat(); }
+    else { switchScreen('screenWelcome'); }
+}
+init();
+</script>
+</body>
+</html>
