@@ -32,7 +32,7 @@ const Taskbar: React.FC<TaskbarProps> = ({ openWindows, onWindowClick, onOpenApp
     { label: "Bilgisayarım", emoji: "🖥️", appId: "mycomputer" },
     { label: "Tarayıcı", emoji: "🌐", appId: "browser" },
     { label: "Not Defteri", emoji: "📝", appId: "notepad" },
-    { label: "Terminal", emoji: "⬛", appId: "terminal" },
+    { label: "Günter", emoji: "🌤️", appId: "terminal" },
     { label: "Oyun Merkezi", emoji: "🧩", appId: "kidsgames" },
     { label: "Mayın Tarlası", emoji: "💣", appId: "minesweeper" },
     { label: "Paint", emoji: "🎨", appId: "paint" },
@@ -97,7 +97,12 @@ const Taskbar: React.FC<TaskbarProps> = ({ openWindows, onWindowClick, onOpenApp
       )}
 
       <div
-        className="fixed bottom-0 left-0 right-0 bg-[#c0c0c0] border-t-2 border-white flex items-center px-1 gap-1 z-[9000] select-none h-10"
+        className="fixed bottom-0 left-0 right-0 flex items-center px-1 gap-1 z-[9000] select-none h-10 backdrop-blur-md"
+        style={{
+          background: "linear-gradient(to bottom, #d8d8d8 0%, #c0c0c0 50%, #a8a8a8 100%)",
+          borderTop: "2px solid #ffffff",
+          boxShadow: "0 -6px 20px rgba(0,0,0,0.35), 0 -1px 0 rgba(255,255,255,0.6) inset, 0 2px 4px rgba(0,0,0,0.2) inset",
+        }}
       >
         <button
           className={`h-7 px-2 flex items-center gap-1 font-bold text-[12px] border-2 shrink-0 ${

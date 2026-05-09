@@ -53,7 +53,11 @@ const LULLABY_TRACKS: LullabyTrack[] = [
   },
 ];
 
-const KidsGames: React.FC = () => {
+interface KidsGamesProps {
+  onOpenApp?: (appId: "radio" | "seyret" | "yazeka" | "posta" | "telankara") => void;
+}
+
+const KidsGames: React.FC<KidsGamesProps> = ({ onOpenApp }) => {
   const [isLocked, setIsLocked] = useState(false);
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [showLullaby, setShowLullaby] = useState(false);
@@ -401,7 +405,29 @@ const KidsGames: React.FC = () => {
   return (
     <div className="w-full h-full bg-gradient-to-b from-purple-50 to-pink-50 p-4 overflow-auto">
       <h2 className="text-xl font-bold text-purple-800 mb-1 text-center">🧩 Oyun Merkezi</h2>
-      <p className="text-xs text-center text-purple-500 mb-3">Zeka ve akıl oyunları</p>
+      <p className="text-xs text-center text-purple-500 mb-3">Zeka, akıl oyunları ve eğlence uygulamaları</p>
+
+      {/* Taşınan Uygulamalar */}
+      {onOpenApp && (
+        <div className="grid grid-cols-5 gap-2 max-w-sm mx-auto mb-3">
+          {[
+            { id: "telankara" as const, emoji: "📞", name: "Telankara" },
+            { id: "posta" as const, emoji: "📬", name: "Posta Ankara" },
+            { id: "radio" as const, emoji: "📻", name: "Radyo" },
+            { id: "seyret" as const, emoji: "📺", name: "Seyret" },
+            { id: "yazeka" as const, emoji: "📝", name: "Yazeka" },
+          ].map((a) => (
+            <button
+              key={a.id}
+              onClick={() => onOpenApp(a.id)}
+              className="flex flex-col items-center gap-1 p-2 bg-white rounded-xl shadow-sm border border-purple-100 hover:border-purple-300 hover:shadow-md transition"
+            >
+              <span className="text-2xl">{a.emoji}</span>
+              <span className="text-[9px] font-medium text-purple-800 text-center leading-tight">{a.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Ninni Çalar Butonu */}
       <button

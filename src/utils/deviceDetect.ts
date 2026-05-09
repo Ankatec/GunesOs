@@ -7,6 +7,47 @@ export interface DeviceInfo {
   os: string;
 }
 
+interface UAData {
+  brands?: { brand: string; version: string }[];
+  mobile?: boolean;
+  platform?: string;
+  getHighEntropyValues?: (hints: string[]) => Promise<{
+    architecture?: string;
+    bitness?: string;
+    model?: string;
+    platform?: string;
+    platformVersion?: string;
+    uaFullVersion?: string;
+  }>;
+}
+
+let _cachedHighEntropy: { brand?: string; model?: string; os?: string } | null = null;
+
+export async function refreshHighEntropyDeviceInfo(): Promise<void> {
+  const ua = (navigator as unknown as { userAgentData?: UAData }).userAgentData;
+  if (!ua?.getHighEntropyValues) return;
+  try {
+    const data = await ua.getHighEntropyValues([
+      "model",
+      "platform",
+      "platformVersion",
+      "architecture",
+      "bitness",
+    ]);
+    const browserBrand = ua.brands?.find((b) => !/Not.?A.?Brand/i.test(b.brand))?.brand;
+    const osLabel = data.platform && data.platformVersion
+      ? `${data.platform} ${data.platformVersion}${data.architecture ? ` (${data.architecture}${data.bitness ? "/" + data.bitness : ""})` : ""}`
+      : data.platform;
+    _cachedHighEntropy = {
+      brand: browserBrand,
+      model: data.model || undefined,
+      os: osLabel,
+    };
+  } catch {
+    /* user denied or unsupported */
+  }
+}
+
 function detectBrandModel(ua: string): { brand: string; model: string } {
   // Samsung
   const samsungMatch = ua.match(/Samsung(?:Browser)?[/\s]([\w-]+)/i) ||
@@ -111,10 +152,20 @@ function detectOS(ua: string): string {
 
 export function detectDevice(): DeviceInfo {
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-  const { brand, model } = detectBrandModel(ua);
-  const os = detectOS(ua);
+  let { brand, model } = detectBrandModel(ua);
+  let os = detectOS(ua);
 
-  // Detect device type
+  // Augment from User-Agent Client Hints (Chromium browsers)
+  if (_cachedHighEntropy) {
+    if (_cachedHighEntropy.os) os = _cachedHighEntropy.os;
+    if (_cachedHighEntropy.model && (brand === "Bilinmeyen" || /Android \d/.test(model))) {
+      model = _cachedHighEntropy.model;
+    }
+    if (_cachedHighEntropy.brand && brand === "Bilinmeyen") {
+      brand = _cachedHighEntropy.brand;
+    }
+  }
+
   const isMobile = /Android.*Mobile|iPhone|iPod|Windows Phone/i.test(ua);
   const isTablet = /iPad|Android(?!.*Mobile)|Silk/i.test(ua) ||
     (typeof window !== "undefined" && window.innerWidth >= 640 && window.innerWidth < 1024 && isMobile === false && /Android/i.test(ua));
@@ -134,7 +185,16 @@ export function detectDevice(): DeviceInfo {
   } else {
     type = "desktop";
     emoji = "🖥️";
-    label = brand !== "Bilinmeyen" ? `${brand} ${model}` : "Bilgisayarım";
+    // Desktop: prefer OS as primary "device name" since browsers can't expose hostname
+    const browser = (() => {
+      if (/Edg\//i.test(ua)) return "Edge";
+      if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) return "Chrome";
+      if (/Firefox\//i.test(ua)) return "Firefox";
+      if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) return "Safari";
+      return "";
+    })();
+    const osPart = os !== "Bilinmeyen" ? os : `${brand} ${model}`;
+    label = browser ? `${osPart} • ${browser}` : osPart;
   }
 
   return { type, brand, model, emoji, label, os };

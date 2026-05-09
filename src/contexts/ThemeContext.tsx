@@ -1,5 +1,18 @@
 import React, { createContext, useContext, ReactNode } from "react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import wallpaperGunesos from "@/assets/wallpaper-gunesos.jpg";
+import wallpaperCanyon from "@/assets/wallpaper-canyon.jpg";
+
+export interface WallpaperPreset {
+  id: string;
+  label: string;
+  url: string;
+}
+
+export const wallpaperPresets: WallpaperPreset[] = [
+  { id: "gunesos-default", label: "GüneşOS Varsayılan", url: wallpaperGunesos },
+  { id: "canyon-river", label: "Kanyon Nehri", url: wallpaperCanyon },
+];
 
 export interface ThemeColors {
   name: string;
@@ -148,20 +161,44 @@ export const themes: ThemeColors[] = [
   },
 ];
 
+export const ALL_DESKTOP_ICON_IDS = [
+  // Çekirdek 13
+  "mycomputer", "browser", "notepad", "terminal", "minesweeper",
+  "kidsgames", "paint", "music", "files", "contacts",
+  "yapayakil", "settings", "trash",
+  // Eski 4 (sepette, varsayılan değil)
+  "telankara", "posta", "radio", "seyret",
+  // Ek 34 sepet simgesi (yapım aşamasında)
+  "calculator","clock","calendar","weather","camera","photos","video","podcast",
+  "news","maps","translate","dictionary","encyclopedia","library","ebooks",
+  "market","bank","wallet","qrscan","scanner","voice","recorder","alarm",
+  "timer","stopwatch","todo","reminder","budget","fitness","health",
+  "recipe","garden","travel","ticket",
+] as const;
+
+// Varsayılan masaüstü simgeleri: eski 4'ü ve ek 34'ü dahil etme
+export const DEFAULT_VISIBLE_ICONS = [
+  "mycomputer","browser","notepad","terminal","minesweeper",
+  "kidsgames","paint","music","files","contacts",
+  "yapayakil","settings","trash",
+];
+
 export interface AppSettings {
   themeName: string;
   customWallpaper: string | null;
   nostalgiaMode: boolean;
   autoAlignIcons: boolean;
   singleClickOpen: boolean;
+  visibleIcons: string[];
 }
 
 const defaultSettings: AppSettings = {
   themeName: "teal",
-  customWallpaper: null,
-  nostalgiaMode: true,
+  customWallpaper: wallpaperGunesos,
+  nostalgiaMode: false,
   autoAlignIcons: true,
-  singleClickOpen: false,
+  singleClickOpen: true,
+  visibleIcons: [...DEFAULT_VISIBLE_ICONS],
 };
 
 interface ThemeContextType {

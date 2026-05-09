@@ -186,6 +186,41 @@ const WindowFrame: React.FC<WindowFrameProps> = ({
 
   if (isMinimized) return null;
 
+  // Modern phone/tablet fullscreen mode (when nostalgia is OFF) — no PC chrome
+  if (!nostalgiaMode) {
+    return (
+      <div
+        ref={frameRef}
+        style={{ position: "fixed", inset: 0, zIndex }}
+        className="flex flex-col bg-white animate-in slide-in-from-right duration-300"
+        onMouseDown={onFocus}
+      >
+        <div
+          className="flex items-center h-12 px-3 gap-2 shrink-0 text-white"
+          style={{ background: `linear-gradient(to right, ${theme.titleBar}, ${theme.titleBarEnd})` }}
+        >
+          <button
+            onClick={onClose}
+            className="w-9 h-9 -ml-1 rounded-full flex items-center justify-center text-lg hover:bg-white/15 active:bg-white/25 transition"
+            aria-label="Geri"
+          >
+            ‹
+          </button>
+          {icon && <span className="w-5 h-5 flex items-center justify-center">{icon}</span>}
+          <span className="text-sm font-semibold truncate flex-1">{title}</span>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 -mr-1 rounded-full flex items-center justify-center text-base hover:bg-white/15 active:bg-white/25 transition"
+            aria-label="Kapat"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="flex-1 bg-white overflow-hidden relative">{children}</div>
+      </div>
+    );
+  }
+
   const frameStyle: React.CSSProperties = isMaximized
     ? { position: "fixed", top: 0, left: 0, width: "100vw", height: "calc(100vh - 40px)", zIndex }
     : { position: "absolute", top: pos.y, left: pos.x, width: size.w, height: size.h, zIndex };
@@ -232,41 +267,39 @@ const WindowFrame: React.FC<WindowFrameProps> = ({
       </div>
 
       {/* Menu Bar - only in nostalgia mode */}
-      {nostalgiaMode && (
-        <div ref={menuRef} className="h-5 bg-[#c0c0c0] border-b border-[#808080] flex items-center px-1 shrink-0 relative">
-          {Object.keys(menuItems).map((menuName) => (
-            <div key={menuName} className="relative">
-              <span
-                className={`text-[11px] px-2 cursor-default ${
-                  openMenu === menuName ? "bg-[#000080] text-white" : "text-black hover:bg-[#000080] hover:text-white"
-                }`}
-                onClick={() => setOpenMenu(openMenu === menuName ? null : menuName)}
-                onMouseEnter={() => openMenu && setOpenMenu(menuName)}
-              >
-                {menuName}
-              </span>
-              {openMenu === menuName && (
-                <div className="absolute top-5 left-0 bg-[#c0c0c0] border-2 border-t-white border-l-white border-b-[#808080] border-r-[#808080] min-w-[180px] z-50 shadow-md">
-                  {menuItems[menuName].map((item, i) => (
-                    item.label === "─" ? (
-                      <div key={i} className="h-px bg-[#808080] mx-1 my-1" />
-                    ) : (
-                      <button
-                        key={i}
-                        onClick={item.action}
-                        className="w-full text-left text-[11px] text-black px-4 py-1 hover:bg-[#000080] hover:text-white flex justify-between items-center"
-                      >
-                        <span>{item.label}</span>
-                        {item.shortcut && <span className="text-[10px] opacity-60 ml-4">{item.shortcut}</span>}
-                      </button>
-                    )
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <div ref={menuRef} className="h-5 bg-[#c0c0c0] border-b border-[#808080] flex items-center px-1 shrink-0 relative">
+        {Object.keys(menuItems).map((menuName) => (
+          <div key={menuName} className="relative">
+            <span
+              className={`text-[11px] px-2 cursor-default ${
+                openMenu === menuName ? "bg-[#000080] text-white" : "text-black hover:bg-[#000080] hover:text-white"
+              }`}
+              onClick={() => setOpenMenu(openMenu === menuName ? null : menuName)}
+              onMouseEnter={() => openMenu && setOpenMenu(menuName)}
+            >
+              {menuName}
+            </span>
+            {openMenu === menuName && (
+              <div className="absolute top-5 left-0 bg-[#c0c0c0] border-2 border-t-white border-l-white border-b-[#808080] border-r-[#808080] min-w-[180px] z-50 shadow-md">
+                {menuItems[menuName].map((item, i) => (
+                  item.label === "─" ? (
+                    <div key={i} className="h-px bg-[#808080] mx-1 my-1" />
+                  ) : (
+                    <button
+                      key={i}
+                      onClick={item.action}
+                      className="w-full text-left text-[11px] text-black px-4 py-1 hover:bg-[#000080] hover:text-white flex justify-between items-center"
+                    >
+                      <span>{item.label}</span>
+                      {item.shortcut && <span className="text-[10px] opacity-60 ml-4">{item.shortcut}</span>}
+                    </button>
+                  )
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
 
       <div className="flex-1 bg-white overflow-hidden relative">{children}</div>
 

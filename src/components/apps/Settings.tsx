@@ -1,11 +1,63 @@
-import React, { useRef } from "react";
-import { useTheme, themes } from "@/contexts/ThemeContext";
+import React, { useRef, useState, useEffect } from "react";
+import { useTheme, themes, wallpaperPresets, ALL_DESKTOP_ICON_IDS } from "@/contexts/ThemeContext";
+import { EXTRA_APP_MAP } from "@/lib/extraApps";
+import { detectDevice, refreshHighEntropyDeviceInfo } from "@/utils/deviceDetect";
+
+const CORE_ICON_META: Record<string, { label: string; emoji: string }> = {
+  mycomputer: { label: "Bilgisayarım", emoji: "🌞" },
+  browser: { label: "Tarayıcı", emoji: "🧭" },
+  notepad: { label: "Notlar", emoji: "🗒️" },
+  terminal: { label: "Günter", emoji: "🌤️" },
+  minesweeper: { label: "Mayın", emoji: "💣" },
+  kidsgames: { label: "Oyunlar", emoji: "🎮" },
+  paint: { label: "Çizim", emoji: "🖌️" },
+  music: { label: "Müzik", emoji: "🎶" },
+  files: { label: "Dosyalar", emoji: "🗂️" },
+  contacts: { label: "Kişiler", emoji: "👥" },
+  yapayakil: { label: "Yapay Akıl", emoji: "🧠" },
+  telankara: { label: "Telankara", emoji: "📱" },
+  posta: { label: "Posta", emoji: "✉️" },
+  radio: { label: "Radyo", emoji: "📻" },
+  seyret: { label: "Seyret", emoji: "🎬" },
+  settings: { label: "Ayarlar", emoji: "⚙️" },
+  trash: { label: "Çöp", emoji: "🗑️" },
+};
+
+const ICON_META: Record<string, { label: string; emoji: string }> = {
+  ...CORE_ICON_META,
+  ...Object.fromEntries(
+    Object.values(EXTRA_APP_MAP).map((a) => [a.id, { label: a.label, emoji: a.emoji }])
+  ),
+};
+
+const Row: React.FC<{ k: string; v: string }> = ({ k, v }) => (
+  <div className="flex justify-between gap-2">
+    <span className="text-[11px] text-gray-500 shrink-0">{k}</span>
+    <span className="text-[11px] font-medium text-gray-800 truncate text-right">{v}</span>
+  </div>
+);
 
 const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMobile, isTablet }) => {
   const { theme, settings, setSettings } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const deviceType = isMobile ? "📱 Telefon" : isTablet ? "📱 Tablet" : "🖥️ Masaüstü";
+  const [, force] = useState(0);
+  const device = detectDevice();
+  useEffect(() => {
+    refreshHighEntropyDeviceInfo().then(() => force((n) => n + 1));
+  }, []);
+  const viewMode = isMobile ? "📱 Telefon Görünümü" : isTablet ? "📱 Tablet Görünümü" : "🖥️ Masaüstü Görünümü";
+  const [viewportSize, setViewportSize] = useState({
+    width: typeof window !== "undefined" ? window.innerWidth : 1280,
+    height: typeof window !== "undefined" ? window.innerHeight : 720,
+  });
+  useEffect(() => {
+    const onResize = () => setViewportSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const storageUsedKb =
+    typeof localStorage !== "undefined" ? (JSON.stringify(localStorage).length / 1024).toFixed(1) : "0.0";
 
   const updateSetting = <K extends keyof typeof settings>(key: K, value: (typeof settings)[K]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -31,19 +83,20 @@ const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMob
       {/* Device Info */}
       <div className="p-3 bg-gray-50 rounded-lg border mb-3">
         <h3 className="text-[12px] font-bold mb-2 text-gray-700">📱 Cihaz Bilgisi</h3>
+        <div className="flex items-center gap-2 mb-2 p-2 bg-white rounded border">
+          <span className="text-3xl">{device.emoji}</span>
+          <div className="min-w-0">
+            <p className="text-[12px] font-bold text-gray-900 truncate">{device.label}</p>
+            <p className="text-[10px] text-gray-500">{device.os}</p>
+          </div>
+        </div>
         <div className="space-y-1">
-          <div className="flex justify-between">
-            <span className="text-[11px] text-gray-500">Mod</span>
-            <span className="text-[11px] font-medium text-gray-800">{deviceType}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[11px] text-gray-500">Ekran</span>
-            <span className="text-[11px] font-medium text-gray-800">{window.innerWidth} × {window.innerHeight}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[11px] text-gray-500">Sürüm</span>
-            <span className="text-[11px] font-medium text-gray-800">GüneşOS v2.0</span>
-          </div>
+          <Row k="Marka" v={device.brand} />
+          <Row k="Model" v={device.model} />
+          <Row k="Cihaz Türü" v={device.type === "phone" ? "Telefon" : device.type === "tablet" ? "Tablet" : "Masaüstü"} />
+          <Row k="Görünüm" v={viewMode} />
+          <Row k="Ekran" v={`${viewportSize.width} × ${viewportSize.height}`} />
+          <Row k="Sürüm" v="GüneşOS v2.0" />
         </div>
       </div>
 
@@ -77,7 +130,36 @@ const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMob
 
       {/* Wallpaper */}
       <div className="p-3 bg-gray-50 rounded-lg border mb-3">
-        <h3 className="text-[12px] font-bold mb-2 text-gray-700">🖼️ Arka Plan</h3>
+        <h3 className="text-[12px] font-bold mb-2 text-gray-700">🖼️ Masaüstü Arka Planı</h3>
+
+        {/* Preset gallery */}
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          {wallpaperPresets.map((wp) => {
+            const active = settings.customWallpaper === wp.url;
+            return (
+              <button
+                key={wp.id}
+                onClick={() => updateSetting("customWallpaper", wp.url)}
+                className={`group relative h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                  active ? "border-blue-500 shadow-sm" : "border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                <div
+                  className="absolute inset-0 bg-cover bg-center"
+                  style={{ backgroundImage: `url(${wp.url})` }}
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-black/50 text-white text-[10px] py-0.5 px-1 truncate">
+                  {wp.label}
+                </div>
+                {active && (
+                  <div className="absolute top-1 right-1 w-5 h-5 bg-blue-500 text-white rounded-full text-[10px] flex items-center justify-center">
+                    ✓
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
         <div className="space-y-2">
           <div className="flex gap-2">
             <button
@@ -121,11 +203,43 @@ const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMob
         </div>
       </div>
 
+      {/* Icon Picker */}
+      <div className="p-3 bg-gray-50 rounded-lg border mb-3">
+        <h3 className="text-[12px] font-bold mb-2 text-gray-700">🧺 Simge Sepeti</h3>
+        <p className="text-[10px] text-gray-500 mb-2">
+          Masaüstünde gösterilecek simgeleri seç ({(settings.visibleIcons || []).length}/{ALL_DESKTOP_ICON_IDS.length}).
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {ALL_DESKTOP_ICON_IDS.map((id) => {
+            const meta = ICON_META[id];
+            const visible = (settings.visibleIcons || []).includes(id);
+            return (
+              <button
+                key={id}
+                onClick={() => {
+                  const cur = new Set(settings.visibleIcons || []);
+                  if (cur.has(id)) cur.delete(id);
+                  else cur.add(id);
+                  updateSetting("visibleIcons", Array.from(cur));
+                }}
+                className={`flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition ${
+                  visible ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white opacity-60"
+                }`}
+              >
+                <span className="text-2xl">{meta.emoji}</span>
+                <span className="text-[10px] text-gray-700 truncate w-full text-center">{meta.label}</span>
+                <span className="text-[9px]">{visible ? "✓ Açık" : "Gizli"}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Nostalgia Mode */}
       <div className="p-3 bg-gray-50 rounded-lg border mb-3">
-        <h3 className="text-[12px] font-bold mb-2 text-gray-700">🕹️ Nostalji Modu</h3>
+        <h3 className="text-[12px] font-bold mb-2 text-gray-700">🕹️ Nostalji Modu (PC Görünümü)</h3>
         <p className="text-[10px] text-gray-500 mb-2">
-          Klasik Windows tarzı başlat çubuğu ve menü çubuklarını gösterir.
+          Açıldığında klasik Windows başlat çubuğu, menü çubuğu ve pencere tarzı görünür. Kapalıysa modern telefon/tablet görünümü kullanılır.
         </p>
         <button
           onClick={() => updateSetting("nostalgiaMode", !settings.nostalgiaMode)}
@@ -135,7 +249,7 @@ const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMob
               : "border-gray-200 text-gray-600 hover:border-gray-300"
           }`}
         >
-          {settings.nostalgiaMode ? "✅ Nostalji Modu Açık" : "⬜ Nostalji Modu Kapalı"}
+          {settings.nostalgiaMode ? "✅ Nostalji (PC) Açık" : "⬜ Modern Görünüm (Telefon/Tablet)"}
         </button>
       </div>
 
@@ -170,7 +284,7 @@ const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMob
       <div className="p-3 bg-gray-50 rounded-lg border mb-3">
         <h3 className="text-[12px] font-bold mb-2 text-gray-700">💾 Depolama</h3>
         <p className="text-[11px] text-gray-500 mb-2">
-          Kullanılan: {(JSON.stringify(localStorage).length / 1024).toFixed(1)} KB
+          Kullanılan: {storageUsedKb} KB
         </p>
         <button
           onClick={() => {
