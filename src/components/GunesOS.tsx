@@ -187,7 +187,15 @@ const GunesOSInner: React.FC = () => {
   const [files, setFiles] = useLocalStorage<FileItem[]>("gunesOS-files", []);
   const [trashedFiles, setTrashedFiles] = useLocalStorage<FileItem[]>("gunesOS-trash", []);
   const [startMenuOpen, setStartMenuOpen] = useState(false);
-  const { isMobile, isTablet } = useResponsive();
+  const responsive = useResponsive();
+  const isTablet = responsive.isTablet;
+  // PC'de telefon görünümü ayarı açıksa, mobil davran
+  const isMobile = responsive.isMobile || (settings.phoneLikeOnPC && responsive.isDesktop);
+  const deviceTitle = settings.customDeviceName?.trim()
+    || (globalDeviceInfo.category === "phone" ? "Telefonum"
+      : globalDeviceInfo.category === "tablet" ? "Tabletim"
+      : globalDeviceInfo.category === "laptop" ? "Dizüstüm"
+      : "Bilgisayarım");
 
   const addFile = useCallback(
     (file: FileItem) => {
@@ -228,7 +236,8 @@ const GunesOSInner: React.FC = () => {
         return;
       }
       const extra = EXTRA_APP_MAP[appId as string];
-      const config = appConfig[appId] || (extra ? { title: extra.label, width: 420, height: 480 } : { title: appId, width: 500, height: 400 });
+      const baseConfig = appConfig[appId] || (extra ? { title: extra.label, width: 420, height: 480 } : { title: appId, width: 500, height: 400 });
+      const config = appId === "mycomputer" ? { ...baseConfig, title: deviceTitle } : baseConfig;
       setWindows((prev) => {
         const offset = (prev.length % 6) * 25;
         const id = `${appId}-${Date.now()}`;
@@ -267,7 +276,7 @@ const GunesOSInner: React.FC = () => {
         return [...prev, newWindow];
       });
     },
-    [isMobile, isTablet]
+    [isMobile, isTablet, deviceTitle]
   );
 
   const closeWindow = useCallback((id: string) => {
@@ -395,14 +404,20 @@ const GunesOSInner: React.FC = () => {
           <div className="p-4 overflow-auto h-full">
             <div className="flex items-center gap-3 mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
               <span className="text-5xl">{globalDeviceInfo.emoji}</span>
-              <div>
-                <h3 className="text-lg font-bold text-[#000080]">{globalDeviceInfo.label}</h3>
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-[#000080] truncate">
+                  {settings.customDeviceName?.trim() || deviceTitle}
+                </h3>
                 <p className="text-xs text-gray-500">
-                  {globalDeviceInfo.type === "phone" ? "📱 Telefon" : globalDeviceInfo.type === "tablet" ? "📱 Tablet" : "🖥️ Masaüstü"}
+                  {globalDeviceInfo.emoji} {globalDeviceInfo.typeLabel} • {globalDeviceInfo.os}
                 </p>
               </div>
             </div>
             <div className="space-y-2 mb-4">
+              <div className="p-2 bg-gray-50 rounded border flex justify-between">
+                <span className="text-[11px] text-gray-600">Cihaz Adı</span>
+                <span className="text-[11px] font-bold text-black">{settings.customDeviceName?.trim() || globalDeviceInfo.label}</span>
+              </div>
               <div className="p-2 bg-gray-50 rounded border flex justify-between">
                 <span className="text-[11px] text-gray-600">Marka</span>
                 <span className="text-[11px] font-bold text-black">{globalDeviceInfo.brand}</span>
@@ -416,15 +431,13 @@ const GunesOSInner: React.FC = () => {
                 <span className="text-[11px] font-bold text-black">{globalDeviceInfo.os}</span>
               </div>
               <div className="p-2 bg-gray-50 rounded border flex justify-between">
+                <span className="text-[11px] text-gray-600">Cihaz Türü</span>
+                <span className="text-[11px] font-bold text-black">{globalDeviceInfo.typeLabel}</span>
+              </div>
+              <div className="p-2 bg-gray-50 rounded border flex justify-between">
                 <span className="text-[11px] text-gray-600">Ekran Çözünürlük</span>
                 <span className="text-[11px] font-bold text-black">
                   {getViewportSize().width} × {getViewportSize().height}
-                </span>
-              </div>
-              <div className="p-2 bg-gray-50 rounded border flex justify-between">
-                <span className="text-[11px] text-gray-600">Cihaz Türü</span>
-                <span className="text-[11px] font-bold text-black">
-                  {globalDeviceInfo.type === "phone" ? "Mobil Telefon" : globalDeviceInfo.type === "tablet" ? "Tablet" : "Masaüstü Bilgisayar"}
                 </span>
               </div>
             </div>

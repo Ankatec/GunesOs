@@ -48,7 +48,7 @@ interface DesktopIcon {
 const deviceInfo = detectDevice();
 
 const coreIcons: DesktopIcon[] = [
-  { id: "mycomputer", label: deviceInfo.type === "phone" ? "Telefonum" : deviceInfo.type === "tablet" ? "Tabletim" : "Bilgisayarım", emoji: "🌞", isApp: true },
+  { id: "mycomputer", label: deviceInfo.category === "phone" ? "Telefonum" : deviceInfo.category === "tablet" ? "Tabletim" : deviceInfo.category === "laptop" ? "Dizüstüm" : "Bilgisayarım", emoji: deviceInfo.emoji, isApp: true },
   { id: "browser", label: "Tarayıcı", emoji: "🧭", isApp: true },
   { id: "notepad", label: "Notlar", emoji: "🗒️", isApp: true },
   { id: "terminal", label: "Günter", emoji: "🌤️", isApp: true },

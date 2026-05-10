@@ -1,10 +1,18 @@
+export type DeviceCategory = "phone" | "tablet" | "laptop" | "desktop";
+
 export interface DeviceInfo {
-  type: "phone" | "tablet" | "desktop";
-  brand: string;
-  model: string;
+  type: "phone" | "tablet" | "desktop"; // legacy compat
+  category: DeviceCategory;
+  brand: string;       // Ankatec (sabit marka)
+  model: string;       // GunesOS.571 (sabit model)
+  realBrand: string;   // gerçek tespit edilen marka (Samsung, Apple, ...)
+  realModel: string;   // gerçek tespit edilen model
   emoji: string;
-  label: string;
-  os: string;
+  label: string;       // Cihazım etiketi (kullanıcı isminden veya marka+modelden)
+  typeLabel: string;   // "Masaüstü" / "Dizüstü" / "Tablet" / "Telefon"
+  os: string;          // GüneşOS Ega
+  realOs: string;      // gerçek OS
+  screen: string;      // "1920 × 1080"
 }
 
 interface UAData {
@@ -27,175 +35,87 @@ export async function refreshHighEntropyDeviceInfo(): Promise<void> {
   const ua = (navigator as unknown as { userAgentData?: UAData }).userAgentData;
   if (!ua?.getHighEntropyValues) return;
   try {
-    const data = await ua.getHighEntropyValues([
-      "model",
-      "platform",
-      "platformVersion",
-      "architecture",
-      "bitness",
-    ]);
+    const data = await ua.getHighEntropyValues(["model", "platform", "platformVersion", "architecture", "bitness"]);
     const browserBrand = ua.brands?.find((b) => !/Not.?A.?Brand/i.test(b.brand))?.brand;
     const osLabel = data.platform && data.platformVersion
-      ? `${data.platform} ${data.platformVersion}${data.architecture ? ` (${data.architecture}${data.bitness ? "/" + data.bitness : ""})` : ""}`
+      ? `${data.platform} ${data.platformVersion}`
       : data.platform;
-    _cachedHighEntropy = {
-      brand: browserBrand,
-      model: data.model || undefined,
-      os: osLabel,
-    };
-  } catch {
-    /* user denied or unsupported */
-  }
+    _cachedHighEntropy = { brand: browserBrand, model: data.model || undefined, os: osLabel };
+  } catch { /* ignore */ }
 }
 
 function detectBrandModel(ua: string): { brand: string; model: string } {
-  // Samsung
-  const samsungMatch = ua.match(/Samsung(?:Browser)?[/\s]([\w-]+)/i) ||
-    ua.match(/;\s*(SM-\w+|GT-\w+|SCH-\w+|SGH-\w+|SPH-\w+|Galaxy[\s\w-]+)/i);
-  if (samsungMatch) {
-    const model = samsungMatch[1] || "Galaxy";
-    return { brand: "Samsung", model: model.replace(/_/g, " ").trim() };
+  const samsung = ua.match(/;\s*(SM-\w+|GT-\w+|Galaxy[\s\w-]+)/i) || ua.match(/Samsung/i);
+  if (samsung) return { brand: "Samsung", model: (samsung[1] || "Galaxy").replace(/_/g, " ").trim() };
+  if (/iPhone/i.test(ua)) {
+    const v = ua.match(/OS\s([\d_]+)/);
+    return { brand: "Apple", model: v ? `iPhone (iOS ${v[1].replace(/_/g, ".")})` : "iPhone" };
   }
-
-  // iPhone
-  const iphoneMatch = ua.match(/iPhone\d*,\d*|iPhone/i);
-  if (iphoneMatch) {
-    const iosMatch = ua.match(/OS\s([\d_]+)/);
-    const iosVer = iosMatch ? iosMatch[1].replace(/_/g, ".") : "";
-    return { brand: "Apple", model: iosVer ? `iPhone (iOS ${iosVer})` : "iPhone" };
+  if (/iPad/i.test(ua)) {
+    const v = ua.match(/OS\s([\d_]+)/);
+    return { brand: "Apple", model: v ? `iPad (iPadOS ${v[1].replace(/_/g, ".")})` : "iPad" };
   }
-
-  // iPad
-  const ipadMatch = ua.match(/iPad/i);
-  if (ipadMatch) {
-    const iosMatch = ua.match(/OS\s([\d_]+)/);
-    const iosVer = iosMatch ? iosMatch[1].replace(/_/g, ".") : "";
-    return { brand: "Apple", model: iosVer ? `iPad (iOS ${iosVer})` : "iPad" };
+  if (/Huawei|HUAWEI/i.test(ua)) return { brand: "Huawei", model: "Huawei" };
+  if (/Xiaomi|Redmi|POCO/i.test(ua)) return { brand: "Xiaomi", model: "Xiaomi" };
+  if (/OnePlus/i.test(ua)) return { brand: "OnePlus", model: "OnePlus" };
+  const pixel = ua.match(/Pixel\s?(\d+)/i);
+  if (pixel) return { brand: "Google", model: `Pixel ${pixel[1]}` };
+  const android = ua.match(/Android\s([\d.]+)/);
+  if (android) return { brand: "Android", model: `Android ${android[1]}` };
+  const win = ua.match(/Windows\sNT\s([\d.]+)/);
+  if (win) {
+    const map: Record<string, string> = { "10.0": "10/11", "6.3": "8.1", "6.2": "8", "6.1": "7" };
+    return { brand: "Microsoft", model: `Windows ${map[win[1]] || win[1]}` };
   }
-
-  // Huawei
-  const huaweiMatch = ua.match(/Huawei|HUAWEI|(?:;\s*)(ANA-\w+|VOG-\w+|ELE-\w+|TNY-\w+|MAR-\w+|POT-\w+|STK-\w+)/i);
-  if (huaweiMatch) {
-    const model = huaweiMatch[1] || "";
-    return { brand: "Huawei", model: model ? model.replace(/_/g, " ") : "Huawei" };
-  }
-
-  // Xiaomi
-  const xiaomiMatch = ua.match(/Xiaomi|Redmi|POCO|(?:;\s*)(M\d{4}\w*|Redmi[\s\w-]+)/i);
-  if (xiaomiMatch) {
-    const model = xiaomiMatch[1] || "";
-    return { brand: "Xiaomi", model: model ? model.replace(/_/g, " ") : "Xiaomi" };
-  }
-
-  // OnePlus
-  const oneplusMatch = ua.match(/OnePlus|(?:;\s*)(IN\d{4})/i);
-  if (oneplusMatch) {
-    const model = oneplusMatch[1] || "";
-    return { brand: "OnePlus", model: model || "OnePlus" };
-  }
-
-  // Google Pixel
-  const pixelMatch = ua.match(/Pixel\s?(\d+)/i);
-  if (pixelMatch) {
-    return { brand: "Google", model: `Pixel ${pixelMatch[1]}` };
-  }
-
-  // LG
-  const lgMatch = ua.match(/LG|LGE|(?:;\s*)(LM-\w+)/i);
-  if (lgMatch) {
-    const model = lgMatch[1] || "";
-    return { brand: "LG", model: model || "LG" };
-  }
-
-  // Sony
-  const sonyMatch = ua.match(/Sony|Xperia|(?:;\s*)(SO-\w+|C\d{4})/i);
-  if (sonyMatch) {
-    const model = sonyMatch[1] || "";
-    return { brand: "Sony", model: model ? `Xperia ${model}` : "Xperia" };
-  }
-
-  // General Android
-  const androidMatch = ua.match(/Android\s([\d.]+)/);
-  if (androidMatch) {
-    return { brand: "Android", model: `Android ${androidMatch[1]}` };
-  }
-
-  // Windows
-  const windowsMatch = ua.match(/Windows\sNT\s([\d.]+)/);
-  if (windowsMatch) {
-    const verMap: Record<string, string> = { "10.0": "10/11", "6.3": "8.1", "6.2": "8", "6.1": "7" };
-    return { brand: "Microsoft", model: `Windows ${verMap[windowsMatch[1]] || windowsMatch[1]}` };
-  }
-
-  // Mac
-  const macMatch = ua.match(/Mac\sOS\sX\s([\d_]+)/);
-  if (macMatch) {
-    return { brand: "Apple", model: `macOS ${macMatch[1].replace(/_/g, ".")}` };
-  }
-
-  // Linux
-  if (ua.match(/Linux/i)) {
-    return { brand: "Linux", model: "Linux" };
-  }
-
+  const mac = ua.match(/Mac\sOS\sX\s([\d_]+)/);
+  if (mac) return { brand: "Apple", model: `Mac (${mac[1].replace(/_/g, ".")})` };
+  if (/Linux/i.test(ua)) return { brand: "Linux", model: "Linux PC" };
   return { brand: "Bilinmeyen", model: "Cihaz" };
 }
 
 function detectOS(ua: string): string {
-  if (ua.match(/Windows/i)) return "Windows";
-  if (ua.match(/Mac OS X/i)) return "macOS";
-  if (ua.match(/Android/i)) return "Android";
-  if (ua.match(/iPhone|iPad|iPod/i)) return "iOS";
-  if (ua.match(/Linux/i)) return "Linux";
+  if (/Windows/i.test(ua)) return "Windows";
+  if (/Mac OS X/i.test(ua)) return "macOS";
+  if (/Android/i.test(ua)) return "Android";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "iOS";
+  if (/Linux/i.test(ua)) return "Linux";
   return "Bilinmeyen";
 }
 
 export function detectDevice(): DeviceInfo {
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-  let { brand, model } = detectBrandModel(ua);
-  let os = detectOS(ua);
+  const { brand: realBrand, model: realModel } = detectBrandModel(ua);
+  let realOs = detectOS(ua);
+  if (_cachedHighEntropy?.os) realOs = _cachedHighEntropy.os;
 
-  // Augment from User-Agent Client Hints (Chromium browsers)
-  if (_cachedHighEntropy) {
-    if (_cachedHighEntropy.os) os = _cachedHighEntropy.os;
-    if (_cachedHighEntropy.model && (brand === "Bilinmeyen" || /Android \d/.test(model))) {
-      model = _cachedHighEntropy.model;
-    }
-    if (_cachedHighEntropy.brand && brand === "Bilinmeyen") {
-      brand = _cachedHighEntropy.brand;
-    }
-  }
+  const w = typeof window !== "undefined" ? window.innerWidth : 1280;
+  const h = typeof window !== "undefined" ? window.innerHeight : 720;
+  const sw = typeof window !== "undefined" ? window.screen?.width || w : w;
+  const touch = typeof navigator !== "undefined" && (navigator.maxTouchPoints || 0) > 1;
 
   const isMobile = /Android.*Mobile|iPhone|iPod|Windows Phone/i.test(ua);
-  const isTablet = /iPad|Android(?!.*Mobile)|Silk/i.test(ua) ||
-    (typeof window !== "undefined" && window.innerWidth >= 640 && window.innerWidth < 1024 && isMobile === false && /Android/i.test(ua));
+  const isTablet = /iPad|Silk/i.test(ua) || (/Android/i.test(ua) && !isMobile);
 
-  let type: DeviceInfo["type"];
+  let category: DeviceCategory;
   let emoji: string;
-  let label: string;
+  let typeLabel: string;
+  if (isMobile) { category = "phone"; emoji = "📱"; typeLabel = "Telefon"; }
+  else if (isTablet) { category = "tablet"; emoji = "📱"; typeLabel = "Tablet"; }
+  else if (touch && sw <= 1700) { category = "laptop"; emoji = "💻"; typeLabel = "Dizüstü"; }
+  else if (sw <= 1500) { category = "laptop"; emoji = "💻"; typeLabel = "Dizüstü"; }
+  else { category = "desktop"; emoji = "🖥️"; typeLabel = "Masaüstü"; }
 
-  if (isMobile) {
-    type = "phone";
-    emoji = "📱";
-    label = brand !== "Bilinmeyen" ? `${brand} ${model}` : "Telefon";
-  } else if (isTablet) {
-    type = "tablet";
-    emoji = "📱";
-    label = brand !== "Bilinmeyen" ? `${brand} ${model}` : "Tablet";
-  } else {
-    type = "desktop";
-    emoji = "🖥️";
-    // Desktop: prefer OS as primary "device name" since browsers can't expose hostname
-    const browser = (() => {
-      if (/Edg\//i.test(ua)) return "Edge";
-      if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) return "Chrome";
-      if (/Firefox\//i.test(ua)) return "Firefox";
-      if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) return "Safari";
-      return "";
-    })();
-    const osPart = os !== "Bilinmeyen" ? os : `${brand} ${model}`;
-    label = browser ? `${osPart} • ${browser}` : osPart;
-  }
+  const type: DeviceInfo["type"] = category === "phone" ? "phone" : category === "tablet" ? "tablet" : "desktop";
+  const label = realBrand !== "Bilinmeyen" ? `${realBrand} ${realModel}` : typeLabel;
 
-  return { type, brand, model, emoji, label, os };
+  return {
+    type, category,
+    brand: "Ankatec",
+    model: "GunesOS.571",
+    realBrand, realModel,
+    emoji, label, typeLabel,
+    os: "GüneşOS Ega",
+    realOs,
+    screen: `${w} × ${h}`,
+  };
 }
