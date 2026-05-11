@@ -186,38 +186,13 @@ const WindowFrame: React.FC<WindowFrameProps> = ({
 
   if (isMinimized) return null;
 
-  // Modern phone/tablet fullscreen mode (when nostalgia is OFF) — no PC chrome
+  // Modern phone/tablet fullscreen mode (when nostalgia is OFF) — pure full-screen, no chrome at all.
+  // Üst div, geri tuşu ve X tuşu KESİNLİKLE yoktur. Kapatmak için masaüstündeki ev butonu kullanılır.
   if (!nostalgiaMode) {
     return (
-      <div
-        ref={frameRef}
-        style={{ position: "fixed", inset: 0, zIndex }}
-        className="flex flex-col bg-white animate-in slide-in-from-right duration-300"
-        onMouseDown={onFocus}
-      >
-        <div
-          className="flex items-center h-12 px-3 gap-2 shrink-0 text-white"
-          style={{ background: `linear-gradient(to right, ${theme.titleBar}, ${theme.titleBarEnd})` }}
-        >
-          <button
-            onClick={onClose}
-            className="w-9 h-9 -ml-1 rounded-full flex items-center justify-center text-lg hover:bg-white/15 active:bg-white/25 transition"
-            aria-label="Geri"
-          >
-            ‹
-          </button>
-          {icon && <span className="w-5 h-5 flex items-center justify-center">{icon}</span>}
-          <span className="text-sm font-semibold truncate flex-1">{title}</span>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 -mr-1 rounded-full flex items-center justify-center text-base hover:bg-white/15 active:bg-white/25 transition"
-            aria-label="Kapat"
-          >
-            ✕
-          </button>
-        </div>
-        <div className="flex-1 bg-white overflow-hidden relative">{children}</div>
-      </div>
+      <MobileFullscreenWindow zIndex={zIndex} onClose={onClose} onMinimize={onMinimize} onFocus={onFocus}>
+        {children}
+      </MobileFullscreenWindow>
     );
   }
 
@@ -313,6 +288,71 @@ const WindowFrame: React.FC<WindowFrameProps> = ({
           }}
         />
       )}
+    </div>
+  );
+};
+
+/**
+ * Mobil/tablet tam-ekran pencere. Üst bar, X, geri yok.
+ * Yatay kaydırma (>120px) → kapat. Aşağı kaydırma (>120px) → küçült (son uygulamalara).
+ */
+const MobileFullscreenWindow: React.FC<{
+  zIndex: number;
+  onClose: () => void;
+  onMinimize: () => void;
+  onFocus: () => void;
+  children: React.ReactNode;
+}> = ({ zIndex, onClose, onMinimize, onFocus, children }) => {
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const [drag, setDrag] = useState({ x: 0, y: 0 });
+  const [closing, setClosing] = useState(false);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    // Sadece üst kenardan başlayan kaydırmayı kapatma jesti olarak al,
+    // aksi halde uygulama içi kaydırmaya engel olmamak için yok say.
+    const t = e.touches[0];
+    if (t.clientY > 40) { start.current = null; return; }
+    start.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!start.current) return;
+    const t = e.touches[0];
+    setDrag({ x: t.clientX - start.current.x, y: Math.max(0, t.clientY - start.current.y) });
+  };
+  const onTouchEnd = () => {
+    if (!start.current) return;
+    const { x, y } = drag;
+    if (Math.abs(x) > 120) {
+      setClosing(true);
+      setTimeout(onClose, 180);
+    } else if (y > 120) {
+      onMinimize();
+    }
+    start.current = null;
+    setDrag({ x: 0, y: 0 });
+  };
+
+  const transform = closing
+    ? `translateX(${drag.x > 0 ? "120%" : "-120%"})`
+    : drag.x || drag.y
+      ? `translate(${drag.x}px, ${drag.y}px) scale(${Math.max(0.85, 1 - Math.abs(drag.x) / 1500 - drag.y / 1500)})`
+      : undefined;
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex }}
+      className="flex flex-col bg-white animate-in fade-in zoom-in-95 duration-200 transition-transform"
+      onMouseDown={onFocus}
+    >
+      <div
+        className="flex-1 bg-white overflow-hidden relative transition-transform"
+        style={{ transform, transitionProperty: closing ? "transform, opacity" : "none", opacity: closing ? 0 : 1 }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {children}
+      </div>
     </div>
   );
 };

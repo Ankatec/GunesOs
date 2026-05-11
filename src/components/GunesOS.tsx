@@ -21,6 +21,8 @@ import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { detectDevice, type DeviceInfo } from "@/utils/deviceDetect";
 import InstallPrompt from "./InstallPrompt";
+import MobileNavBar from "./MobileNavBar";
+import RecentsOverlay from "./RecentsOverlay";
 
 interface WindowState {
   id: string;
@@ -37,8 +39,17 @@ interface WindowState {
 const globalDeviceInfo = detectDevice();
 
 const appConfig: Record<string, { title: string; width: number; height: number }> = {
-  mycomputer: { title: globalDeviceInfo.type === "phone" ? "Telefonum" : globalDeviceInfo.type === "tablet" ? "Tabletim" : "Bilgisayarım", width: 500, height: 400 },
-  browser: { title: "EGA Tarayıcı", width: 700, height: 500 },
+  mycomputer: {
+    title:
+      globalDeviceInfo.type === "phone"
+        ? "Telefonum"
+        : globalDeviceInfo.type === "tablet"
+          ? "Tabletim"
+          : "Bilgisayarım",
+    width: 500,
+    height: 400,
+  },
+  browser: { title: "Ega", width: 700, height: 500 },
   notepad: { title: "Not Defteri", width: 500, height: 400 },
   terminal: { title: "Günter", width: 600, height: 400 },
   minesweeper: { title: "Mayın Tarlası", width: 320, height: 420 },
@@ -46,7 +57,7 @@ const appConfig: Record<string, { title: string; width: number; height: number }
   music: { title: "Müziklerim", width: 400, height: 300 },
   files: { title: "Dosya Gezgini", width: 550, height: 400 },
   trash: { title: "Çöp Kutusu", width: 400, height: 300 },
-  settings: { title: "Ayarlar", width: 450, height: 450 },
+  settings: { title: "Ayarlar", width: 640, height: 500 },
   kidsgames: { title: "Oyun Merkezi", width: 420, height: 500 },
   contacts: { title: "Rehber", width: 450, height: 400 },
   radio: { title: "Radyo", width: 380, height: 500 },
@@ -75,7 +86,11 @@ function useResponsive() {
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
-  return { isMobile: size.w < 640, isTablet: size.w >= 640 && size.w < 1024, isDesktop: size.w >= 1024 };
+  return {
+    isMobile: size.w < 640,
+    isTablet: size.w >= 640 && size.w < 1024,
+    isDesktop: size.w >= 1024,
+  };
 }
 
 const PaintApp: React.FC = () => {
@@ -134,7 +149,18 @@ const PaintApp: React.FC = () => {
     }
   }, []);
 
-  const colors = ["#000000", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff", "#ffffff", "#808080", "#800000"];
+  const colors = [
+    "#000000",
+    "#ff0000",
+    "#00ff00",
+    "#0000ff",
+    "#ffff00",
+    "#ff00ff",
+    "#00ffff",
+    "#ffffff",
+    "#808080",
+    "#800000",
+  ];
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -155,7 +181,9 @@ const PaintApp: React.FC = () => {
           className="text-[11px] border border-gray-400 bg-white px-1 text-black"
         >
           {[1, 2, 3, 5, 8, 12].map((s) => (
-            <option key={s} value={s}>{s}px</option>
+            <option key={s} value={s}>
+              {s}px
+            </option>
           ))}
         </select>
         <button
@@ -187,21 +215,102 @@ const GunesOSInner: React.FC = () => {
   const [files, setFiles] = useLocalStorage<FileItem[]>("gunesOS-files", []);
   const [trashedFiles, setTrashedFiles] = useLocalStorage<FileItem[]>("gunesOS-trash", []);
   const [startMenuOpen, setStartMenuOpen] = useState(false);
+  const [recentsOpen, setRecentsOpen] = useState(false);
+
+  // İlk girişte: Mesajlar boş başlar — sadece GüneşOS Ekibi karşılama mesajı düşer.
+  // Sohbeto'ya kayıt olduğunda doğrulama + 3 hoş geldin mesajı ayrı ayrı bildirim olarak gelir.
+  useEffect(() => {
+    if (!booted) return;
+    if (typeof window === "undefined") return;
+    const SEED = "gunesOS-mesajlar-seeded-v2";
+
+    if (!localStorage.getItem(SEED)) {
+      // Yeni akışa geçiş: eski tohum verisini temizle, sadece GüneşOS Ekibi karşılama mesajı düşür.
+      try {
+        if (localStorage.getItem("gunesOS-mesajlar-seeded") && !localStorage.getItem(SEED)) {
+          localStorage.removeItem("gunesOS-mesajlar");
+        }
+      } catch {
+        /* ignore */
+      }
+      import("@/lib/messaging").then(({ pushSystemMessage }) => {
+        pushSystemMessage({
+          threadId: "gunesos-team",
+          name: "GüneşOS Ekibi",
+          avatar: "☀️",
+          text: "🌞 GüneşOS'a hoş geldin! Tüm uygulamalar masaüstünde seni bekliyor. İyi keşifler!",
+        });
+        toast("☀️ GüneşOS Ekibi", { description: "Yeni bir mesajın var." });
+      });
+      localStorage.setItem(SEED, "1");
+    }
+
+    // Sohbeto iframe'inden gelen kayıt olaylarını dinle ve Mesajlar'a düşür.
+    const onMsg = (ev: MessageEvent) => {
+      const data = ev.data;
+      if (!data || typeof data !== "object") return;
+      import("@/lib/messaging").then(({ pushSystemMessage }) => {
+        if (data.type === "sohbeto:code" && typeof data.code === "string") {
+          pushSystemMessage({
+            threadId: "sohbeto-welcome",
+            name: "Sohbeto",
+            avatar: "💬",
+            text: `🔐 Sohbeto Doğrulama Kodun: ${data.code}\n\nKodu kimseyle paylaşma. Bu kod 10 dakika geçerlidir.`,
+          });
+          toast("💬 Sohbeto", { description: "Doğrulama kodun geldi." });
+        } else if (data.type === "sohbeto:registered") {
+          const followUps = [
+            { delay: 800, text: "👋 Merhaba ve hoş geldin!" },
+            {
+              delay: 2400,
+              text: "Sohbeto'ya başarıyla kaydoldun. Artık güvenli, hızlı ve uçtan uca şifreli mesajlaşmanın keyfini çıkarabilirsin.",
+            },
+            {
+              delay: 4200,
+              text: "İpucu: Profil resmini ve adını Sohbeto > Ayarlar bölümünden güncelleyebilirsin. İyi sohbetler! ✨",
+            },
+          ];
+          followUps.forEach((m) => {
+            setTimeout(() => {
+              pushSystemMessage({
+                threadId: "sohbeto-welcome",
+                name: "Sohbeto",
+                avatar: "💬",
+                text: m.text,
+              });
+              toast("💬 Sohbeto", {
+                description: m.text.length > 60 ? m.text.slice(0, 60) + "…" : m.text,
+              });
+            }, m.delay);
+          });
+        }
+      });
+    };
+    window.addEventListener("message", onMsg);
+
+    return () => window.removeEventListener("message", onMsg);
+  }, [booted]);
   const responsive = useResponsive();
   const isTablet = responsive.isTablet;
-  // PC'de telefon görünümü ayarı açıksa, mobil davran
-  const isMobile = responsive.isMobile || (settings.phoneLikeOnPC && responsive.isDesktop);
-  const deviceTitle = settings.customDeviceName?.trim()
-    || (globalDeviceInfo.category === "phone" ? "Telefonum"
-      : globalDeviceInfo.category === "tablet" ? "Tabletim"
-      : globalDeviceInfo.category === "laptop" ? "Dizüstüm"
-      : "Bilgisayarım");
+  const isMobile = responsive.isMobile;
+  // PC = ne mobil ne tablet. Mobil/tablet'te asla PC izi (taskbar, üst bar, başlat çubuğu) gösterilmez.
+  const isPC = !isMobile && !isTablet;
+  const isTouchUI = isMobile || isTablet;
+  const deviceTitle =
+    settings.customDeviceName?.trim() ||
+    (globalDeviceInfo.category === "phone"
+      ? "Telefonum"
+      : globalDeviceInfo.category === "tablet"
+        ? "Tabletim"
+        : globalDeviceInfo.category === "laptop"
+          ? "Dizüstüm"
+          : "Bilgisayarım");
 
   const addFile = useCallback(
     (file: FileItem) => {
       setFiles((prev) => [...prev, file]);
     },
-    [setFiles]
+    [setFiles],
   );
 
   const trashFile = useCallback(
@@ -212,7 +321,7 @@ const GunesOSInner: React.FC = () => {
         return prev.filter((x) => x.id !== id);
       });
     },
-    [setFiles, setTrashedFiles]
+    [setFiles, setTrashedFiles],
   );
 
   const restoreTrash = useCallback(
@@ -223,7 +332,7 @@ const GunesOSInner: React.FC = () => {
         return prev.filter((x) => x.id !== id);
       });
     },
-    [setFiles, setTrashedFiles]
+    [setFiles, setTrashedFiles],
   );
 
   const emptyTrash = useCallback(() => setTrashedFiles([]), [setTrashedFiles]);
@@ -232,11 +341,17 @@ const GunesOSInner: React.FC = () => {
     (appId: AppId) => {
       // Pwap henüz entegre edilmedi — sadece bilgi göster, pencere açma
       if (appId === "pwap") {
-        toast("🛍️ Pwap yakında!", { description: "Uygulama marketi entegrasyonu çok yakında geliyor." });
+        toast("🛍️ Pwap yakında!", {
+          description: "Uygulama marketi entegrasyonu çok yakında geliyor.",
+        });
         return;
       }
       const extra = EXTRA_APP_MAP[appId as string];
-      const baseConfig = appConfig[appId] || (extra ? { title: extra.label, width: 420, height: 480 } : { title: appId, width: 500, height: 400 });
+      const baseConfig =
+        appConfig[appId] ||
+        (extra
+          ? { title: extra.label, width: 420, height: 480 }
+          : { title: appId, width: 500, height: 400 });
       const config = appId === "mycomputer" ? { ...baseConfig, title: deviceTitle } : baseConfig;
       setWindows((prev) => {
         const offset = (prev.length % 6) * 25;
@@ -247,16 +362,12 @@ const GunesOSInner: React.FC = () => {
         let x = 60 + offset;
         let y = 30 + offset;
 
-        if (isMobile) {
+        if (isTouchUI) {
+          // Mobil/tablet: gerçek telefon gibi tam ekran
           width = window.innerWidth;
-          height = window.innerHeight - 40;
+          height = window.innerHeight;
           x = 0;
           y = 0;
-        } else if (isTablet) {
-          width = Math.min(config.width, window.innerWidth - 20);
-          height = Math.min(config.height, window.innerHeight - 60);
-          x = 10;
-          y = 10;
         }
 
         const newWindow: WindowState = {
@@ -264,7 +375,7 @@ const GunesOSInner: React.FC = () => {
           appId,
           title: config.title,
           isMinimized: false,
-          isMaximized: isMobile,
+          isMaximized: isTouchUI,
           x,
           y,
           width,
@@ -276,7 +387,7 @@ const GunesOSInner: React.FC = () => {
         return [...prev, newWindow];
       });
     },
-    [isMobile, isTablet, deviceTitle]
+    [isTouchUI, deviceTitle],
   );
 
   const closeWindow = useCallback((id: string) => {
@@ -290,7 +401,9 @@ const GunesOSInner: React.FC = () => {
   }, []);
 
   const maximizeWindow = useCallback((id: string) => {
-    setWindows((prev) => prev.map((w) => (w.id === id ? { ...w, isMaximized: !w.isMaximized } : w)));
+    setWindows((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, isMaximized: !w.isMaximized } : w)),
+    );
   }, []);
 
   const focusWindow = useCallback((id: string) => {
@@ -312,7 +425,7 @@ const GunesOSInner: React.FC = () => {
         focusWindow(id);
       }
     },
-    [windows, activeWindowId, focusWindow, minimizeWindow]
+    [windows, activeWindowId, focusWindow, minimizeWindow],
   );
 
   const handleTerminalCommand = useCallback(
@@ -340,7 +453,7 @@ const GunesOSInner: React.FC = () => {
         setFiles((prev) => [...prev]);
       }
     },
-    [windows, activeWindowId, closeWindow, openApp, addFile]
+    [windows, activeWindowId, closeWindow, openApp, addFile],
   );
 
   const handleSaveFile = useCallback(
@@ -358,11 +471,24 @@ const GunesOSInner: React.FC = () => {
         });
       }
     },
-    [files, setFiles, addFile]
+    [files, setFiles, addFile],
   );
 
   const handleHomeClick = () => {
+    // Mobil/tablet: ev = açık uygulamayı son uygulamalara gönder (küçült).
+    if (isTouchUI) {
+      const topId = activeWindowId ?? windows[windows.length - 1]?.id;
+      if (topId) {
+        minimizeWindow(topId);
+        return;
+      }
+    }
     setStartMenuOpen((prev) => !prev);
+  };
+
+  const handleBackClick = () => {
+    const topId = activeWindowId ?? windows[windows.length - 1]?.id;
+    if (topId) closeWindow(topId);
   };
 
   const renderAppContent = (appId: AppId) => {
@@ -416,7 +542,9 @@ const GunesOSInner: React.FC = () => {
             <div className="space-y-2 mb-4">
               <div className="p-2 bg-gray-50 rounded border flex justify-between">
                 <span className="text-[11px] text-gray-600">Cihaz Adı</span>
-                <span className="text-[11px] font-bold text-black">{settings.customDeviceName?.trim() || globalDeviceInfo.label}</span>
+                <span className="text-[11px] font-bold text-black">
+                  {settings.customDeviceName?.trim() || globalDeviceInfo.label}
+                </span>
               </div>
               <div className="p-2 bg-gray-50 rounded border flex justify-between">
                 <span className="text-[11px] text-gray-600">Marka</span>
@@ -432,7 +560,9 @@ const GunesOSInner: React.FC = () => {
               </div>
               <div className="p-2 bg-gray-50 rounded border flex justify-between">
                 <span className="text-[11px] text-gray-600">Cihaz Türü</span>
-                <span className="text-[11px] font-bold text-black">{globalDeviceInfo.typeLabel}</span>
+                <span className="text-[11px] font-bold text-black">
+                  {globalDeviceInfo.typeLabel}
+                </span>
               </div>
               <div className="p-2 bg-gray-50 rounded border flex justify-between">
                 <span className="text-[11px] text-gray-600">Ekran Çözünürlük</span>
@@ -453,7 +583,9 @@ const GunesOSInner: React.FC = () => {
                   className="flex flex-col items-center gap-1 p-3 rounded hover:bg-blue-50 cursor-pointer"
                 >
                   <span className="text-3xl">{item.emoji}</span>
-                  <span className="text-[11px] text-center font-medium text-black">{item.name}</span>
+                  <span className="text-[11px] text-center font-medium text-black">
+                    {item.name}
+                  </span>
                   <span className="text-[9px] text-gray-500">{item.info}</span>
                 </div>
               ))}
@@ -492,7 +624,9 @@ const GunesOSInner: React.FC = () => {
             ) : (
               <div className="space-y-0.5">
                 <div className="grid grid-cols-[1fr_80px_140px] gap-2 px-2 py-1 text-[10px] text-gray-500 font-bold border-b border-gray-200">
-                  <span>Ad</span><span>Tür</span><span>Oluşturma</span>
+                  <span>Ad</span>
+                  <span>Tür</span>
+                  <span>Oluşturma</span>
                 </div>
                 {files.map((item) => (
                   <div
@@ -500,11 +634,17 @@ const GunesOSInner: React.FC = () => {
                     className="grid grid-cols-[1fr_80px_140px] gap-2 items-center px-2 py-1 hover:bg-blue-50 cursor-pointer rounded"
                   >
                     <span className="text-[12px] flex items-center gap-2 text-black truncate">
-                      <span>{item.type === "folder" ? "📁" : item.type === "gunesos" ? "☀️" : "📄"}</span>
+                      <span>
+                        {item.type === "folder" ? "📁" : item.type === "gunesos" ? "☀️" : "📄"}
+                      </span>
                       <span className="truncate">{item.name}</span>
                     </span>
                     <span className="text-[10px] text-gray-500">
-                      {item.type === "folder" ? "Klasör" : item.type === "gunesos" ? "GüneşOS" : "Belge"}
+                      {item.type === "folder"
+                        ? "Klasör"
+                        : item.type === "gunesos"
+                          ? "GüneşOS"
+                          : "Belge"}
                     </span>
                     <span className="text-[10px] text-gray-500">
                       {new Date(item.createdAt).toLocaleString("tr-TR")}
@@ -519,12 +659,16 @@ const GunesOSInner: React.FC = () => {
         return (
           <div className="p-3 overflow-auto h-full bg-white">
             <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200">
-              <span className="text-[12px] text-gray-600 flex items-center gap-2">🗑️ Çöp Kutusu ({trashedFiles.length})</span>
+              <span className="text-[12px] text-gray-600 flex items-center gap-2">
+                🗑️ Çöp Kutusu ({trashedFiles.length})
+              </span>
               {trashedFiles.length > 0 && (
                 <button
                   onClick={emptyTrash}
                   className="text-[11px] px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                >Boşalt</button>
+                >
+                  Boşalt
+                </button>
               )}
             </div>
             {trashedFiles.length === 0 ? (
@@ -535,14 +679,23 @@ const GunesOSInner: React.FC = () => {
             ) : (
               <div className="space-y-1">
                 {trashedFiles.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 px-2 py-1 hover:bg-red-50 rounded">
-                    <span>{item.type === "folder" ? "📁" : item.type === "gunesos" ? "☀️" : "📄"}</span>
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-2 px-2 py-1 hover:bg-red-50 rounded"
+                  >
+                    <span>
+                      {item.type === "folder" ? "📁" : item.type === "gunesos" ? "☀️" : "📄"}
+                    </span>
                     <span className="text-[12px] flex-1 text-black truncate">{item.name}</span>
-                    <span className="text-[10px] text-gray-400">{new Date(item.createdAt).toLocaleDateString("tr-TR")}</span>
+                    <span className="text-[10px] text-gray-400">
+                      {new Date(item.createdAt).toLocaleDateString("tr-TR")}
+                    </span>
                     <button
                       onClick={() => restoreTrash(item.id)}
                       className="text-[10px] px-2 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-600"
-                    >Geri Yükle</button>
+                    >
+                      Geri Yükle
+                    </button>
                   </div>
                 ))}
               </div>
@@ -553,7 +706,9 @@ const GunesOSInner: React.FC = () => {
         const extra = EXTRA_APP_MAP[appId as string];
         if (extra) {
           return (
-            <div className={`h-full w-full flex flex-col items-center justify-center text-center px-6 ${extra.gradient}`}>
+            <div
+              className={`h-full w-full flex flex-col items-center justify-center text-center px-6 ${extra.gradient}`}
+            >
               <div className="relative mb-5">
                 <span className="text-7xl">{extra.emoji}</span>
                 <span className="absolute -bottom-2 -right-2 text-3xl animate-bounce">🚧</span>
@@ -591,7 +746,7 @@ const GunesOSInner: React.FC = () => {
         files={files}
         onAddFile={addFile}
         onTrashFile={trashFile}
-        nostalgiaMode={settings.nostalgiaMode}
+        nostalgiaMode={isPC && settings.nostalgiaMode}
         onHomeClick={handleHomeClick}
       />
 
@@ -603,7 +758,7 @@ const GunesOSInner: React.FC = () => {
           appId={win.appId}
           isActive={activeWindowId === win.id}
           isMinimized={win.isMinimized}
-          isMaximized={win.isMaximized || isMobile}
+          isMaximized={win.isMaximized || isTouchUI}
           initialX={win.x}
           initialY={win.y}
           initialWidth={win.width}
@@ -613,13 +768,13 @@ const GunesOSInner: React.FC = () => {
           onMinimize={() => minimizeWindow(win.id)}
           onMaximize={() => maximizeWindow(win.id)}
           onFocus={() => focusWindow(win.id)}
-          nostalgiaMode={settings.nostalgiaMode}
+          nostalgiaMode={isPC && settings.nostalgiaMode}
         >
           {renderAppContent(win.appId)}
         </WindowFrame>
       ))}
 
-      {settings.nostalgiaMode && (
+      {isPC && settings.nostalgiaMode && (
         <Taskbar
           openWindows={windows.map((w) => ({
             id: w.id,
@@ -630,8 +785,36 @@ const GunesOSInner: React.FC = () => {
           }))}
           onWindowClick={handleTaskbarWindowClick}
           onOpenApp={openApp}
-          isMobile={isMobile}
-          isTablet={isTablet}
+          isMobile={false}
+          isTablet={false}
+        />
+      )}
+
+      {/* Mobil/tablet: alta yapışık 3 tuşlu nav bar (geri / ev / son uygulamalar) */}
+      {isTouchUI && !(isPC && settings.nostalgiaMode) && (
+        <MobileNavBar
+          onBack={handleBackClick}
+          onHome={handleHomeClick}
+          onRecents={() => setRecentsOpen(true)}
+          hasActive={windows.length > 0}
+        />
+      )}
+
+      {recentsOpen && (
+        <RecentsOverlay
+          items={windows.map((w) => ({ id: w.id, title: w.title, appId: w.appId }))}
+          onPick={(id) => {
+            setWindows((prev) => prev.map((w) => (w.id === id ? { ...w, isMinimized: false } : w)));
+            focusWindow(id);
+            setRecentsOpen(false);
+          }}
+          onClose={(id) => closeWindow(id)}
+          onClearAll={() => {
+            setWindows([]);
+            setActiveWindowId(null);
+            setRecentsOpen(false);
+          }}
+          onDismiss={() => setRecentsOpen(false)}
         />
       )}
 

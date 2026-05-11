@@ -51,9 +51,7 @@ const MesajlarIcon: React.FC<{ className?: string }> = ({ className }) => {
         <circle cx="32" cy="29" r="2.4" fill="#16a34a" />
         <circle cx="40" cy="29" r="2.4" fill="#16a34a" />
 
-        {/* Unread badge */}
-        <circle cx="50" cy="14" r="7" fill="#ef4444" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" />
-        <text x="50" y="17.5" textAnchor="middle" fontSize="9" fontWeight="800" fill="#fff" fontFamily="system-ui, -apple-system, sans-serif">1</text>
+        {/* (Bildirim rozeti dışarıda dinamik olarak gösteriliyor) */}
       </svg>
     </span>
   );

@@ -400,6 +400,7 @@ const KidsGames: React.FC<KidsGamesProps> = ({ onOpenApp }) => {
     { id: "simon", emoji: "🔔", name: "Simon Says", desc: "Sırayı tekrarla" },
     { id: "sliding", emoji: "🧩", name: "Kaydırma Bulmacası", desc: "Resmi tamamlamak için kaydır" },
     { id: "numberPuzzle", emoji: "🔢", name: "Sayı Bulmacası", desc: "Sayıları sırala" },
+    { id: "yazeka" as GameId, emoji: "✍️", name: "Yazeka", desc: "Asma kelime oyunu" },
   ];
 
   return (
@@ -407,15 +408,14 @@ const KidsGames: React.FC<KidsGamesProps> = ({ onOpenApp }) => {
       <h2 className="text-xl font-bold text-purple-800 mb-1 text-center">🧩 Oyun Merkezi</h2>
       <p className="text-xs text-center text-purple-500 mb-3">Zeka, akıl oyunları ve eğlence uygulamaları</p>
 
-      {/* Taşınan Uygulamalar */}
+      {/* Taşınan Uygulamalar — Yazeka oyun grid'ine alındı */}
       {onOpenApp && (
-        <div className="grid grid-cols-5 gap-2 max-w-sm mx-auto mb-3">
+        <div className="grid grid-cols-4 gap-2 max-w-sm mx-auto mb-3">
           {[
             { id: "telankara" as const, emoji: "📞", name: "Telankara" },
             { id: "posta" as const, emoji: "📬", name: "Posta Ankara" },
             { id: "radio" as const, emoji: "📻", name: "Radyo" },
             { id: "seyret" as const, emoji: "📺", name: "Seyret" },
-            { id: "yazeka" as const, emoji: "📝", name: "Yazeka" },
           ].map((a) => (
             <button
               key={a.id}
@@ -456,7 +456,13 @@ const KidsGames: React.FC<KidsGamesProps> = ({ onOpenApp }) => {
         {games.map((g) => (
           <button
             key={g.id}
-            onClick={() => setActiveGame(g.id)}
+            onClick={() => {
+              if ((g.id as string) === "yazeka") {
+                onOpenApp?.("yazeka");
+              } else {
+                setActiveGame(g.id);
+              }
+            }}
             className="flex flex-col items-center p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow border border-purple-100 hover:border-purple-300"
           >
             <span className="text-3xl mb-2">{g.emoji}</span>

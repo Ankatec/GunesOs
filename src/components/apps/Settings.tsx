@@ -86,48 +86,187 @@ const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMob
     reader.readAsDataURL(file);
   };
 
-  const isPC = device.category === "desktop" || device.category === "laptop";
+  const isPC = !isMobile && !isTablet;
   const viewMode = isMobile ? "📱 Telefon Görünümü" : isTablet ? "📱 Tablet Görünümü" : `${device.emoji} ${device.typeLabel} Görünümü`;
 
-  return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Header */}
-      <div className="px-3 pt-3 pb-2 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-        <h2 className="text-base font-bold text-[#000080] flex items-center gap-2 mb-2">⚙️ Ayarlar</h2>
-        {/* Top device chip — Bilgisayarım/Tabletim/Telefonum */}
-        <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-blue-200 shadow-sm">
-          <span className="text-2xl">{device.emoji}</span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[12px] font-bold text-gray-900 truncate">
-              {settings.customDeviceName?.trim() || device.label}
-            </p>
-            <p className="text-[10px] text-gray-500 truncate">
-              {device.typeLabel} • {device.brand} {device.model} • {device.os}
-            </p>
+  // ───────────────────────────────────────────────────────────
+  // MOBİL / TABLET AYARLAR — iOS tarzı dikey liste, sekme yok.
+  // PC'ye ait hiçbir seçenek (telefon görünümü, nostalji modu, çift tık vs.) burada yoktur.
+  // ───────────────────────────────────────────────────────────
+  if (!isPC) {
+    return (
+      <div className="flex flex-col h-full bg-gray-50 overflow-y-auto">
+        <div className="px-4 pt-5 pb-3 bg-white border-b">
+          <h2 className="text-lg font-bold text-gray-900">Ayarlar</h2>
+          <div className="mt-3 flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl">
+            <span className="text-3xl">{device.emoji}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-gray-900 truncate">
+                {settings.customDeviceName?.trim() || device.label}
+              </p>
+              <p className="text-[11px] text-gray-500 truncate">{device.typeLabel} • {device.os}</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Tab bar */}
-      <div className="flex overflow-x-auto border-b bg-gray-50 shrink-0">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-3 py-2 text-[11px] font-medium whitespace-nowrap border-b-2 transition-colors ${
-              tab === t.id
-                ? "border-blue-500 text-blue-700 bg-white"
-                : "border-transparent text-gray-600 hover:text-gray-800 hover:bg-white"
-            }`}
-          >
-            <span className="mr-1">{t.emoji}</span>
-            {t.label}
-          </button>
-        ))}
-      </div>
+        <div className="px-4 py-4 space-y-5">
+          {/* Cihaz Adı */}
+          <section>
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-2 px-1">Cihaz Adı</p>
+            <div className="bg-white rounded-2xl px-4 py-3 shadow-sm">
+              <input
+                type="text"
+                value={settings.customDeviceName}
+                onChange={(e) => updateSetting("customDeviceName", e.target.value)}
+                placeholder={device.label}
+                className="w-full text-[14px] outline-none placeholder:text-gray-400"
+                maxLength={40}
+              />
+            </div>
+          </section>
 
-      {/* Tab content */}
-      <div className="flex-1 overflow-auto p-3">
+          {/* Tema */}
+          <section>
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-2 px-1">Tema</p>
+            <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-100 overflow-hidden">
+              {themes.map((t) => (
+                <button
+                  key={t.name}
+                  onClick={() => updateSetting("themeName", t.name)}
+                  className="w-full flex items-center gap-3 px-4 py-3 active:bg-gray-100 transition"
+                >
+                  <span className="w-7 h-7 rounded-full border border-gray-200 shrink-0" style={{ background: t.wallpaper }} />
+                  <span className="flex-1 text-left text-[14px] text-gray-800">{t.emoji} {t.label}</span>
+                  {settings.themeName === t.name && <span className="text-blue-500 text-lg">✓</span>}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* Arka Plan */}
+          <section>
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-2 px-1">Arka Plan</p>
+            <div className="grid grid-cols-3 gap-2">
+              {wallpaperPresets.map((wp) => {
+                const active = settings.customWallpaper === wp.url;
+                return (
+                  <button
+                    key={wp.id}
+                    onClick={() => updateSetting("customWallpaper", wp.url)}
+                    className={`relative h-24 rounded-2xl overflow-hidden border-2 transition ${
+                      active ? "border-blue-500" : "border-transparent"
+                    }`}
+                  >
+                    <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${wp.url})` }} />
+                    {active && (
+                      <div className="absolute top-1.5 right-1.5 w-6 h-6 bg-blue-500 text-white rounded-full text-[12px] flex items-center justify-center">✓</div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full mt-2 py-3 text-[13px] bg-white rounded-2xl shadow-sm active:bg-gray-100"
+            >
+              📷 Galeriden Foto Seç
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleWallpaperUpload} className="hidden" />
+          </section>
+
+          {/* Simgeler */}
+          <section>
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-2 px-1">
+              Uygulamalar ({(settings.visibleIcons || []).length}/{ALL_DESKTOP_ICON_IDS.length})
+            </p>
+            <div className="grid grid-cols-4 gap-2 bg-white rounded-2xl p-3 shadow-sm">
+              {ALL_DESKTOP_ICON_IDS.map((id) => {
+                const meta = ICON_META[id];
+                const visible = (settings.visibleIcons || []).includes(id);
+                return (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      const cur = new Set(settings.visibleIcons || []);
+                      if (cur.has(id)) cur.delete(id); else cur.add(id);
+                      updateSetting("visibleIcons", Array.from(cur));
+                    }}
+                    className={`flex flex-col items-center gap-1 p-2 rounded-xl transition ${
+                      visible ? "bg-blue-50" : "opacity-40"
+                    }`}
+                  >
+                    <span className="text-2xl">{meta.emoji}</span>
+                    <span className="text-[9px] text-gray-700 truncate w-full text-center">{meta.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Hakkında */}
+          <section>
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-2 px-1">Hakkında</p>
+            <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-100">
+              <Row k="Marka" v={device.brand} />
+              <Row k="Model" v={device.model} />
+              <Row k="İşletim Sistemi" v={device.os} />
+              <Row k="Ekran" v={`${viewportSize.width} × ${viewportSize.height}`} />
+              <Row k="Sürüm" v="GüneşOS v2.0" />
+              <Row k="Depolama" v={`${storageUsedKb} KB`} />
+            </div>
+            <button
+              onClick={() => {
+                if (confirm("Tüm veriler silinecek. Emin misiniz?")) {
+                  localStorage.clear();
+                  window.location.reload();
+                }
+              }}
+              className="w-full mt-2 py-3 text-[13px] bg-red-500 text-white rounded-2xl active:bg-red-600"
+            >
+              🗑️ Tüm Verileri Sıfırla
+            </button>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+
+  return (
+    <div className="flex h-full bg-white">
+      <aside className="w-44 shrink-0 bg-gradient-to-b from-slate-50 to-slate-100/80 relative flex flex-col">
+        <div className="p-3 border-b border-slate-200/70">
+          <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1.5 font-semibold">Ayarlar</p>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-2xl">{device.emoji}</span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-slate-800 truncate">
+                {settings.customDeviceName?.trim() || device.label}
+              </p>
+              <p className="text-[9px] text-slate-500 truncate">{device.os}</p>
+            </div>
+          </div>
+        </div>
+        <nav className="py-2 flex-1">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition-colors border-l-2 ${
+                tab === t.id
+                  ? "border-blue-500 bg-white text-blue-700 font-semibold"
+                  : "border-transparent text-slate-600 hover:bg-white/60"
+              }`}
+            >
+              <span>{t.emoji}</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="absolute top-3 bottom-3 right-0 w-px bg-gradient-to-b from-transparent via-slate-300/80 to-transparent pointer-events-none" />
+      </aside>
+
+      <div className="flex-1 overflow-auto p-4">
         {tab === "device" && (
           <div className="space-y-3">
             <div className="p-3 bg-gray-50 rounded-lg border">
@@ -159,26 +298,10 @@ const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMob
               </div>
             </div>
 
-            {isPC && (
-              <div className="p-3 bg-gray-50 rounded-lg border">
-                <h3 className="text-[12px] font-bold mb-2 text-gray-700">📲 PC'de Telefon Görünümü</h3>
-                <p className="text-[10px] text-gray-500 mb-2">
-                  Bilgisayarda da telefon gibi tek pencere/tam ekran görünümünü kullan. (Varsayılan: Kapalı)
-                </p>
-                <button
-                  onClick={() => updateSetting("phoneLikeOnPC", !settings.phoneLikeOnPC)}
-                  className={`w-full py-2 text-[11px] rounded-lg border-2 transition-all ${
-                    settings.phoneLikeOnPC
-                      ? "border-green-500 bg-green-50 text-green-700 font-medium"
-                      : "border-gray-200 text-gray-600 hover:border-gray-300"
-                  }`}
-                >
-                  {settings.phoneLikeOnPC ? "✅ Telefon Görünümü Açık" : "⬜ Telefon Görünümü Kapalı"}
-                </button>
-              </div>
-            )}
           </div>
         )}
+        {/* PC'de telefon görünümü seçeneği kaldırıldı — PC ve mobil tamamen ayrı deneyimler. */}
+
 
         {tab === "theme" && (
           <div className="p-3 bg-gray-50 rounded-lg border">
@@ -207,14 +330,14 @@ const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMob
         {tab === "wallpaper" && (
           <div className="p-3 bg-gray-50 rounded-lg border">
             <h3 className="text-[12px] font-bold mb-2 text-gray-700">🖼️ Masaüstü Arka Planı</h3>
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="grid grid-cols-3 gap-2 mb-3">
               {wallpaperPresets.map((wp) => {
                 const active = settings.customWallpaper === wp.url;
                 return (
                   <button
                     key={wp.id}
                     onClick={() => updateSetting("customWallpaper", wp.url)}
-                    className={`group relative h-24 rounded-lg overflow-hidden border-2 transition-all ${
+                    className={`group relative aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all ${
                       active ? "border-blue-500 shadow-md ring-2 ring-blue-200" : "border-gray-200 hover:border-gray-300"
                     }`}
                   >

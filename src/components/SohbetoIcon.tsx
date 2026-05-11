@@ -60,10 +60,19 @@ const SohbetoIcon: React.FC<{ className?: string }> = ({ className }) => {
           d="M16 22c0-3.3 2.7-6 6-6h20c3.3 0 6 2.7 6 6v14c0 3.3-2.7 6-6 6H30l-7 6v-6h-1c-3.3 0-6-2.7-6-6V22z"
           fill="rgba(255,255,255,0.96)"
         />
-        {/* Three dots */}
-        <circle cx="26" cy="29" r="2.2" fill="#6366f1" />
-        <circle cx="32" cy="29" r="2.2" fill="#8b5cf6" />
-        <circle cx="38" cy="29" r="2.2" fill="#ec4899" />
+        {/* "So" yazısı */}
+        <text
+          x="32"
+          y="36"
+          textAnchor="middle"
+          fontFamily="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+          fontSize="14"
+          fontWeight="800"
+          fill="#6366f1"
+          letterSpacing="-0.5"
+        >
+          So
+        </text>
 
         {/* AI spark */}
         <circle cx="48" cy="16" r="4" fill="url(#sohbetoSpark)" />

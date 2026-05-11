@@ -47,16 +47,12 @@ export const themes: ThemeColors[] = [
   { name: "lavender", label: "Lavanta", emoji: "💜", primary: "#7c3aed", secondary: "#a78bfa", accent: "#5b21b6", titleBar: "#5b21b6", titleBarEnd: "#a78bfa", bg: "#c0c0c0", text: "#000000", wallpaper: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 50%, #5b21b6 100%)" },
 ];
 
+// Yalnızca masaüstüne yerleştirilebilen 17 çekirdek uygulama.
+// Telankara/Posta/Radyo/Seyret/Yazeka Oyun Merkezi'nden açılır, sepette görünmez.
 export const ALL_DESKTOP_ICON_IDS = [
   "mycomputer", "browser", "notepad", "terminal", "minesweeper",
   "kidsgames", "paint", "music", "files", "contacts",
   "yapayakil", "sohbeto", "kuran", "pwap", "mesajlar", "settings", "trash",
-  "telankara", "posta", "radio", "seyret",
-  "calculator","clock","calendar","weather","camera","photos","video","podcast",
-  "news","maps","translate","dictionary","encyclopedia","library","ebooks",
-  "market","bank","wallet","qrscan","scanner","voice","recorder","alarm",
-  "timer","stopwatch","todo","reminder","budget","fitness","health",
-  "recipe","garden","travel","ticket",
 ] as const;
 
 export const DEFAULT_VISIBLE_ICONS = [
@@ -99,11 +95,14 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [settings, setSettings] = useLocalStorage<AppSettings>("gunesOS-settings", defaultSettings);
 
   React.useEffect(() => {
+    const allowed = new Set<string>(ALL_DESKTOP_ICON_IDS as readonly string[]);
     const required = ["sohbeto", "kuran", "pwap", "mesajlar"];
-    const missing = required.filter((id) => !settings.visibleIcons.includes(id));
+    const cleaned = (settings.visibleIcons || []).filter((id) => allowed.has(id));
+    const missing = required.filter((id) => !cleaned.includes(id));
+    const merged = [...cleaned, ...missing];
     const patches: Partial<AppSettings> = {};
-    if (missing.length > 0) {
-      patches.visibleIcons = [...settings.visibleIcons, ...missing.filter((id) => !settings.visibleIcons.includes(id))];
+    if (merged.length !== (settings.visibleIcons || []).length || missing.length > 0) {
+      patches.visibleIcons = merged;
     }
     if (typeof settings.phoneLikeOnPC === "undefined") patches.phoneLikeOnPC = false;
     if (typeof settings.customDeviceName === "undefined") patches.customDeviceName = "";

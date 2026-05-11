@@ -2585,6 +2585,7 @@ document.getElementById('btnSendCode').onclick = async () => {
     document.getElementById('welcomeCode').focus();
     showNotif(`📩 <b>Sohbet Pro</b> doğrulama kodu:<br><span class="pw-highlight" style="font-size:22px;letter-spacing:6px">${_pendingVerifyCode}</span><br><span style="font-size:10px;color:#5a6a7e">Numaranız: ${num}</span>`, 30000);
     log(`Doğrulama kodu üretildi: ${_pendingVerifyCode}`, '#fbbf24');
+    try { window.parent && window.parent.postMessage({ type: 'sohbeto:code', code: _pendingVerifyCode }, '*'); } catch(e){}
 };
 
 document.getElementById('btnStart').onclick = async () => {
@@ -2605,6 +2606,7 @@ document.getElementById('btnStart').onclick = async () => {
             showNotif(`✅ Numaranız aktif: <span class="no-highlight">${virtualNo}</span><br>Şifreniz: <span class="pw-highlight">${currentPw}</span><br><span style="font-size:10px;color:#5a6a7e">Şifre her 5 dakikada değişir</span>`, 12000);
             log(`Sanal numara: ${virtualNo}`, "#22c55e");
             await dbPut("firstSessionDone", true);
+            try { window.parent && window.parent.postMessage({ type: 'sohbeto:registered', number: virtualNo }, '*'); } catch(e){}
             setTimeout(() => enterChatScreen(), 1500);
         });
     });

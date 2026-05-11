@@ -2,12 +2,15 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useTheme } from "@/contexts/ThemeContext";
 import { detectDevice } from "@/utils/deviceDetect";
-import { EXTRA_APPS } from "@/lib/extraApps";
+import { totalUnread, MSG_EVENT } from "@/lib/messaging";
+
 import SohbetoIcon from "./SohbetoIcon";
 import KuranIcon from "./KuranIcon";
 import PwapIcon from "./PwapIcon";
 import YapayAkilIcon from "./YapayAkilIcon";
 import MesajlarIcon from "./MesajlarIcon";
+import EgaIcon from "./EgaIcon";
+import { ContactsIcon, GunterIcon, MusicIcon, SettingsGearIcon } from "./ModernAppIcons";
 
 export type AppId =
   | "mycomputer"
@@ -47,9 +50,23 @@ interface DesktopIcon {
 
 const deviceInfo = detectDevice();
 
+// Masaüstündeki çekirdek 17 simge. Diğerleri (telankara/posta/radyo/seyret/yazeka)
+// yalnızca Oyun Merkezi'nden açılır.
 const coreIcons: DesktopIcon[] = [
-  { id: "mycomputer", label: deviceInfo.category === "phone" ? "Telefonum" : deviceInfo.category === "tablet" ? "Tabletim" : deviceInfo.category === "laptop" ? "Dizüstüm" : "Bilgisayarım", emoji: deviceInfo.emoji, isApp: true },
-  { id: "browser", label: "Tarayıcı", emoji: "🧭", isApp: true },
+  {
+    id: "mycomputer",
+    label:
+      deviceInfo.category === "phone"
+        ? "Telefonum"
+        : deviceInfo.category === "tablet"
+          ? "Tabletim"
+          : deviceInfo.category === "laptop"
+            ? "Dizüstüm"
+            : "Bilgisayarım",
+    emoji: deviceInfo.emoji,
+    isApp: true,
+  },
+  { id: "browser", label: "Ega", emoji: "🧭", isApp: true },
   { id: "notepad", label: "Notlar", emoji: "🗒️", isApp: true },
   { id: "terminal", label: "Günter", emoji: "🌤️", isApp: true },
   { id: "minesweeper", label: "Mayın", emoji: "💣", isApp: true },
@@ -63,18 +80,11 @@ const coreIcons: DesktopIcon[] = [
   { id: "kuran", label: "Vakit & Kuran", emoji: "📖", isApp: true },
   { id: "pwap", label: "Pwap", emoji: "🛍️", isApp: true },
   { id: "mesajlar", label: "Mesajlar", emoji: "💌", isApp: true },
-  { id: "telankara", label: "Telankara", emoji: "📱", isApp: true },
-  { id: "posta", label: "Posta", emoji: "✉️", isApp: true },
-  { id: "radio", label: "Radyo", emoji: "📻", isApp: true },
-  { id: "seyret", label: "Seyret", emoji: "🎬", isApp: true },
   { id: "settings", label: "Ayarlar", emoji: "⚙️", isApp: true },
   { id: "trash", label: "Çöp", emoji: "🗑️", isApp: true },
 ];
 
-const defaultIcons: DesktopIcon[] = [
-  ...coreIcons,
-  ...EXTRA_APPS.map((a) => ({ id: a.id, label: a.label, emoji: a.emoji, isApp: true })),
-];
+const defaultIcons: DesktopIcon[] = [...coreIcons];
 
 interface DesktopProps {
   onOpenApp: (appId: AppId) => void;
@@ -87,17 +97,48 @@ interface DesktopProps {
   onHomeClick: () => void;
 }
 
-const Desktop: React.FC<DesktopProps> = ({ onOpenApp, isMobile, isTablet, files, onAddFile, onTrashFile, nostalgiaMode, onHomeClick }) => {
+const Desktop: React.FC<DesktopProps> = ({
+  onOpenApp,
+  isMobile,
+  isTablet,
+  files,
+  onAddFile,
+  onTrashFile,
+  nostalgiaMode,
+  onHomeClick,
+}) => {
   const { theme, settings } = useTheme();
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [iconContextMenu, setIconContextMenu] = useState<{ x: number; y: number; iconId: string; isFile: boolean } | null>(null);
-  const [propertiesIcon, setPropertiesIcon] = useState<{ id: string; label: string; emoji: string; isApp: boolean } | null>(null);
+  const [iconContextMenu, setIconContextMenu] = useState<{
+    x: number;
+    y: number;
+    iconId: string;
+    isFile: boolean;
+  } | null>(null);
+  const [propertiesIcon, setPropertiesIcon] = useState<{
+    id: string;
+    label: string;
+    emoji: string;
+    isApp: boolean;
+  } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadMsg, setUnreadMsg] = useState<number>(() => totalUnread());
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const refresh = () => setUnreadMsg(totalUnread());
+    window.addEventListener(MSG_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(MSG_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
   const [iconOrder, setIconOrder] = useLocalStorage<string[]>(
     "gunesOS-icon-order",
-    defaultIcons.map((i) => i.id)
+    defaultIcons.map((i) => i.id),
   );
   const dragItem = useRef<string | null>(null);
   const dragOverItem = useRef<string | null>(null);
@@ -108,9 +149,10 @@ const Desktop: React.FC<DesktopProps> = ({ onOpenApp, isMobile, isTablet, files,
     return "📄";
   };
 
-  const visibleList = settings.visibleIcons && settings.visibleIcons.length > 0
-    ? settings.visibleIcons
-    : defaultIcons.map((i) => i.id);
+  const visibleList =
+    settings.visibleIcons && settings.visibleIcons.length > 0
+      ? settings.visibleIcons
+      : defaultIcons.map((i) => i.id);
   const visibleSet = new Set(visibleList);
   const allIcons: DesktopIcon[] = [
     ...defaultIcons.filter((i) => visibleSet.has(i.id)),
@@ -138,7 +180,8 @@ const Desktop: React.FC<DesktopProps> = ({ onOpenApp, isMobile, isTablet, files,
   };
 
   const handleDrop = useCallback(() => {
-    if (!dragItem.current || !dragOverItem.current || dragItem.current === dragOverItem.current) return;
+    if (!dragItem.current || !dragOverItem.current || dragItem.current === dragOverItem.current)
+      return;
     const ids = sortedIcons.map((i) => i.id);
     const fromIdx = ids.indexOf(dragItem.current);
     const toIdx = ids.indexOf(dragOverItem.current);
@@ -234,7 +277,11 @@ const Desktop: React.FC<DesktopProps> = ({ onOpenApp, isMobile, isTablet, files,
   };
 
   const wallpaperStyle = settings.customWallpaper
-    ? { backgroundImage: `url(${settings.customWallpaper})`, backgroundSize: "cover", backgroundPosition: "center" }
+    ? {
+        backgroundImage: `url(${settings.customWallpaper})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
     : { background: theme.wallpaper };
 
   const iconSize = isMobile ? "w-[72px]" : isTablet ? "w-[80px]" : "w-20";
@@ -254,7 +301,7 @@ const Desktop: React.FC<DesktopProps> = ({ onOpenApp, isMobile, isTablet, files,
 
   return (
     <div
-      className={`absolute inset-x-0 top-0 bottom-10 ${isMobile ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden"}`}
+      className={`absolute inset-x-0 top-0 ${nostalgiaMode ? "bottom-10" : isMobile || isTablet ? "bottom-16" : "bottom-0"} ${isMobile ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden"}`}
       style={wallpaperStyle}
       onContextMenu={handleContextMenu}
       onClick={handleClick}
@@ -294,7 +341,27 @@ const Desktop: React.FC<DesktopProps> = ({ onOpenApp, isMobile, isTablet, files,
             ) : icon.id === "yapayakil" ? (
               <YapayAkilIcon className={emojiSize} />
             ) : icon.id === "mesajlar" ? (
-              <MesajlarIcon className={emojiSize} />
+              <span className="relative inline-block">
+                <MesajlarIcon className={emojiSize} />
+                {unreadMsg > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md ring-2 ring-white/80"
+                    aria-label={`${unreadMsg} okunmamış mesaj`}
+                  >
+                    {unreadMsg > 99 ? "99+" : unreadMsg}
+                  </span>
+                )}
+              </span>
+            ) : icon.id === "browser" ? (
+              <EgaIcon className={emojiSize} />
+            ) : icon.id === "terminal" ? (
+              <GunterIcon className={emojiSize} />
+            ) : icon.id === "music" ? (
+              <MusicIcon className={emojiSize} />
+            ) : icon.id === "contacts" ? (
+              <ContactsIcon className={emojiSize} />
+            ) : icon.id === "settings" ? (
+              <SettingsGearIcon className={emojiSize} />
             ) : (
               <span className={`${emojiSize} drop-shadow-md`}>{icon.emoji}</span>
             )}
@@ -311,18 +378,7 @@ const Desktop: React.FC<DesktopProps> = ({ onOpenApp, isMobile, isTablet, files,
         ))}
       </div>
 
-      {/* Floating Home Button (when nostalgia mode is off) */}
-      {!nostalgiaMode && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onHomeClick();
-          }}
-          className="fixed bottom-14 right-3 w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl shadow-lg hover:bg-white/30 transition-all z-[8997] border border-white/30"
-        >
-          ☀️
-        </button>
-      )}
+      {/* Mobil/tablette ev butonu artık alttaki MobileNavBar içinde — floating ☀️ kaldırıldı. */}
 
       {contextMenu && (
         <div
@@ -361,98 +417,142 @@ const Desktop: React.FC<DesktopProps> = ({ onOpenApp, isMobile, isTablet, files,
               >
                 {item.label}
               </button>
-            )
+            ),
           )}
         </div>
       )}
 
-      {iconContextMenu && (() => {
-        const icon = sortedIcons.find((i) => i.id === iconContextMenu.iconId);
-        if (!icon) return null;
-        const file = files.find((f) => f.id === iconContextMenu.iconId);
-        const items: { label: string; action: () => void; sep?: boolean }[] = [
-          { label: "Aç", action: () => { onOpenApp(icon.id as AppId); setIconContextMenu(null); } },
-        ];
-        if (iconContextMenu.isFile && onTrashFile) {
+      {iconContextMenu &&
+        (() => {
+          const icon = sortedIcons.find((i) => i.id === iconContextMenu.iconId);
+          if (!icon) return null;
+          const file = files.find((f) => f.id === iconContextMenu.iconId);
+          const items: { label: string; action: () => void; sep?: boolean }[] = [
+            {
+              label: "Aç",
+              action: () => {
+                onOpenApp(icon.id as AppId);
+                setIconContextMenu(null);
+              },
+            },
+          ];
+          if (iconContextMenu.isFile && onTrashFile) {
+            items.push({ label: "---", action: () => {}, sep: true });
+            items.push({
+              label: "🗑️ Çöp Kutusuna Taşı",
+              action: () => {
+                onTrashFile(iconContextMenu.iconId);
+                setIconContextMenu(null);
+              },
+            });
+          }
           items.push({ label: "---", action: () => {}, sep: true });
           items.push({
-            label: "🗑️ Çöp Kutusuna Taşı",
-            action: () => { onTrashFile(iconContextMenu.iconId); setIconContextMenu(null); },
+            label: "Özellikler",
+            action: () =>
+              openProperties({
+                id: icon.id,
+                label: icon.label,
+                emoji: icon.emoji,
+                isApp: icon.isApp,
+              }),
           });
-        }
-        items.push({ label: "---", action: () => {}, sep: true });
-        items.push({
-          label: "Özellikler",
-          action: () => openProperties({
-            id: icon.id, label: icon.label, emoji: icon.emoji, isApp: icon.isApp,
-          }),
-        });
-        return (
-          <div
-            className="fixed bg-[#c0c0c0] border-2 border-t-white border-l-white border-b-[#808080] border-r-[#808080] shadow-md py-1 min-w-[180px] z-[9000]"
-            style={{ left: iconContextMenu.x, top: iconContextMenu.y }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {items.map((item, i) => item.sep ? (
-              <div key={i} className="border-t border-[#808080] my-1 mx-1" />
-            ) : (
-              <button
-                key={i}
-                className="w-full text-left px-4 py-[2px] text-[12px] text-black hover:bg-[#000080] hover:text-white"
-                onClick={item.action}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        );
-      })()}
-
-      {propertiesIcon && (() => {
-        const file = files.find((f) => f.id === propertiesIcon.id);
-        return (
-          <div
-            className="fixed inset-0 bg-black/40 z-[9500] flex items-center justify-center"
-            onClick={() => setPropertiesIcon(null)}
-          >
+          return (
             <div
-              className="bg-[#c0c0c0] border-2 border-t-white border-l-white border-b-[#808080] border-r-[#808080] w-[320px] shadow-xl"
+              className="fixed bg-[#c0c0c0] border-2 border-t-white border-l-white border-b-[#808080] border-r-[#808080] shadow-md py-1 min-w-[180px] z-[9000]"
+              style={{ left: iconContextMenu.x, top: iconContextMenu.y }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="bg-gradient-to-r from-[#000080] to-[#1084d0] text-white px-2 py-1 flex justify-between items-center">
-                <span className="text-[12px] font-bold">{propertiesIcon.label} - Özellikler</span>
-                <button
-                  className="text-white px-2 hover:bg-white/20"
-                  onClick={() => setPropertiesIcon(null)}
-                >✕</button>
-              </div>
-              <div className="p-4 text-[12px] text-black space-y-2">
-                <div className="flex items-center gap-3 pb-2 border-b border-[#808080]">
-                  <span className="text-4xl">{propertiesIcon.emoji}</span>
-                  <span className="font-bold">{propertiesIcon.label}</span>
+              {items.map((item, i) =>
+                item.sep ? (
+                  <div key={i} className="border-t border-[#808080] my-1 mx-1" />
+                ) : (
+                  <button
+                    key={i}
+                    className="w-full text-left px-4 py-[2px] text-[12px] text-black hover:bg-[#000080] hover:text-white"
+                    onClick={item.action}
+                  >
+                    {item.label}
+                  </button>
+                ),
+              )}
+            </div>
+          );
+        })()}
+
+      {propertiesIcon &&
+        (() => {
+          const file = files.find((f) => f.id === propertiesIcon.id);
+          return (
+            <div
+              className="fixed inset-0 bg-black/40 z-[9500] flex items-center justify-center"
+              onClick={() => setPropertiesIcon(null)}
+            >
+              <div
+                className="bg-[#c0c0c0] border-2 border-t-white border-l-white border-b-[#808080] border-r-[#808080] w-[320px] shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-gradient-to-r from-[#000080] to-[#1084d0] text-white px-2 py-1 flex justify-between items-center">
+                  <span className="text-[12px] font-bold">{propertiesIcon.label} - Özellikler</span>
+                  <button
+                    className="text-white px-2 hover:bg-white/20"
+                    onClick={() => setPropertiesIcon(null)}
+                  >
+                    ✕
+                  </button>
                 </div>
-                <div className="flex justify-between"><span>Tür:</span><span>{propertiesIcon.isApp ? "Uygulama" : file?.type === "folder" ? "Klasör" : file?.type === "gunesos" ? "GüneşOS Belgesi" : "Belge"}</span></div>
-                <div className="flex justify-between"><span>Konum:</span><span>C:\GüneşOS\Masaüstü</span></div>
-                {file && (
-                  <>
-                    <div className="flex justify-between"><span>Boyut:</span><span>{file.content ? `${file.content.length} bayt` : "—"}</span></div>
-                    <div className="flex justify-between"><span>Oluşturma:</span><span>{new Date(file.createdAt).toLocaleString("tr-TR")}</span></div>
-                  </>
-                )}
-                {!file && (
-                  <div className="flex justify-between"><span>Sürüm:</span><span>GüneşOS v2.0</span></div>
-                )}
-              </div>
-              <div className="px-3 pb-3 flex justify-end">
-                <button
-                  className="px-4 py-1 text-[12px] bg-[#c0c0c0] border-2 border-t-white border-l-white border-b-[#808080] border-r-[#808080] hover:bg-[#d0d0d0]"
-                  onClick={() => setPropertiesIcon(null)}
-                >Tamam</button>
+                <div className="p-4 text-[12px] text-black space-y-2">
+                  <div className="flex items-center gap-3 pb-2 border-b border-[#808080]">
+                    <span className="text-4xl">{propertiesIcon.emoji}</span>
+                    <span className="font-bold">{propertiesIcon.label}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tür:</span>
+                    <span>
+                      {propertiesIcon.isApp
+                        ? "Uygulama"
+                        : file?.type === "folder"
+                          ? "Klasör"
+                          : file?.type === "gunesos"
+                            ? "GüneşOS Belgesi"
+                            : "Belge"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Konum:</span>
+                    <span>C:\GüneşOS\Masaüstü</span>
+                  </div>
+                  {file && (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Boyut:</span>
+                        <span>{file.content ? `${file.content.length} bayt` : "—"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Oluşturma:</span>
+                        <span>{new Date(file.createdAt).toLocaleString("tr-TR")}</span>
+                      </div>
+                    </>
+                  )}
+                  {!file && (
+                    <div className="flex justify-between">
+                      <span>Sürüm:</span>
+                      <span>GüneşOS v2.0</span>
+                    </div>
+                  )}
+                </div>
+                <div className="px-3 pb-3 flex justify-end">
+                  <button
+                    className="px-4 py-1 text-[12px] bg-[#c0c0c0] border-2 border-t-white border-l-white border-b-[#808080] border-r-[#808080] hover:bg-[#d0d0d0]"
+                    onClick={() => setPropertiesIcon(null)}
+                  >
+                    Tamam
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
     </div>
   );
 };
