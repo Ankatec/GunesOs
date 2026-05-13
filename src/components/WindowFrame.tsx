@@ -340,7 +340,7 @@ const MobileFullscreenWindow: React.FC<{
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, zIndex }}
+      style={{ position: "fixed", inset: 0, zIndex, paddingBottom: "calc(env(safe-area-inset-bottom) + 64px)" }}
       className="flex flex-col bg-white animate-in fade-in zoom-in-95 duration-200 transition-transform"
       onMouseDown={onFocus}
     >

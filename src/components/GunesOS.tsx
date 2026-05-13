@@ -20,9 +20,11 @@ import { EXTRA_APP_MAP } from "@/lib/extraApps";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { detectDevice, type DeviceInfo } from "@/utils/deviceDetect";
-import InstallPrompt from "./InstallPrompt";
+import { InstallSheet } from "@/pwa/InstallSheet";
+import { PermissionsOnboarding } from "@/pwa/PermissionsOnboarding";
 import MobileNavBar from "./MobileNavBar";
 import RecentsOverlay from "./RecentsOverlay";
+import { useHistoryNav } from "@/hooks/useHistoryNav";
 
 interface WindowState {
   id: string;
@@ -296,6 +298,19 @@ const GunesOSInner: React.FC = () => {
   // PC = ne mobil ne tablet. Mobil/tablet'te asla PC izi (taskbar, üst bar, başlat çubuğu) gösterilmez.
   const isPC = !isMobile && !isTablet;
   const isTouchUI = isMobile || isTablet;
+  // PWA standalone modunda telefonun kendi nav barı geri/home/recents'i bizim history hook'umuz
+  // üzerinden zaten yönetiyor → bizim nav bar'ı gizle. Sadece tarayıcı sekmesinde göster.
+  const [isStandalone, setIsStandalone] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(display-mode: standalone)");
+    const update = () => setIsStandalone(
+      mq.matches || (window.navigator as { standalone?: boolean }).standalone === true,
+    );
+    update();
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
+  }, []);
   const deviceTitle =
     settings.customDeviceName?.trim() ||
     (globalDeviceInfo.category === "phone"
@@ -487,9 +502,28 @@ const GunesOSInner: React.FC = () => {
   };
 
   const handleBackClick = () => {
+    // Önce recents açıksa onu kapat
+    if (recentsOpen) {
+      setRecentsOpen(false);
+      return;
+    }
     const topId = activeWindowId ?? windows[windows.length - 1]?.id;
     if (topId) closeWindow(topId);
   };
+
+  // Tarayıcı / PWA geri tuşu entegrasyonu — açık katman sayısı kadar history entry tut.
+  const navDepth = (recentsOpen ? 1 : 0) + windows.length;
+  useHistoryNav({
+    depth: navDepth,
+    onBack: () => {
+      if (recentsOpen) {
+        setRecentsOpen(false);
+        return;
+      }
+      const topId = activeWindowId ?? windows[windows.length - 1]?.id;
+      if (topId) closeWindow(topId);
+    },
+  });
 
   const renderAppContent = (appId: AppId) => {
     switch (appId) {
@@ -791,7 +825,9 @@ const GunesOSInner: React.FC = () => {
       )}
 
       {/* Mobil/tablet: alta yapışık 3 tuşlu nav bar (geri / ev / son uygulamalar) */}
-      {isTouchUI && !(isPC && settings.nostalgiaMode) && (
+      {/* Mobil/tablet + tarayıcı sekmesi: bizim nav bar. PWA standalone'da telefonun
+          kendi nav barı işi gördüğü için gizleriz (üst üste iki nav bar olmasın). */}
+      {isTouchUI && !isStandalone && !(isPC && settings.nostalgiaMode) && (
         <MobileNavBar
           onBack={handleBackClick}
           onHome={handleHomeClick}
@@ -819,7 +855,8 @@ const GunesOSInner: React.FC = () => {
       )}
 
       {/* No PC trace when nostalgia is off — apps run fullscreen modal style */}
-      <InstallPrompt />
+      <InstallSheet />
+      <PermissionsOnboarding />
     </div>
   );
 };

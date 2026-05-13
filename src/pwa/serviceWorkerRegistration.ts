@@ -1,0 +1,85 @@
+/**
+ * SW kayıt + güncelleme yönetimi.
+ * Lovable preview iframe + preview host + dev modda KAYIT YAPMAZ.
+ * Yalnızca production build'inde aktif olur.
+ */
+import { toast } from "sonner";
+
+const isInIframe = (() => {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+})();
+
+const isPreviewHost =
+  typeof window !== "undefined" &&
+  (window.location.hostname.includes("id-preview--") ||
+    window.location.hostname.includes("lovableproject.com") ||
+    window.location.hostname.includes("lovable.app") ||
+    window.location.hostname === "localhost");
+
+export function isStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    window.matchMedia?.("(display-mode: fullscreen)").matches ||
+    window.matchMedia?.("(display-mode: minimal-ui)").matches ||
+    // @ts-ignore iOS Safari
+    window.navigator.standalone === true
+  );
+}
+
+export async function registerServiceWorker(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (!("serviceWorker" in navigator)) return;
+
+  // Preview / iframe / dev: temizle ve çık
+  if (isPreviewHost || isInIframe || import.meta.env.DEV) {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    } catch {
+      /* noop */
+    }
+    return;
+  }
+
+  try {
+    const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+
+    // Yeni SW bekliyor
+    if (reg.waiting) promptUpdate(reg);
+
+    reg.addEventListener("updatefound", () => {
+      const installing = reg.installing;
+      if (!installing) return;
+      installing.addEventListener("statechange", () => {
+        if (installing.state === "installed" && navigator.serviceWorker.controller) {
+          promptUpdate(reg);
+        }
+      });
+    });
+
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
+  } catch (err) {
+    console.warn("[GüneşOS] SW kayıt başarısız:", err);
+  }
+}
+
+function promptUpdate(reg: ServiceWorkerRegistration) {
+  toast("Yeni sürüm hazır", {
+    description: "GüneşOS güncellendi. Yenile butonuna basıp en son sürüme geç.",
+    duration: Infinity,
+    action: {
+      label: "Yenile",
+      onClick: () => reg.waiting?.postMessage("SKIP_WAITING"),
+    },
+  });
+}

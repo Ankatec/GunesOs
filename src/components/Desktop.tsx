@@ -194,8 +194,11 @@ const Desktop: React.FC<DesktopProps> = ({
     dragOverItem.current = null;
   }, [sortedIcons, setIconOrder]);
 
+  const pcContextEnabled = !(isMobile || isTablet) || nostalgiaMode;
+
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (!pcContextEnabled) return;
     setContextMenu({ x: e.clientX, y: e.clientY });
     setSelectedIcon(null);
   };
@@ -271,18 +274,25 @@ const Desktop: React.FC<DesktopProps> = ({
   const handleIconContextMenu = (e: React.MouseEvent, icon: DesktopIcon) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!pcContextEnabled) return;
     setSelectedIcon(icon.id);
     setIconContextMenu({ x: e.clientX, y: e.clientY, iconId: icon.id, isFile: !icon.isApp });
     setContextMenu(null);
   };
 
-  const wallpaperStyle = settings.customWallpaper
+  const wallpaperStyle: React.CSSProperties = settings.customWallpaper
     ? {
         backgroundImage: `url(${settings.customWallpaper})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
       }
     : { background: theme.wallpaper };
+
+  if (!pcContextEnabled) {
+    (wallpaperStyle as any).WebkitTouchCallout = "none";
+    (wallpaperStyle as any).WebkitUserSelect = "none";
+    (wallpaperStyle as any).userSelect = "none";
+  }
 
   const iconSize = isMobile ? "w-[72px]" : isTablet ? "w-[80px]" : "w-20";
   const emojiSize = isMobile ? "text-2xl" : "text-3xl";
@@ -301,7 +311,7 @@ const Desktop: React.FC<DesktopProps> = ({
 
   return (
     <div
-      className={`absolute inset-x-0 top-0 ${nostalgiaMode ? "bottom-10" : isMobile || isTablet ? "bottom-16" : "bottom-0"} ${isMobile ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden"}`}
+      className={`absolute inset-x-0 top-0 ${nostalgiaMode ? "bottom-10" : "bottom-0"} ${isMobile ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden"} ${isMobile || isTablet ? "pb-20" : ""}`}
       style={wallpaperStyle}
       onContextMenu={handleContextMenu}
       onClick={handleClick}

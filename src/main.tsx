@@ -5,7 +5,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import GunesOS from "@/components/GunesOS";
+import { registerServiceWorker } from "@/pwa/serviceWorkerRegistration";
 import "./styles.css";
+
+registerServiceWorker();
 
 const queryClient = new QueryClient();
 
