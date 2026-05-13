@@ -63,9 +63,17 @@ export async function registerServiceWorker(): Promise<void> {
       });
     });
 
+    // Yalnızca GERÇEKTEN yeni bir SW devraldıysa reload et.
+    // Site verileri silindiğinde controller null'dan bir SW'e geçer; bunu reload sebebi sayma.
+    const initialController = navigator.serviceWorker.controller;
     let refreshing = false;
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (refreshing) return;
+      const newController = navigator.serviceWorker.controller;
+      // İlk kontrol yoktu (ilk kayıt veya veriler yeni silindi) → reload etme
+      if (!initialController) return;
+      // Aynı SW ise reload etme
+      if (newController === initialController) return;
       refreshing = true;
       window.location.reload();
     });

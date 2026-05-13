@@ -129,7 +129,7 @@ export const InstallSheet: React.FC = () => {
             <div className="relative mb-6">
               <div className="absolute inset-0 bg-amber-400 blur-xl opacity-40 animate-pulse rounded-full" />
               <img
-                src="/icons/icon-192.png"
+                src={`${import.meta.env.BASE_URL}icons/icon-192.png`}
                 alt="GüneşOS"
                 className="relative w-24 h-24 rounded-[1.5rem] shadow-lg shadow-amber-500/40"
               />

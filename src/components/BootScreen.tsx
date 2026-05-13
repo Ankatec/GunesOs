@@ -121,7 +121,7 @@ const BootScreen: React.FC<BootScreenProps> = ({ onComplete }) => {
           style={{ backgroundColor: "rgba(245,158,11,0.45)" }}
         />
         <img
-          src="/icons/icon-192.png"
+          src={`${import.meta.env.BASE_URL}icons/icon-192.png`}
           alt="GüneşOS"
           className="relative w-32 h-32 rounded-[28%] shadow-[0_18px_50px_-10px_rgba(245,158,11,0.55)]"
           draggable={false}
