@@ -184,17 +184,24 @@ const WindowFrame: React.FC<WindowFrameProps> = ({
     onMaximize();
   };
 
-  if (isMinimized) return null;
-
   // Modern phone/tablet fullscreen mode (when nostalgia is OFF) — pure full-screen, no chrome at all.
   // Üst div, geri tuşu ve X tuşu KESİNLİKLE yoktur. Kapatmak için masaüstündeki ev butonu kullanılır.
+  // Minimize edildiğinde DOM'da kalır (display:none) — iframe state'i (örn. Sohbeto kayıt akışı) korunur.
   if (!nostalgiaMode) {
     return (
-      <MobileFullscreenWindow zIndex={zIndex} onClose={onClose} onMinimize={onMinimize} onFocus={onFocus}>
+      <MobileFullscreenWindow
+        zIndex={zIndex}
+        onClose={onClose}
+        onMinimize={onMinimize}
+        onFocus={onFocus}
+        hidden={isMinimized}
+      >
         {children}
       </MobileFullscreenWindow>
     );
   }
+
+  if (isMinimized) return null;
 
   const frameStyle: React.CSSProperties = isMaximized
     ? { position: "fixed", top: 0, left: 0, width: "100vw", height: "calc(100vh - 40px)", zIndex }
@@ -302,7 +309,8 @@ const MobileFullscreenWindow: React.FC<{
   onMinimize: () => void;
   onFocus: () => void;
   children: React.ReactNode;
-}> = ({ zIndex, onClose, onMinimize, onFocus, children }) => {
+  hidden?: boolean;
+}> = ({ zIndex, onClose, onMinimize, onFocus, children, hidden }) => {
   const start = useRef<{ x: number; y: number } | null>(null);
   const [drag, setDrag] = useState({ x: 0, y: 0 });
   const [closing, setClosing] = useState(false);
@@ -340,9 +348,16 @@ const MobileFullscreenWindow: React.FC<{
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, zIndex, paddingBottom: "calc(env(safe-area-inset-bottom) + 64px)" }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex,
+        paddingBottom: "calc(56px + env(safe-area-inset-bottom))",
+        display: hidden ? "none" : undefined,
+      }}
       className="flex flex-col bg-white animate-in fade-in zoom-in-95 duration-200 transition-transform"
       onMouseDown={onFocus}
+      aria-hidden={hidden || undefined}
     >
       <div
         className="flex-1 bg-white overflow-hidden relative transition-transform"

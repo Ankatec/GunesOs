@@ -34,26 +34,14 @@ const BootScreen: React.FC<BootScreenProps> = ({ onComplete }) => {
     return () => window.clearTimeout(t);
   }, [settings.bootSound]);
 
-  // Wallpaper'ı önceden yükle — masaüstü açıldığında flash olmasın.
+  // Wallpaper'ı arka planda önceden yükle — ama boot tamamlanmasını ASLA bloklamasın.
+  // (Önceki sürümde img.onload tetiklenmediğinde boot %92'de takılıyordu.)
   useEffect(() => {
+    wallpaperReady.current = true; // her durumda hazır say
     const url = settings.customWallpaper;
-    if (!url) {
-      wallpaperReady.current = true;
-      return;
-    }
+    if (!url) return;
     const img = new Image();
-    img.onload = () => {
-      wallpaperReady.current = true;
-    };
-    img.onerror = () => {
-      wallpaperReady.current = true; // hata olsa da takılmayalım
-    };
-    img.src = url;
-    // Güvenlik
-    const safety = window.setTimeout(() => {
-      wallpaperReady.current = true;
-    }, SAFETY_TIMEOUT_MS);
-    return () => window.clearTimeout(safety);
+    img.src = url; // sadece tarayıcı önbelleğine alınması için
   }, [settings.customWallpaper]);
 
   // Logo → loading geçişi
@@ -91,14 +79,19 @@ const BootScreen: React.FC<BootScreenProps> = ({ onComplete }) => {
     };
   }, [phase]);
 
-  // %100'e ulaşınca kapan.
+  // %99.5'e ulaşınca phase=done yap (ayrı effect, cleanup ile çatışmasın)
   useEffect(() => {
     if (progress >= 99.5 && phase === "loading") {
       setPhase("done");
-      const t = setTimeout(onComplete, 450);
-      return () => clearTimeout(t);
     }
-  }, [progress, phase, onComplete]);
+  }, [progress, phase]);
+
+  // phase=done olunca 450ms fade sonrası onComplete'i tetikle
+  useEffect(() => {
+    if (phase !== "done") return;
+    const t = window.setTimeout(onComplete, 450);
+    return () => window.clearTimeout(t);
+  }, [phase, onComplete]);
 
   return (
     <div
