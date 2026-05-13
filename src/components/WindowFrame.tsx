@@ -352,7 +352,7 @@ const MobileFullscreenWindow: React.FC<{
         position: "fixed",
         inset: 0,
         zIndex,
-        paddingBottom: "calc(56px + env(safe-area-inset-bottom))",
+        paddingBottom: "env(safe-area-inset-bottom)",
         display: hidden ? "none" : undefined,
       }}
       className="flex flex-col bg-white animate-in fade-in zoom-in-95 duration-200 transition-transform"

@@ -832,11 +832,9 @@ const GunesOSInner: React.FC = () => {
       )}
 
       {/* Mobil/tablet: alta yapışık 3 tuşlu nav bar (geri / ev / son uygulamalar) */}
-      {/* Mobil/tablet: kendi nav bar'ımızı her zaman göster.
-          Android sistem geri tuşunu popstate ile yakalayabiliyoruz; ancak
-          home ve son uygulamalar (kare) tuşları OS seviyesindedir, yakalanamaz —
-          bu yüzden uygulama içi navigasyon için kendi bar'ımız şart. */}
-      {isTouchUI && !(isPC && settings.nostalgiaMode) && (
+      {/* Mobil/tablet + tarayıcı sekmesi: bizim nav bar. PWA standalone'da telefonun
+          kendi nav barı işi gördüğü için gizleriz (üst üste iki nav bar olmasın). */}
+      {isTouchUI && !isStandalone && !(isPC && settings.nostalgiaMode) && (
         <MobileNavBar
           onBack={handleBackClick}
           onHome={handleHomeClick}
