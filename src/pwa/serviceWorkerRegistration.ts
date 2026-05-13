@@ -47,7 +47,8 @@ export async function registerServiceWorker(): Promise<void> {
   }
 
   try {
-    const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    const base = import.meta.env.BASE_URL || "/";
+    const reg = await navigator.serviceWorker.register(`${base}sw.js`, { scope: base });
 
     // Yeni SW bekliyor
     if (reg.waiting) promptUpdate(reg);

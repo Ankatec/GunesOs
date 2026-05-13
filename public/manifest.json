@@ -2,9 +2,9 @@
   "name": "GüneşOS",
   "short_name": "GüneşOS",
   "description": "Tarayıcıda çalışan nostaljik GüneşOS masaüstü deneyimi.",
-  "id": "/",
-  "start_url": "/?source=pwa",
-  "scope": "/",
+  "id": "./",
+  "start_url": "./?source=pwa",
+  "scope": "./",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "fullscreen", "minimal-ui"],
   "orientation": "any",
@@ -15,50 +15,57 @@
   "categories": ["productivity", "utilities", "lifestyle"],
   "prefer_related_applications": false,
   "icons": [
-    { "src": "/icons/icon-72.png",  "sizes": "72x72",   "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-96.png",  "sizes": "96x96",   "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-128.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-144.png", "sizes": "144x144", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-152.png", "sizes": "152x152", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-384.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icons/icon-72.png",  "sizes": "72x72",   "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-96.png",  "sizes": "96x96",   "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-128.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-144.png", "sizes": "144x144", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-152.png", "sizes": "152x152", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-384.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-72.png",  "sizes": "72x72",   "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-96.png",  "sizes": "96x96",   "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-128.png", "sizes": "128x128", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-144.png", "sizes": "144x144", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-152.png", "sizes": "152x152", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-256.png", "sizes": "256x256", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-384.png", "sizes": "384x384", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
     {
       "name": "Rehber",
       "short_name": "Rehber",
       "description": "Kişilerini aç",
-      "url": "/?app=contacts&source=pwa",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+      "url": "./?app=contacts&source=pwa",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Sohbeto",
       "short_name": "Sohbeto",
       "description": "Sohbete başla",
-      "url": "/?app=sohbeto&source=pwa",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+      "url": "./?app=sohbeto&source=pwa",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Yapay Akıl",
       "short_name": "Yapay Akıl",
       "description": "Yapay zeka asistanı",
-      "url": "/?app=yapayakil&source=pwa",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+      "url": "./?app=yapayakil&source=pwa",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Vakit & Kuran",
       "short_name": "Kuran",
       "description": "Namaz vakti ve Kuran",
-      "url": "/?app=kuran&source=pwa",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+      "url": "./?app=kuran&source=pwa",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     }
   ],
   "share_target": {
-    "action": "/?share=1&source=pwa",
+    "action": "./?share=1&source=pwa",
     "method": "GET",
     "params": {
       "title": "title",
@@ -67,7 +74,7 @@
     }
   },
   "protocol_handlers": [
-    { "protocol": "web+gunesos", "url": "/?proto=%s&source=pwa" }
+    { "protocol": "web+gunesos", "url": "./?proto=%s&source=pwa" }
   ],
   "launch_handler": {
     "client_mode": ["navigate-existing", "auto"]

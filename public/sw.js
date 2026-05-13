@@ -13,7 +13,9 @@ const RUNTIME_HTML = `gunesos-html-${VERSION}`;
 const RUNTIME_ASSETS = `gunesos-assets-${VERSION}`;
 const RUNTIME_IMG = `gunesos-img-${VERSION}`;
 
-const PRECACHE_URLS = ["/", "/offline.html", "/manifest.json"];
+// Scope-aware: SW served from /<base>/sw.js, registration.scope is /<base>/
+const SCOPE = new URL(self.registration.scope).pathname; // ör. "/gunesos/" veya "/"
+const PRECACHE_URLS = [SCOPE, `${SCOPE}offline.html`, `${SCOPE}manifest.json`];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -61,7 +63,7 @@ async function networkFirst(request, cacheName, timeoutMs = 3000) {
     const cached = await cache.match(request);
     if (cached) return cached;
     if (request.mode === "navigate") {
-      const offline = await caches.match("/offline.html");
+      const offline = await caches.match(`${SCOPE}offline.html`);
       if (offline) return offline;
     }
     throw e;
