@@ -7,13 +7,13 @@
  * Lovable preview iframe'inde main.tsx içindeki guard sayesinde
  * SW kayıt edilmez; bu dosya yalnızca production'da çalışır.
  */
-const VERSION = "v1.0.0";
+const VERSION = "v1.0.1";
 const PRECACHE = `gunesos-precache-${VERSION}`;
 const RUNTIME_HTML = `gunesos-html-${VERSION}`;
 const RUNTIME_ASSETS = `gunesos-assets-${VERSION}`;
 const RUNTIME_IMG = `gunesos-img-${VERSION}`;
 
-const PRECACHE_URLS = ["./", "./offline.html", "./manifest.json"];
+const PRECACHE_URLS = ["/", "/offline.html", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -61,7 +61,7 @@ async function networkFirst(request, cacheName, timeoutMs = 3000) {
     const cached = await cache.match(request);
     if (cached) return cached;
     if (request.mode === "navigate") {
-      const offline = await caches.match("./offline.html");
+      const offline = await caches.match("/offline.html");
       if (offline) return offline;
     }
     throw e;

@@ -119,15 +119,35 @@ export const PermissionsOnboarding: React.FC = () => {
     if (typeof window === "undefined") return;
     const done = localStorage.getItem(ONBOARD_KEY);
     if (done) return;
-    // Sadece standalone/PWA modda göster — tarayıcıda gereksiz
-    const standalone =
-      window.matchMedia?.("(display-mode: standalone)").matches ||
-      // @ts-ignore
-      window.navigator.standalone === true;
-    if (!standalone) return;
+    // Hem PWA'da hem tarayıcıda göster — kullanıcı izinleri her ortamda verebilsin
     const t = window.setTimeout(() => setOpen(true), 1500);
     return () => window.clearTimeout(t);
   }, []);
+
+  // Permissions API ile zaten verilmiş izinleri tespit edip atla
+  useEffect(() => {
+    if (!open || step !== 0) return;
+    if (!navigator.permissions?.query) return;
+    (async () => {
+      for (const p of PERMS) {
+        const name =
+          p.id === "notifications" ? "notifications"
+          : p.id === "location" ? "geolocation"
+          : p.id === "camera" ? "camera"
+          : null;
+        if (!name) continue;
+        try {
+          // @ts-ignore
+          const r = await navigator.permissions.query({ name });
+          if (r.state === "granted") {
+            localStorage.setItem(PERM_PREFIX + p.id, "granted");
+          }
+        } catch {
+          /* noop */
+        }
+      }
+    })();
+  }, [open, step]);
 
   const finish = () => {
     localStorage.setItem(ONBOARD_KEY, String(Date.now()));

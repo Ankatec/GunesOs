@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { useTheme, themes, wallpaperPresets, ALL_DESKTOP_ICON_IDS } from "@/contexts/ThemeContext";
 import { EXTRA_APP_MAP } from "@/lib/extraApps";
 import { detectDevice, refreshHighEntropyDeviceInfo } from "@/utils/deviceDetect";
+import { BOOT_SOUND_OPTIONS, playBootSound, type BootSoundId } from "@/lib/bootSound";
 
 const CORE_ICON_META: Record<string, { label: string; emoji: string }> = {
   mycomputer: { label: "Bilgisayarım", emoji: "🖥️" },
@@ -464,6 +465,39 @@ const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMob
                 >
                   {settings.autoAlignIcons ? "✅ Otomatik Hizala" : "⬜ Serbest Yerleşim"}
                 </button>
+              </div>
+            </div>
+
+            <div className="p-3 bg-gray-50 rounded-lg border">
+              <h3 className="text-[12px] font-bold mb-2 text-gray-700">🔔 Açılış Sesi</h3>
+              <p className="text-[10px] text-gray-500 mb-2">
+                GüneşOS açılırken çalan ses. Dinlemek için seçeneğin üzerine bas.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {BOOT_SOUND_OPTIONS.map((opt) => {
+                  const active = (settings.bootSound ?? "gong-double") === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => {
+                        updateSetting("bootSound", opt.id as BootSoundId);
+                        playBootSound(opt.id);
+                      }}
+                      className={`p-2 text-left rounded-lg border-2 transition-all ${
+                        active
+                          ? "border-amber-500 bg-amber-50 text-amber-800"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300 bg-white"
+                      }`}
+                    >
+                      <div className="text-[11px] font-semibold flex items-center gap-1">
+                        <span>{opt.emoji}</span>
+                        <span>{opt.label}</span>
+                        {active && <span className="ml-auto text-[10px]">✓</span>}
+                      </div>
+                      <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">{opt.desc}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

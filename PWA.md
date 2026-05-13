@@ -23,8 +23,9 @@ Trusted Web Activity (TWA) ile Google Play'e yüklenmeye hazırdır.
 ## Lovable Preview Davranışı
 
 Service worker yalnızca **production build**'de aktif olur.
-Preview iframe ve `id-preview--*.lovable.app`, `lovableproject.com`, `lovable.app`
+Preview iframe ve `id-preview--*.lovable.app`, `lovableproject.com`
 host'larında veya dev modunda kayıt **yapılmaz** ve mevcut SW kayıtları temizlenir.
+Yayınlanan `.lovable.app` alanında ise özellikle aktif kalır; Android WebAPK kurulumu için bu zorunludur.
 Bu sayede preview'da stale cache problemi yaşanmaz.
 
 ## TWA (Android Play Store) Hazırlığı

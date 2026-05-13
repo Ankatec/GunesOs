@@ -70,6 +70,7 @@ export interface AppSettings {
   visibleIcons: string[];
   phoneLikeOnPC: boolean;     // PC'de telefon görünümü (varsayılan kapalı)
   customDeviceName: string;   // Kullanıcı tanımlı cihaz adı (ör. "Samsung Galaxy")
+  bootSound: "gong-double" | "chime" | "bell" | "none"; // Açılış sesi
 }
 
 const defaultSettings: AppSettings = {
@@ -81,6 +82,7 @@ const defaultSettings: AppSettings = {
   visibleIcons: [...DEFAULT_VISIBLE_ICONS],
   phoneLikeOnPC: false,
   customDeviceName: "",
+  bootSound: "gong-double",
 };
 
 interface ThemeContextType {

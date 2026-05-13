@@ -17,7 +17,6 @@ const isPreviewHost =
   typeof window !== "undefined" &&
   (window.location.hostname.includes("id-preview--") ||
     window.location.hostname.includes("lovableproject.com") ||
-    window.location.hostname.includes("lovable.app") ||
     window.location.hostname === "localhost");
 
 export function isStandalone(): boolean {
@@ -26,6 +25,7 @@ export function isStandalone(): boolean {
     window.matchMedia?.("(display-mode: standalone)").matches ||
     window.matchMedia?.("(display-mode: fullscreen)").matches ||
     window.matchMedia?.("(display-mode: minimal-ui)").matches ||
+    new URLSearchParams(window.location.search).get("source") === "pwa" ||
     // @ts-ignore iOS Safari
     window.navigator.standalone === true
   );
@@ -47,7 +47,7 @@ export async function registerServiceWorker(): Promise<void> {
   }
 
   try {
-    const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+    const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
 
     // Yeni SW bekliyor
     if (reg.waiting) promptUpdate(reg);

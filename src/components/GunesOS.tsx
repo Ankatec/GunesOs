@@ -22,6 +22,7 @@ import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { detectDevice, type DeviceInfo } from "@/utils/deviceDetect";
 import { InstallSheet } from "@/pwa/InstallSheet";
 import { PermissionsOnboarding } from "@/pwa/PermissionsOnboarding";
+import { isStandalone as detectStandaloneMode } from "@/pwa/serviceWorkerRegistration";
 import MobileNavBar from "./MobileNavBar";
 import RecentsOverlay from "./RecentsOverlay";
 import { useHistoryNav } from "@/hooks/useHistoryNav";
@@ -303,13 +304,19 @@ const GunesOSInner: React.FC = () => {
   const [isStandalone, setIsStandalone] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(display-mode: standalone)");
-    const update = () => setIsStandalone(
-      mq.matches || (window.navigator as { standalone?: boolean }).standalone === true,
-    );
+    const queries = [
+      window.matchMedia("(display-mode: standalone)"),
+      window.matchMedia("(display-mode: fullscreen)"),
+      window.matchMedia("(display-mode: minimal-ui)"),
+    ];
+    const update = () => setIsStandalone(detectStandaloneMode());
     update();
-    mq.addEventListener?.("change", update);
-    return () => mq.removeEventListener?.("change", update);
+    queries.forEach((mq) => mq.addEventListener?.("change", update));
+    window.addEventListener("pageshow", update);
+    return () => {
+      queries.forEach((mq) => mq.removeEventListener?.("change", update));
+      window.removeEventListener("pageshow", update);
+    };
   }, []);
   const deviceTitle =
     settings.customDeviceName?.trim() ||
