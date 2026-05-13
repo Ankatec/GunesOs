@@ -7,7 +7,7 @@
  * Lovable preview iframe'inde main.tsx içindeki guard sayesinde
  * SW kayıt edilmez; bu dosya yalnızca production'da çalışır.
  */
-const VERSION = "v1.0.1";
+const VERSION = "v1.0.3";
 const PRECACHE = `gunesos-precache-${VERSION}`;
 const RUNTIME_HTML = `gunesos-html-${VERSION}`;
 const RUNTIME_ASSETS = `gunesos-assets-${VERSION}`;
