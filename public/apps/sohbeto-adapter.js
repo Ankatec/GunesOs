@@ -160,9 +160,11 @@
     }
 
     window.app.sendCode = async function (resend) {
-      var phone = (document.getElementById('phoneInput') || {}).value || '';
-      phone = phone.trim();
-      if (!phone) { alert('Lütfen telefon numaranızı girin.'); return; }
+      var phoneEl = document.getElementById('phoneInput');
+      var phone = (phoneEl || {}).value || '';
+      phone = (window.__normalizePhone ? window.__normalizePhone(phone) : phone).trim();
+      if (phoneEl) phoneEl.value = phone;
+      if (!phone || phone === '+90') { alert('Lütfen telefon numaranızı girin.'); return; }
       var flow = await detectFlow();
       // OTP etiketini güncelle
       var lbl = document.getElementById('authPhoneLabel'); if (lbl) lbl.innerText = phone;
@@ -225,37 +227,136 @@
     }
 
     // ---------- 2D) renderConvList monkey-patch → OO listesine yaz ----------
+    function phoneForConn(connId) {
+      try {
+        if (typeof getContactByConnId === 'function') {
+          var c = getContactByConnId(connId);
+          if (c && c.number) return String(c.number);
+        }
+      } catch (e) {}
+      try {
+        var st = getEngineState();
+        var raw = st && st.users ? st.users.get(connId) : '';
+        var m = String(raw || '').match(/\[(.*?)\]/);
+        if (m && m[1]) return m[1];
+      } catch (e) {}
+      return '';
+    }
+    function contactNameForConn(connId) {
+      try {
+        if (typeof getContactByConnId === 'function') {
+          var c = getContactByConnId(connId);
+          if (c && c.name) return String(c.name);
+        }
+      } catch (e) {}
+      return '';
+    }
+    // Adı temizle: rehberde varsa kişi adı; yoksa [xxx] kısmını atılmış nick; o da yoksa numara
+    // 'Kullanıcı' literali eski profil yayınlarından kalma "leke" sayılır → boş kabul edilir.
+    function resolveDisplayName(connId, rawName) {
+      var fromContact = contactNameForConn(connId);
+      if (fromContact) return fromContact;
+      var clean = String(rawName || '').replace(/\[.*?\]/g, '').trim();
+      if (clean && clean.toLocaleLowerCase('tr') === 'p2p') clean = '';
+      if (clean && clean.toLocaleLowerCase('tr') === 'kullanıcı') clean = '';
+      if (clean) return clean;
+      var phone = phoneForConn(connId);
+      return phone || (connId ? String(connId).substring(0, 10) : '—');
+    }
+
+    function openPeerCardByConnId(connId, anchorEl, ev) {
+      if (!connId) return;
+      var overlay = document.getElementById('contactCardOverlay');
+      if (!overlay) return;
+      var name = contactNameForConn(connId);
+      var number = phoneForConn(connId);
+      var raw = '';
+      try {
+        var st = getEngineState();
+        raw = st && st.users ? (st.users.get(connId) || '') : '';
+      } catch (e) {}
+      var displayName = resolveDisplayName(connId, raw);
+      _activeCard = { name: name || displayName, number: number || '', connId: connId, engineIndex: -1 };
+
+      var avEl = document.getElementById('ccAvatar');
+      if (avEl) {
+        var sourceAvatar = anchorEl && anchorEl.querySelector ? anchorEl.querySelector('img') : null;
+        if (sourceAvatar && sourceAvatar.src) avEl.innerHTML = '<img src="' + sourceAvatar.src + '" alt="Profil">';
+        else avEl.innerHTML = escapeHtml(getInitials(name || displayName, number));
+      }
+      var nmEl = document.getElementById('ccName');
+      if (nmEl) nmEl.textContent = name || displayName || number || '—';
+      var phEl = document.getElementById('ccPhone');
+      if (phEl) phEl.textContent = number || '—';
+
+      try {
+        var rect = anchorEl && anchorEl.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null;
+        var orect = overlay.getBoundingClientRect();
+        var px = (ev && ev.clientX) ? ev.clientX : (rect ? rect.left + rect.width / 2 : orect.left + orect.width / 2);
+        var py = (ev && ev.clientY) ? ev.clientY : (rect ? rect.top + rect.height / 2 : orect.top + orect.height / 2);
+        overlay.style.setProperty('--tx', (px - orect.left) + 'px');
+        overlay.style.setProperty('--ty', (py - orect.top) + 'px');
+      } catch (e) {}
+
+      overlay.classList.remove('closing');
+      overlay.classList.add('open');
+    }
+
     var origRender = window.renderConvList;
     window.renderConvList = function () {
-      // Önce motoru çalıştır (stub convListOzel'e yazar)
       try { if (typeof origRender === 'function') origRender.apply(this, arguments); } catch (e) { console.error(e); }
-      // OO'nun sohbetler ekranındaki content-area'sını bul
       var oo = document.querySelector('#screen-sohbetler .content-area');
       var src = document.getElementById('convListOzel');
       if (!oo || !src) return;
-      // İçeriği klonla
+      var st = getEngineState();
+      var convMap = (st && st.conversations) ? st.conversations : null;
+      // state.conversations Map sırası = motorun render sırası (sadece isPrivate olanlar)
+      var connIds = convMap ? Array.from(convMap.keys()).filter(function (k) {
+        var c = convMap.get(k); return c && c.isPrivate;
+      }) : [];
+      var srcChildren = Array.from(src.children);
+      var seen = Object.create(null);
       oo.innerHTML = '';
-      Array.from(src.children).forEach(function (child) {
+      srcChildren.forEach(function (child, idx) {
+        var connId = connIds[idx] || '';
+        var nameEl = child.querySelector('.conv-name');
+        var rawName = nameEl ? (nameEl.textContent || '') : '';
+        var display = resolveDisplayName(connId, rawName);
+        var key = display.toLowerCase();
+        if (seen[key]) return; // Aynı kişi için yeni kutu açma
+        seen[key] = true;
         var clone = child.cloneNode(true);
-        // tıklama handler'ı klonla taşınmaz → connId'yi data-attr olarak yakalayıp yeniden bağla
-        // Motor d.onclick = () => openChat(connId) yazıyordu; connId'yi avatar'dan/isimden çıkaramıyoruz
-        // Bu nedenle adapter, motorun listesine bir overlay click delegasyonu kuracak (aşağıda)
+        var cloneName = clone.querySelector('.conv-name');
+        if (cloneName) cloneName.textContent = display;
+        var prev = clone.querySelector('.conv-preview');
+        if (prev) prev.textContent = (prev.textContent || '').replace(/\[.*?\]/g, '').trim();
+        if (connId) clone.dataset.connId = connId;
+        // Avatara tıklayınca: kişi kartı (motorun showContactCard'ı). Sohbet kutusuna tıklayınca: openChat.
+        var avEl = clone.querySelector('.conv-avatar');
+        if (avEl && connId) {
+          avEl.style.cursor = 'pointer';
+          avEl.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            ev.preventDefault();
+            try { openPeerCardByConnId(connId, clone, ev); } catch (e) { console.error('[adapter] peer card hata:', e); }
+          });
+        }
         oo.appendChild(clone);
       });
-      // Stub gözükmesin diye absolute gizli zaten
       enterMain();
     };
 
-    // OO listesine click delegasyonu — motorun stub listesindeki .conv-item index'ine göre tetikle
+    // OO listesine click delegasyonu — connId varsa direkt openChat, yoksa stub'a forward
     document.addEventListener('click', function (ev) {
+      // Avatar tıklamasını yukarıdaki listener yutar (stopPropagation); buraya yalnızca gövde gelir.
       var item = ev.target.closest('#screen-sohbetler .content-area .conv-item');
       if (!item) return;
+      var cid = item.dataset.connId;
+      if (cid && typeof window.openChat === 'function') { window.openChat(cid); return; }
       var oo = document.querySelector('#screen-sohbetler .content-area');
       var idx = Array.prototype.indexOf.call(oo.children, item);
       var src = document.getElementById('convListOzel');
-      if (!src || !src.children[idx]) return;
-      // Stub'taki gerçek motor item'ına click forward
-      src.children[idx].click();
+      if (src && src.children[idx]) src.children[idx].click();
     });
 
     // ---------- 2E) openChat monkey-patch → OO chat ekranını göster + başlık/avatar ----------
@@ -269,7 +370,10 @@
       var avEl = document.getElementById('chatHAvatar');
       if (nameEl) {
         var t = document.getElementById('topbarTitle');
-        nameEl.innerText = t ? (t.innerText || '—') : '—';
+        var raw0 = t ? (t.innerText || '') : '';
+        var st0 = getEngineState();
+        var cid0 = (st0 && st0.activeChat) || id;
+        nameEl.innerText = resolveDisplayName(cid0, raw0);
       }
       if (avEl) {
         // Motorun çizdiği avatarı (topbarAvatar) klonla
@@ -278,11 +382,31 @@
           avEl.innerHTML = src.innerHTML;
           avEl.className = 'chat-h-avatar ' + (src.className.replace(/\btopbar-avatar\b|\bhidden\b/g, '').trim());
         }
+        avEl.style.cursor = cid0 ? 'pointer' : '';
+        avEl.onclick = cid0 ? function (ev) { openPeerCardByConnId(cid0, avEl, ev); } : null;
       }
-      // Mesaj kutusunu hazırla: temizle, ikonu güncelle, odaklan
+      // Mesaj kutusunu hazırla: temizle, ikonu güncelle — KLAVYE TETİKLEME
       var ci = document.getElementById('chatInput');
-      if (ci) { ci.value = ''; try { ci.focus({ preventScroll: true }); } catch (e) { ci.focus(); } }
+      if (ci) {
+        ci.value = '';
+        // Kullanıcı yazmaya başlayana kadar klavye açılmasın
+        try { ci.blur(); } catch (e) {}
+        if (document.activeElement && document.activeElement !== document.body) {
+          try { document.activeElement.blur(); } catch (e) {}
+        }
+      }
       try { window.updateSendIcon && window.updateSendIcon(); } catch (e) {}
+      // En alttaki mesajdan başla — kısa bir gecikme ile (showScreen geçişi sonrası)
+      var msgs = document.getElementById('chatMessages');
+      if (msgs) {
+        var prev = msgs.style.scrollBehavior;
+        msgs.style.scrollBehavior = 'auto';
+        msgs.scrollTop = msgs.scrollHeight;
+        requestAnimationFrame(function () {
+          msgs.scrollTop = msgs.scrollHeight;
+          msgs.style.scrollBehavior = prev || '';
+        });
+      }
     };
 
     // ---------- 2F) OO chat aksiyonları ----------
@@ -324,7 +448,38 @@
     window.chatCall    = window.chatCall    || function () { startCallForActiveChat('audio'); };
     window.chatVideo   = window.chatVideo   || function () { startCallForActiveChat('video'); };
     window.chatMore    = window.chatMore    || function () { console.info('[adapter] chatMore'); };
-    window.chatNext    = window.chatNext    || function () { console.info('[adapter] chatNext'); };
+    window.chatNext = function () {
+      try {
+        var st = getEngineState();
+        if (!st || !st.conversations) return;
+        var ids = Array.from(st.conversations.keys()).filter(function (k) {
+          var c = st.conversations.get(k); return c && c.isPrivate;
+        });
+        var cur = st.activeChat;
+        var next = null;
+        if (ids.length >= 2) {
+          var i = ids.indexOf(cur);
+          next = ids[(i >= 0 ? (i + 1) % ids.length : 0)];
+        }
+        if (!next) {
+          var contacts = [];
+          try {
+            if (typeof contactsState !== 'undefined' && contactsState && contactsState.byNumber) {
+              contacts = Array.from(contactsState.byNumber.values()).filter(function (c) { return c && c.number; });
+            }
+          } catch (e) {}
+          if (!contacts.length) return;
+          var currentNumber = phoneForConn(cur);
+          var idx = contacts.findIndex(function (c) { return normalizePhoneForAdapter(c.number) === normalizePhoneForAdapter(currentNumber); });
+          var nextContact = contacts[(idx >= 0 ? (idx + 1) % contacts.length : 0)];
+          if (nextContact && typeof window.openContactByNumber === 'function') {
+            window.openContactByNumber(nextContact.number);
+            return;
+          }
+        }
+        if (next && typeof window.openChat === 'function') window.openChat(next);
+      } catch (e) { console.error('[adapter] chatNext hata:', e); }
+    };
     // ---------- 2G) Mesaj kutusu içi: Ekle / Emoji / Kamera / Mikrofon ----------
     // Emoji listeleri (faces + flags)
     var EMOJI_FACES = [
@@ -647,7 +802,7 @@
       var s = document.getElementById('addContactSheet');
       if (s) { s.classList.remove('hidden-screen'); s.classList.add('active'); }
       var n = document.getElementById('newContactName'); if (n) n.value = '';
-      var p = document.getElementById('newContactPhone'); if (p) p.value = '';
+      var p = document.getElementById('newContactPhone'); if (p) p.value = '+90 ';
       // Motorun stub error'ını da temizle
       var err = document.getElementById('newContactError'); if (err) { err.innerText = ''; err.classList.add('hidden'); }
       // Motorun bazı yerleri addContactModal'ı görünür sayıyor; senkron tut
@@ -674,9 +829,13 @@
 
       var name = (nameEl && nameEl.value || '').trim();
       var phoneRaw = (phoneEl && phoneEl.value || '').trim();
-
-      if (!name)     { alert('Lütfen ad soyad girin.'); nameEl && nameEl.focus(); return; }
-      if (!phoneRaw) { alert('Lütfen telefon numarası girin.'); phoneEl && phoneEl.focus(); return; }
+      // İsim opsiyonel: girilmediyse rehberde numara olarak görünür (renderContacts numarayı yedek olarak kullanır)
+      // +90 auto-normalize
+      phoneRaw = window.__normalizePhone ? window.__normalizePhone(phoneRaw) : phoneRaw;
+      if (phoneEl) phoneEl.value = phoneRaw;
+      if (!phoneRaw || phoneRaw === '+90') { alert('Lütfen telefon numarası girin.'); phoneEl && phoneEl.focus(); return; }
+      if (!name) name = phoneRaw;
+      if (nameEl) nameEl.value = name;
 
       if (numberStub) numberStub.value = phoneRaw;
       if (errEl) { errEl.innerText = ''; errEl.classList.add('hidden'); }
@@ -831,6 +990,21 @@
       if (!row) return;
       ev.preventDefault();
       ev.stopPropagation();
+      var isAvatarTap = !!(ev.target.closest && ev.target.closest('[data-avatar="1"]'));
+      var connId = row.getAttribute('data-connid') || '';
+      var number = row.getAttribute('data-number') || '';
+      if (isAvatarTap) {
+        openContactCard(row, ev);
+        return;
+      }
+      if (connId && typeof window.openChat === 'function') {
+        window.openChat(connId);
+        return;
+      }
+      if (number && typeof window.openContactByNumber === 'function') {
+        window.openContactByNumber(number);
+        return;
+      }
       openContactCard(row, ev);
     });
 
@@ -1648,6 +1822,220 @@
       // chat ekranı her açıldığında bir tarama daha
       var bodyObs = new MutationObserver(function () { parseAll(); });
       bodyObs.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
+    })();
+
+    // ---------- Dokunmatik swipe: sohbetler ↔ kişiler ↔ gruplar ↔ ayarlar ----------
+    (function bindSwipeNav() {
+      var ORDER = ['sohbetler', 'kisiler', 'gruplar', 'ayarlar'];
+      var SCREEN_TO_TAB = {
+        'screen-sohbetler': 'sohbetler',
+        'screen-kisiler':   'kisiler',
+        'screen-gruplar':   'gruplar',
+        'screen-ayarlar':   'ayarlar'
+      };
+      function currentTab() {
+        for (var sid in SCREEN_TO_TAB) {
+          var el = document.getElementById(sid);
+          if (el && !el.classList.contains('hidden-screen')) return SCREEN_TO_TAB[sid];
+        }
+        return null;
+      }
+      var startX = 0, startY = 0, tracking = false, startedTab = null;
+      var THRESHOLD = 60, MAX_OFF_AXIS = 50;
+      function isInChatOrCall() {
+        var ids = ['screen-chat', 'screen-ooCall', 'screen-ooIncoming', 'screen-phone', 'screen-auth'];
+        for (var i = 0; i < ids.length; i++) {
+          var el = document.getElementById(ids[i]);
+          if (el && !el.classList.contains('hidden-screen')) return true;
+        }
+        return false;
+      }
+      function onStart(e) {
+        if (isInChatOrCall()) { tracking = false; return; }
+        var t = e.touches ? e.touches[0] : e;
+        // Yatay kaydırma içeren elementlerde (örn. ses ayarı şeritleri) iptal et
+        var blocked = e.target && e.target.closest && e.target.closest('input,textarea,.alphabet-sidebar,.ci-emoji-grid,.ci-attach-grid,.ooc-actions');
+        if (blocked) { tracking = false; return; }
+        startX = t.clientX; startY = t.clientY;
+        startedTab = currentTab();
+        tracking = !!startedTab;
+      }
+      function onEnd(e) {
+        if (!tracking) return;
+        tracking = false;
+        var t = (e.changedTouches && e.changedTouches[0]) || e;
+        var dx = t.clientX - startX, dy = t.clientY - startY;
+        if (Math.abs(dy) > MAX_OFF_AXIS) return;
+        if (Math.abs(dx) < THRESHOLD) return;
+        var idx = ORDER.indexOf(startedTab);
+        if (idx < 0) return;
+        var next = dx < 0 ? ORDER[idx + 1] : ORDER[idx - 1];
+        if (!next) return;
+        if (window.app && typeof window.app.navigate === 'function') window.app.navigate(next);
+      }
+      var container = document.querySelector('.app-container') || document.body;
+      container.addEventListener('touchstart', onStart, { passive: true });
+      container.addEventListener('touchend', onEnd, { passive: true });
+    })();
+
+    // ---------- 9) +90 OTOMATİK PREFIX (telefon inputları) ----------
+    window.__normalizePhone = function (raw) {
+      var v = String(raw || '').trim();
+      if (!v) return '+90 ';
+      // Sadece rakam ve + bırak
+      v = v.replace(/[^\d+]/g, '');
+      if (v.startsWith('+')) {
+        // +90 dışında bir ülke kodu yazıldıysa dokunma
+        return v;
+      }
+      // baştaki 0'ı sil
+      v = v.replace(/^0+/, '');
+      // baştaki 90'ı sil (çift +90 olmasın)
+      v = v.replace(/^90/, '');
+      return '+90 ' + v;
+    };
+    (function bindPhoneAutoPrefix() {
+      function bind(id) {
+        var el = document.getElementById(id); if (!el) return;
+        function ensure() {
+          var v = (el.value || '').trim();
+          if (!v) { el.value = '+90 '; return; }
+          if (!v.startsWith('+')) el.value = window.__normalizePhone(v);
+        }
+        el.addEventListener('focus', ensure);
+        el.addEventListener('input', function () {
+          if (!el.value.startsWith('+')) el.value = '+90 ' + el.value.replace(/[^\d ]/g, '');
+        });
+        ensure();
+      }
+      function tick() { bind('phoneInput'); bind('newContactPhone'); }
+      tick();
+      var mo = new MutationObserver(tick);
+      mo.observe(document.body, { childList: true, subtree: true });
+    })();
+
+    // ---------- 10) TEMA AYARLARI ----------
+    (function bindThemeSettings() {
+      var THEMES = {
+        forest: { label: 'Orman · Açık', primary: '#0a7c4a', hover: '#08633b', light: '#e6f3eb', bg: '#ffffff' },
+        ocean: { label: 'Okyanus · Açık', primary: '#0f766e', hover: '#115e59', light: '#dff7f5', bg: '#f8fffe' },
+        sunset: { label: 'Günbatımı · Açık', primary: '#ea580c', hover: '#c2410c', light: '#ffedd5', bg: '#fffaf5' },
+        night: { label: 'Gece · Koyu', primary: '#6366f1', hover: '#4f46e5', light: '#232848', bg: '#0f172a' }
+      };
+      var PRIMARY_ORDER = ['forest', 'ocean', 'sunset', 'night'];
+      var BG_ORDER = ['forest', 'ocean', 'sunset', 'night'];
+
+      function applyTheme(name) {
+        var theme = THEMES[name] || THEMES.forest;
+        var root = document.documentElement;
+        root.style.setProperty('--primary-green', theme.primary);
+        root.style.setProperty('--primary-green-hover', theme.hover);
+        root.style.setProperty('--light-green-bg', theme.light);
+        root.style.setProperty('--bg-white', theme.bg);
+        try { localStorage.setItem('sohbeto.oo.theme', name); } catch (e) {}
+        var title = document.getElementById('current-theme-name');
+        if (title) title.textContent = theme.label;
+        document.querySelectorAll('#primary-colors .color-swatch, #bg-colors .color-swatch').forEach(function (el) {
+          el.classList.toggle('active', el.dataset.theme === name);
+        });
+      }
+
+      function renderPalette(containerId, order, mode) {
+        var wrap = document.getElementById(containerId);
+        if (!wrap) return;
+        wrap.innerHTML = order.map(function (name) {
+          var t = THEMES[name];
+          var color = mode === 'bg' ? t.bg : t.primary;
+          return '<button type="button" class="color-swatch" data-theme="' + name + '" style="background:' + color + '" aria-label="' + t.label + '"></button>';
+        }).join('');
+        wrap.querySelectorAll('.color-swatch').forEach(function (btn) {
+          btn.addEventListener('click', function () { applyTheme(btn.dataset.theme); });
+        });
+      }
+
+      window.app.openThemeSettings = function () {
+        renderPalette('primary-colors', PRIMARY_ORDER, 'primary');
+        renderPalette('bg-colors', BG_ORDER, 'bg');
+        showScreen('screen-tema');
+        try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'forest'); } catch (e) { applyTheme('forest'); }
+      };
+      window.app.closeThemeSettings = function () { showScreen('screen-ayarlar'); };
+
+      renderPalette('primary-colors', PRIMARY_ORDER, 'primary');
+      renderPalette('bg-colors', BG_ORDER, 'bg');
+      try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'forest'); } catch (e) { applyTheme('forest'); }
+    })();
+
+    // ---------- 10) PROFİL FOTOĞRAFI + AD/BİYO PERSİSTANSI ----------
+    window.handleProfilePic = function (ev) {
+      var f = ev && ev.target && ev.target.files && ev.target.files[0];
+      if (!f) return;
+      var circle = document.getElementById('profilePicCircle');
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var url = e.target.result;
+        if (circle) circle.innerHTML = '<img src="' + url + '" alt="Profil" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">';
+        try {
+          var data = JSON.parse(localStorage.getItem('sohbeto.oo.profile') || '{}');
+          data.image = url;
+          localStorage.setItem('sohbeto.oo.profile', JSON.stringify(data));
+        } catch (e) {}
+        // Motora ilet (resize + IndexedDB + P2P broadcast)
+        try {
+          var stub = document.getElementById('fileInput');
+          if (stub && typeof stub.onchange === 'function') {
+            var dt = new DataTransfer();
+            dt.items.add(f);
+            stub.files = dt.files;
+            stub.onchange({ target: stub });
+          }
+        } catch (err) { console.warn('[adapter] profil foto motora iletilemedi', err); }
+        // Anında P2P yayınla — karşıdaki kişi sohbet/kişi listesinde gezinirken bile görsün
+        try { if (typeof window.scheduleProfileBroadcast === 'function') window.scheduleProfileBroadcast(50); } catch (e) {}
+      };
+      reader.readAsDataURL(f);
+      ev.target.value = '';
+    };
+
+    (function bindProfileFields() {
+      function init() {
+        var nameEl = document.getElementById('profileName');
+        var bioEl = document.getElementById('profileBio');
+        var circle = document.getElementById('profilePicCircle');
+        if (!nameEl && !bioEl && !circle) return false;
+        var sv = {};
+        try { sv = JSON.parse(localStorage.getItem('sohbeto.oo.profile') || '{}'); } catch (e) {}
+        if (nameEl && sv.name && !nameEl.value) nameEl.value = sv.name;
+        if (bioEl && sv.bio && !bioEl.value) bioEl.value = sv.bio;
+        if (circle && sv.image && !circle.querySelector('img')) {
+          circle.innerHTML = '<img src="' + sv.image + '" alt="Profil" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">';
+        }
+        function save() {
+          try {
+            var data = JSON.parse(localStorage.getItem('sohbeto.oo.profile') || '{}');
+            data.name = nameEl ? nameEl.value.trim() : '';
+            data.bio = bioEl ? bioEl.value : '';
+            localStorage.setItem('sohbeto.oo.profile', JSON.stringify(data));
+            try {
+              var st = getEngineState && getEngineState();
+              if (st) {
+                // Boş ad → state.nick'i temizle (engine 'Kullanıcı' lekesi göndermesin)
+                st.nick = data.name || '';
+                st.bio = data.bio || '';
+              }
+            } catch (e) {}
+            // P2P'ye anında yayınla — debounce ile (her tuşta paket basmasın)
+            try { if (typeof window.scheduleProfileBroadcast === 'function') window.scheduleProfileBroadcast(400); } catch (e) {}
+          } catch (e) {}
+        }
+        if (nameEl) nameEl.addEventListener('input', save);
+        if (bioEl) bioEl.addEventListener('input', save);
+        return true;
+      }
+      if (!init()) {
+        var mo = new MutationObserver(function () { if (init()) mo.disconnect(); });
+        mo.observe(document.body, { childList: true, subtree: true });
+      }
     })();
 
     console.info('[sohbeto-adapter] hazır — Adım 1 (login + sohbet listesi + chat) bağlandı.');

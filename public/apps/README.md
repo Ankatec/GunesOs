@@ -846,3 +846,131 @@ Kazakistan → Kırgızistan → Özbekistan → KKTC → İslam ülkeleri
   inline SVG (data URI) kullanılır; grid butonuna `<img>` olarak basılır.
 - Tıklanınca metin olarak `[Doğu Türkistan]` / `[KKTC]` eklenir.
 - **Bu listeye onay alınmadan başka ülke EKLENMEYECEK.**
+
+---
+
+## EK NOTLAR — Yeni Tema / Arayüz Akış Listesi (Adapter Köprüleme Rehberi)
+
+> Bu bölüm yeni bir tema (`sohbetoXX.html`) eklerken adapter'ın **hangi
+> noktalardan dokunduğunu** görsel olarak takip edebilmen için yazıldı.
+> Her madde, motor tarafından beklenen DOM/global ile temanın karşılığı
+> arasındaki köprüyü gösterir. Yeni tema yazarken bu listeyi tek tek geçtiysen
+> motor seninle konuşur.
+
+### Akış Haritası (özet)
+
+```
+┌──────────────────────────┐      ┌────────────────────────────┐
+│ TEMA HTML (sohbetoXX)    │ <==> │ sohbeto-adapter.js (köprü) │
+└──────────────────────────┘      └─────────────┬──────────────┘
+                                                │
+                                                ▼
+                                  ┌────────────────────────────┐
+                                  │ STUB DOM (offscreen)       │
+                                  │ #convListOzel #topbarTitle │
+                                  │ #fileInput   #callScreen…  │
+                                  └─────────────┬──────────────┘
+                                                ▼
+                                  ┌────────────────────────────┐
+                                  │ sohbeto-engine.js (MOTOR)  │
+                                  └────────────────────────────┘
+```
+
+### Akış 1 — Giriş / OTP
+- Tema: `#phoneInput`, `#codeInputs .code-input` (×6), `app.sendCode()`, `app.verifyCode()`.
+- Adapter: `+90` otomatik prefix (`__normalizePhone`); flow seçimi (`welcome` / `login`); OTP'yi motorun `welcomeCode` / `loginCode` stub'larına bas.
+
+### Akış 2 — Profil (Ayarlar)
+- Tema: `#profilePicCircle`, `#profilePicInput` (`onchange="handleProfilePic(event)"`), `#profileName`, `#profileBio`.
+- Adapter:
+  - `handleProfilePic(ev)` → dosyayı motor stub'ı `#fileInput`'a forward eder (resize + IndexedDB + P2P broadcast).
+  - Görsel optimistic preview anında `#profilePicCircle` içine `<img>` olarak basılır.
+  - `profileName` / `profileBio` `localStorage["sohbeto.oo.profile"]` üzerinde kalıcı; her input'ta `state.nick` / `state.bio` motor state'ine yansıtılır.
+  - **Default "Kullanıcı" YOKtur** — kullanıcı boş başlar; rehberde adı yazmadığı kişiler için **telefon numarası** display name olur (`resolveDisplayName`).
+
+### Akış 3 — Sohbet Listesi
+- Tema: `#screen-sohbetler .content-area` (boş container).
+- Adapter: `renderConvList` monkey-patch → motor stub'ı `#convListOzel`'i okur, `resolveDisplayName(connId, raw)` ile isimlendirir, `[xxx]` taglarını söker, aynı kişi için tek kart bırakır (dedup), her satıra `data-conn-id` koyar. Tıklamada `openChat(connId)`.
+
+### Akış 4 — Sohbet Ekranı
+- Tema: `#chatHName`, `#chatHAvatar`, `#chatMessages`, `#chatInput`, `#chatSendBtn`, `closeChat()`, `onSendBtn()`.
+- Adapter: `openChat` patch → `chatHName` `resolveDisplayName` ile dolar; `chatHAvatar` motor `#topbarAvatar` HTML'inden klonlanır; **klavye tetiklenmez** (`ci.blur()` + scroll en alta `auto`).
+
+### Akış 5 — Kişiler
+- Tema: `#contactsList`, `#contactsEmpty`, `#contactSearch`, `#addContactSheet` + `#newContactName` / `#newContactPhone`, `openAddContact()` / `closeAddContact()` / `saveContact()`.
+- Adapter:
+  - `+90 ` otomatik prefix (`__normalizePhone`) — açılışta ve focus'ta inputa düşer.
+  - **İsim opsiyoneldir** — boş bırakılırsa kişi telefon numarasıyla kaydedilir; rehberde aramada da numara olarak görünür.
+  - Motor `saveNewContact()` çağrılır; numara `#newContactNumber` stub'ına forward edilir.
+
+### Akış 6 — Kişi Kartı Overlay
+- Tema: `#contactCardOverlay`, `#ccAvatar`, `#ccName`, `#ccPhone`, `ccCall()`, `ccVideo()`, `ccOpenChat()`, `closeContactCard(ev)`.
+- Adapter: liste satırının `data-name|number|connid` attr'larından doldurur; arama butonları `connId` yoksa önce `openContactByNumber` ile lookup atar.
+
+### Akış 7 — Arama (Sesli/Görüntülü)
+- Tema: `#screen-ooCall`, `#screen-ooIncoming`, video sahne (`.ooc-video-stage`, `#oocVideoLocal`, `#oocVideoRemote`).
+- Adapter: `MutationObserver` motor `#activeCallScreen` / `#callScreen` / `#videoContainer` `.hidden`/`.active` sınıflarını izler, OO ekranlarını otomatik açar/kapar, video node'larını fiziksel olarak sahne içine taşır.
+
+### Akış 8 — Alt Navigasyon + Swipe
+- Tema: `#bottom-nav` ve `#nav-{sohbetler|kisiler|gruplar|ayarlar}` butonlarında `app.navigate('...')`.
+- Adapter: `.app-container` üzerinde touch swipe → `sohbetler ↔ kisiler ↔ gruplar ↔ ayarlar` (chat / call / input alanlarında bloklu).
+
+### Akış 9 — Telefon Normalizasyonu (Genel)
+- Adapter `window.__normalizePhone(raw)` her tema tarafından kullanılabilir:
+  - Boş → `'+90 '`
+  - `+` ile başlıyorsa dokunulmaz (yabancı ülke kodu).
+  - Aksi halde başındaki `0` ve `90` temizlenir, başına `+90 ` eklenir.
+
+### Yeni tema check-list (kopyala, doldur)
+- [ ] Tüm ekran ID'leri (Akış 3–8) tema HTML'inde mevcut.
+- [ ] `<head>` sırası: önce `sohbeto-adapter.js`, sonra `sohbeto-engine.js`.
+- [ ] Profil bölümünde `id="profilePicCircle"`, `id="profileName"`, `id="profileBio"` ve `<input id="profilePicInput" onchange="handleProfilePic(event)">`.
+- [ ] Telefon inputlarında **default değer yok** (adapter `+90 ` koyar).
+- [ ] "Kullanıcı" gibi sahte default yok — adapter persistans yönetiyor.
+- [ ] Gelen arama (`#screen-ooIncoming`) ve görüntülü sahne (`.ooc-video-stage`) eklendi (yoksa arama görünmez).
+
+---
+
+## DEĞİŞİKLİK GÜNLÜĞÜ (chronological)
+
+### v? — Mesaj balonları + sohbet listesi temizliği
+- Mesaj balonlarında `Adı>p2p` / `Sen>p2p` etiketleri **gizlendi** (`.msg-sender`, `.msg-tag` → `display:none`).
+- Sohbet kartları, kişi avatarı ve chat header avatarındaki **emoji boyutları** sınırlandı.
+- `[xxx]` tag'i hiçbir yerde görünmüyor (renderConvList, conv-preview, chat header).
+- Aynı kişi için **çoklu sohbet kutusu** dedup'lanır (display-name lowercase key).
+
+### v? — Klavye + Swipe
+- Sohbet açılırken **klavye tetiklenmez** (`ci.blur()`, scroll en alta `behavior:auto`).
+- `.app-container` üzerinde **touch swipe** ile alt sekmeler arası geçiş.
+
+### v? (BU SÜRÜM) — Profil + Telefon + Anonim kişi
+- `handleProfilePic` global'i adapter'a eklendi → galeriden seçilen foto **anında** `#profilePicCircle` içinde görünür ve motora forward edilir (resize + IndexedDB + P2P broadcast).
+- `profileName` / `profileBio` `localStorage["sohbeto.oo.profile"]` üzerinde kalıcı; motor `state.nick` / `state.bio`'ya yansıtılır.
+- **"Kullanıcı"** default değeri kaldırıldı; kullanıcı boş başlar.
+- Telefon inputlarında (`#phoneInput`, `#newContactPhone`) `+90 ` **otomatik prefix** (`__normalizePhone`).
+- Kişi kayıt ekranında **isim opsiyoneldir** — boş bırakılırsa numara kişi adı olarak kaydedilir; rehberde **numara olarak görünür**.
+- `openChat` artık `chatHName`'i `resolveDisplayName` üzerinden çözüyor (rehber > temiz nick > numara).
+
+> **Motor değişmedi.** Tüm bu davranışlar `sohbetoOO.html` + `sohbeto-adapter.js` üzerinde yapıldı.
+
+### v? (BU SÜRÜM) — Avatar/kart vs sohbet ayrımı + canlı profil yayını + chatNext + "Kullanıcı" lekesi
+- **Sohbet listesinde tıklama akışı netleşti:**
+  - Satır gövdesine tıklama → `openChat(connId)` (sohbeti açar).
+  - Sadece **profil avatarına** tıklama → `showContactCard(connId)` (kişi/ileride grup kartı). Kişi rehberde olsa da olmasa da çalışır.
+- `chatNext()` artık çalışıyor — chat header'daki "›" butonu `state.conversations` içindeki bir sonraki private sohbete döner (round-robin).
+- **"Kullanıcı" lekesi kaldırıldı:**
+  - Engine `createProfileUpdatePacket()`'ta `state.nick` boşsa artık `'Kullanıcı'` göndermiyor → boş gönderiyor (alıcı resolveDisplayName ile numaraya/rehbere düşer). _(motor küçük dokunuş: payload fallback)_
+  - Adapter `resolveDisplayName` legacy `'Kullanıcı'` literalini de boş kabul edip numaraya düşer.
+  - Profil ayarlarında ad alanı boşsa `state.nick` `''` yapılır (engine init'inde set edilen `'Kullanıcı'` üzerine yazılır).
+- **Anında P2P profil yayını:** Profil fotoğrafı / ad / bio her değişikliğinde `scheduleProfileBroadcast()` tetiklenir → karşıdaki kişi **kişiler veya sohbetler ekranındayken bile** yeni profili anında alır (50ms foto için, 400ms metin için debounce).
+
+> **Motor dokunuşu (tek satır):** `createProfileUpdatePacket` payload'ında `'Kullanıcı'` fallback'i kaldırıldı. Akış şu: kullanıcı kendini adlandırmamışsa, paketteki `name` boş gönderilir; alıcı tarafta `resolveDisplayName` numarayı/rehber adını gösterir.
+
+### v? (BU SÜRÜM) — Arayan kimliği + kişi kartı + `>` + tema ayarları
+- **Arayan kişi metni temizlendi:** `P2P` artık kullanıcıya isim olarak düşmüyor; mümkünse rehber adı, değilse kayıtlı telefon numarası gösteriliyor.
+- **Sohbet avatarı → kişi kartı:** Sohbet listesindeki avatar ve chat header avatarı artık OO kişi kartını açıyor; kart motor overlay'ine değil tema overlay'ine bağlandı.
+- **Kişiler ekranı tıklama akışı:** Satır gövdesi → sohbet aç, sadece avatar → kişi kartı aç. Bu davranış rehberde tutarlı hale getirildi.
+- **`chatNext()` genişletildi:** Aktif private sohbet yoksa veya tek sohbet varsa rehberdeki bir sonraki kişiye düşebiliyor; `>` butonu boşa düşmüyor.
+- **Tema ayarları aktifleştirildi:** `app.openThemeSettings()` / `app.closeThemeSettings()` bağlandı; vurgu ve arka plan paletleri çalışıyor, seçim `localStorage["sohbeto.oo.theme"]` içinde kalıyor ve `#current-theme-name` anında güncelleniyor.
+
+> **Motor dokunuşu:** `getDisplayName()` içinde `P2P` literal'i temizlenip rehber adı / numara fallback zinciri güçlendirildi. Ayrıca signaling sırasında `state.users` içine çıplak `P2P` yazılması engellendi.

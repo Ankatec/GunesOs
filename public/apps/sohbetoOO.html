@@ -674,14 +674,16 @@
         .chat-messages .msg-bubble .msg-meta {
             display:flex; align-items:center; gap:6px; justify-content:flex-end;
         }
-        .chat-messages .msg-bubble .msg-sender {
-            font-size:.7rem; font-weight:600; opacity:.7; margin-bottom:2px;
-        }
-        .chat-messages .msg-bubble .msg-tag {
-            font-size:.55rem; padding:1px 5px; border-radius:8px; margin-left:4px;
-            background:rgba(0,0,0,.08); color:inherit; font-weight:600; letter-spacing:.5px;
-        }
-        .chat-messages .msg-own > .msg-bubble .msg-tag { background:rgba(255,255,255,.22); }
+        /* Mesaj balonlarında gönderen adı / P2P-WSS-ÖZEL etiketleri görünmesin */
+        .chat-messages .msg-bubble .msg-sender,
+        .chat-messages .msg-bubble .msg-tag,
+        .chat-messages .msg-own > .msg-bubble .msg-meta:first-child { display:none !important; }
+        /* Sohbet listesinde önizleme emojilerini normal boyutta tut */
+        #screen-sohbetler .conv-preview { font-size:.78rem; line-height:1.3; }
+        #screen-sohbetler .conv-preview img,
+        #screen-sohbetler .conv-preview svg { max-height:1em; vertical-align:-0.15em; }
+        #screen-sohbetler .conv-avatar span { font-size:1.05rem !important; line-height:1; }
+        .chat-h-avatar span { font-size:.95rem !important; line-height:1; }
         .chat-messages .msg-bubble .tick { font-size:.7rem; }
         .chat-messages .msg-bubble .tick.blue { color:#34b7f1; }
         .chat-messages .msg-own > .msg-bubble .tick.gray { color:rgba(255,255,255,.75); }
@@ -824,7 +826,7 @@
                         style="width:100%;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;font-size:1rem;font-weight:500;color:var(--text-main);background:transparent;margin-bottom:16px"
                         onfocus="this.style.borderColor='var(--primary-green)';this.style.boxShadow='0 0 0 3px var(--light-green-bg)';"
                         onblur="this.style.borderColor='#e5e7eb';this.style.boxShadow='none';"
-                        value="+90 555 123 45 67">
+                        value="+90 ">
 
                     <p class="text-[0.8rem] text-[var(--text-secondary)] font-medium">
                         Kod, <span style="color: var(--primary-green); font-weight:600;">Mesajlar</span> uygulamasına ulaşacak.
@@ -1104,7 +1106,7 @@
                 <div class="profile-fields">
                     <div class="profile-field">
                         <label><span class="lbl-emoji">📌</span> Ad</label>
-                        <input type="text" id="profileName" placeholder="Adınız" maxlength="30" autocomplete="off" value="Kullanıcı">
+                        <input type="text" id="profileName" placeholder="Adınız" maxlength="30" autocomplete="off">
                     </div>
                     <div class="profile-field">
                         <label><span class="lbl-emoji">📝</span> Biyografi</label>

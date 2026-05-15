@@ -273,7 +273,15 @@ function nameWithKnownNumber(connId, name) {
 function getDisplayName(connId, fallbackNick) {
     const profile = getPeerProfile(connId);
     if (profile?.name) return nameWithKnownNumber(connId, profile.name);
-    return fallbackNick || state.users.get(connId) || connId.substring(0, 10);
+    const contact = getContactByConnId(connId);
+    const fromState = state.users.get(connId) || '';
+    const cleanFallback = String(fallbackNick || '').replace(/^P2P$/i, '').trim();
+    const cleanState = String(fromState || '').replace(/^P2P$/i, '').trim();
+    if (contact?.name) return nameWithKnownNumber(connId, contact.name);
+    if (cleanFallback) return cleanFallback;
+    if (cleanState) return cleanState;
+    if (contact?.number) return contact.number;
+    return connId.substring(0, 10);
 }
 function getAvatarContent(connId, fallbackNick) {
     const profile = getPeerProfile(connId);
@@ -345,7 +353,10 @@ function refreshLiveScreensForPeer(connId) {
     } catch(e) {}
 }
 function createProfileUpdatePacket(includeImage = true) {
-    const payload = { name: cleanProfileName(state.nick) || 'Kullanıcı', emoji: state.profileEmoji || '👤', image: includeImage ? sanitizeProfileImage(state.profileImage) : '', bio: state.bio || '' };
+    // Adapter notu: 'Kullanıcı' lekesi olmasın diye boş gönderiyoruz; alıcı tarafta resolveDisplayName numara/rehber adına düşer.
+    var __rawNick = cleanProfileName(state.nick);
+    if (__rawNick === 'Kullanıcı') __rawNick = '';
+    const payload = { name: __rawNick, emoji: state.profileEmoji || '👤', image: includeImage ? sanitizeProfileImage(state.profileImage) : '', bio: state.bio || '' };
     return 'PROFILE_UPDATE###' + utf8ToBase64(JSON.stringify(payload));
 }
 function sendDataChannelText(targetConnId, text) {
@@ -395,7 +406,7 @@ function resizeProfileImage(file, maxSize = 256, quality = 0.72) {
     });
 }
 
-function getMyB64() { return btoa(encodeURIComponent(`P2P###${CONFIG.connectionId}`)); }
+function getMyB64() { return btoa(encodeURIComponent(`P2P###${CONFIG.connectionId}###${CONFIG.virtualNo || ''}`)); }
 function getTargetB64(connId) { if (connId === "HERKES") return "HERKES"; return btoa(encodeURIComponent(`P2P###${connId}`)); }
 
 // ==================== AES-GCM + GZIP ENCRYPTION ====================
@@ -970,12 +981,12 @@ function connectChat(onReady) {
             const match = dec.match(/^\[(.*?)\]\s*\[(.*?)\]\s*(.*)$/);
             if (!match) return;
             const [_, senderB64, targetB64, text] = match;
-            let sNick, sConnId;
-            try { const decSender = decodeURIComponent(atob(senderB64)); [sNick, sConnId] = decSender.split("###"); } catch (er) { return; }
+            let sNick, sConnId, sVirtualNo = '';
+            try { const decSender = decodeURIComponent(atob(senderB64)); [sNick, sConnId, sVirtualNo] = decSender.split("###"); } catch (er) { return; }
             if (sConnId === CONFIG.connectionId) return;
             let tConnId = "HERKES";
             if (targetB64 !== "HERKES") { try { const dt = decodeURIComponent(atob(targetB64)); tConnId = dt.split("###")[1]; } catch (er) { return; } }
-            if (text.startsWith("[P2P_") && tConnId === CONFIG.connectionId) { if (!state.users.has(sConnId)) { state.users.set(sConnId, sNick); updateUI(); } const pType = text.substring(5, text.indexOf("]")); const pData = decodeURIComponent(atob(text.substring(text.indexOf("]") + 1))); handleSignaling(sConnId, pType, pData); return; }
+            if (text.startsWith("[P2P_") && tConnId === CONFIG.connectionId) { if (!state.users.has(sConnId)) { state.users.set(sConnId, sVirtualNo || (String(sNick || '').replace(/^P2P$/i, '').trim()) || sConnId.substring(0, 10)); updateUI(); } const pType = text.substring(5, text.indexOf("]")); const pData = decodeURIComponent(atob(text.substring(text.indexOf("]") + 1))); handleSignaling(sConnId, pType, pData); return; }
             if (text.startsWith("ADMIN_ONLINE") || text.startsWith("NUMARA_TALEBI") || text.startsWith("LOG_ISTEGI") || text.startsWith("NUMARA_CEVAP###")) return;
             if (text.startsWith("LOG_CEVAP###")) { const parts = text.split("###"); if (parts.length >= 3) { try { log(`[Sunucu]: ${decodeURIComponent(atob(parts.slice(2).join("###")))}`, "#fbbf24"); } catch (er) {} } return; }
 
