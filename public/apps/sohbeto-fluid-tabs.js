@@ -10,7 +10,7 @@
   var SCREEN_IDS = TABS.map(function (t) { return 'screen-' + t; });
   
   // Telegram benzeri süper akıcı animasyon ayarları
-  var DURATION_MS = 380; 
+  var DURATION_MS = 600; 
   // Agresif kalkış, ipek gibi iniş (Ease Out Expo türevi)
   var EASING = 'cubic-bezier(0.19, 1, 0.22, 1)'; 
   var SWIPE_DISTANCE_RATIO = 0.15;   // %15'i geçince sekme değişsin (daha hassas)
