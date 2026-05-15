@@ -41,6 +41,8 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/react-query": "^5.83.0",
+    "@tanstack/react-router": "^1.169.2",
+    "@tanstack/react-start": "^1.167.65",
     "@webcontainer/api": "^1.6.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

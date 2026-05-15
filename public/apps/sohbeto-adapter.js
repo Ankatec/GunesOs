@@ -501,14 +501,9 @@
     // diğer Türk devletleri (Kazakistan, Kırgızistan, Özbekistan, KKTC) →
     // İslam ülkeleri (Körfez → Levant → Güney/Orta Asya → Kuzey Afrika).
     // Doğu Türkistan ve KKTC için Unicode flag emoji yok; inline SVG (data URI) kullanılır.
-    var FLAG_DOGU_TURKISTAN = 'data:image/svg+xml;utf8,' + encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600">' +
-      '<rect width="900" height="600" fill="#1E90D7"/>' +
-      '<circle cx="335" cy="300" r="120" fill="#fff"/>' +
-      '<circle cx="370" cy="300" r="100" fill="#1E90D7"/>' +
-      '<polygon fill="#fff" points="470,300 545,278 499,340 499,260 545,322"/>' +
-      '</svg>'
-    );
+    // Doğu Türkistan bayrağı: gerçek görsel (public/apps/flag-dogu-turkistan.png).
+    // Emoji boyutuna küçültülerek bayrak sekmesinde Türkiye'den hemen sonra gösterilir.
+    var FLAG_DOGU_TURKISTAN = 'flag-dogu-turkistan.png';
     var FLAG_KKTC = 'data:image/svg+xml;utf8,' + encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">' +
       '<rect width="1200" height="800" fill="#fff"/>' +
@@ -571,15 +566,22 @@
           b.onclick = function () { ciInsertEmoji(item); };
         } else if (item && item.img) {
           b.title = item.t || '';
-          b.style.padding = '2px';
+          b.style.padding = '0';
+          b.style.display = 'flex';
+          b.style.alignItems = 'center';
+          b.style.justifyContent = 'center';
           var im = document.createElement('img');
           im.src = item.img; im.alt = item.t || '';
-          im.style.width = '26px'; im.style.height = '18px';
-          im.style.objectFit = 'cover'; im.style.borderRadius = '2px';
-          im.style.display = 'block'; im.style.margin = '0 auto';
+          // Emoji boyutunda kare bayrak (Doğu Türkistan / KKTC)
+          im.style.width = '22px'; im.style.height = '22px';
+          im.style.objectFit = 'cover'; im.style.borderRadius = '3px';
+          im.style.display = 'block';
           b.appendChild(im);
-          // Unicode olmadığı için metin olarak [Bayrak: X] eklenir
-          b.onclick = function () { ciInsertEmoji('[' + (item.t || 'Bayrak') + ']'); };
+          // Engine düz metin gönderdiği için sentinel token gönderiyoruz; render sırasında
+          // adapter (FLAG_TOKENS observer) bu token'ı gerçek bayrak <img>'ine çeviriyor.
+          // Böylece ☪ U+262A'nın mor görünmesi sorunu çözülür ve karşı tarafta da bayrak görünür.
+          var token = (item.t === 'KKTC') ? ':kktc-flag:' : ':dt-flag:';
+          b.onclick = function () { ciInsertEmoji(token); };
         } else if (item && item.e) {
           b.textContent = item.e;
           b.title = item.t || item.e;
@@ -2038,6 +2040,79 @@
       }
     })();
 
+    // ---------- BAYRAK TOKEN DEĞİŞTİRİCİ (Doğu Türkistan / KKTC) ----------
+    // Engine mesajları escapeHtml ile basıyor; bu yüzden gerçek <img> gönderemiyoruz.
+    // Çözüm: tıklayınca metne :dt-flag: / :kktc-flag: token'ı eklenir, render sonrası
+    // adapter bu token'ları DOM'da inline bayrak görseliyle değiştirir.
+    (function setupFlagTokenReplacer() {
+      var FLAG_DT_SRC = 'flag-dogu-turkistan.png';
+      var FLAG_KKTC_SRC = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">' +
+        '<rect width="1200" height="800" fill="#fff"/>' +
+        '<rect y="60" width="1200" height="80" fill="#E30A17"/>' +
+        '<rect y="660" width="1200" height="80" fill="#E30A17"/>' +
+        '<circle cx="540" cy="400" r="135" fill="#E30A17"/>' +
+        '<circle cx="585" cy="400" r="110" fill="#fff"/>' +
+        '<polygon fill="#E30A17" points="700,400 783,376 732,448 732,352 783,424"/>' +
+        '</svg>'
+      );
+      var TOKEN_RE = /:dt-flag:|:kktc-flag:/g;
+
+      function imgHtml(src, alt) {
+        return '<img src="' + src + '" alt="' + alt + '" ' +
+               'style="display:inline-block;width:1.15em;height:1.15em;vertical-align:-0.2em;' +
+               'object-fit:cover;border-radius:2px;margin:0 1px">';
+      }
+
+      function replaceInTextNode(node) {
+        var v = node.nodeValue;
+        if (!v || v.indexOf(':dt-flag:') === -1 && v.indexOf(':kktc-flag:') === -1) return;
+        var span = document.createElement('span');
+        span.innerHTML = v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/:dt-flag:/g, imgHtml(FLAG_DT_SRC, 'Doğu Türkistan'))
+          .replace(/:kktc-flag:/g, imgHtml(FLAG_KKTC_SRC, 'KKTC'));
+        node.parentNode.replaceChild(span, node);
+      }
+
+      function walk(root) {
+        if (!root) return;
+        if (root.nodeType === 3) { replaceInTextNode(root); return; }
+        if (root.nodeType !== 1) return;
+        // input/textarea içine girme — kullanıcı yazarken token'ı görsün ki silebilsin
+        var tag = root.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SCRIPT' || tag === 'STYLE') return;
+        var children = Array.prototype.slice.call(root.childNodes);
+        for (var i = 0; i < children.length; i++) walk(children[i]);
+      }
+
+      function scan() {
+        var targets = document.querySelectorAll(
+          '#chatMessages .msg-bubble, .conv-preview, .msg-bubble'
+        );
+        targets.forEach(walk);
+      }
+
+      // İlk tarama + sürekli gözlem
+      scan();
+      var mo = new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++) {
+          var m = muts[i];
+          if (m.type === 'childList') {
+            m.addedNodes.forEach(function (n) {
+              if (n.nodeType !== 1) return;
+              if (n.matches && (n.matches('.msg-bubble') || n.matches('.conv-preview'))) walk(n);
+              var subs = n.querySelectorAll && n.querySelectorAll('.msg-bubble, .conv-preview');
+              if (subs) subs.forEach(walk);
+            });
+          } else if (m.type === 'characterData') {
+            replaceInTextNode(m.target);
+          }
+        }
+      });
+      mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    })();
+
     console.info('[sohbeto-adapter] hazır — Adım 1 (login + sohbet listesi + chat) bağlandı.');
   });
 })();
+

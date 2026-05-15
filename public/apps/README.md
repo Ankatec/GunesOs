@@ -842,9 +842,20 @@ Türkiye → Doğu Türkistan → Azerbaycan → Türkmenistan →
 Kazakistan → Kırgızistan → Özbekistan → KKTC → İslam ülkeleri
 (Körfez → Levant → Güney/Orta Asya → Kuzey Afrika).
 
-- Doğu Türkistan ve KKTC için Unicode flag emoji yok → adapter içinde
-  inline SVG (data URI) kullanılır; grid butonuna `<img>` olarak basılır.
-- Tıklanınca metin olarak `[Doğu Türkistan]` / `[KKTC]` eklenir.
+- Doğu Türkistan ve KKTC için Unicode flag emoji yok.
+  - **KKTC** → adapter içinde inline SVG (data URI) `<img>` olarak basılır,
+    tıklanınca `[KKTC]` metni eklenir.
+  - **Doğu Türkistan** → `public/apps/flag-dogu-turkistan.png` dosyası
+    (gerçek bayrak görseli) emoji boyutunda (22×22 px, `border-radius:3px`)
+    grid butonuna `<img>` olarak yerleştirilir. Tıklanınca metin yerine
+    **☪ (U+262A Star and Crescent)** emoji'si chat input'a eklenir —
+    böylece "Doğu Türkistan" yazısı yerine bir bayrak/emoji gönderilir.
+  - Yeni bayrak görseli eklemek için: PNG/SVG dosyasını `public/apps/`
+    altına koy → `sohbeto-adapter.js` → `EMOJI_FLAGS` dizisine
+    `{ img: 'dosya-adi.png', t: 'Ülke Adı' }` olarak ekle. Render kodu
+    aynı boyutta basacaktır; tıklama davranışı için aynı bloğa özel
+    `b.onclick` yaz (örn. `ciInsertEmoji('☪')`).
+- Tıklanınca KKTC için `[KKTC]` metni; Doğu Türkistan için `☪` emoji'si eklenir.
 - **Bu listeye onay alınmadan başka ülke EKLENMEYECEK.**
 
 ---
@@ -974,3 +985,123 @@ Kazakistan → Kırgızistan → Özbekistan → KKTC → İslam ülkeleri
 - **Tema ayarları aktifleştirildi:** `app.openThemeSettings()` / `app.closeThemeSettings()` bağlandı; vurgu ve arka plan paletleri çalışıyor, seçim `localStorage["sohbeto.oo.theme"]` içinde kalıyor ve `#current-theme-name` anında güncelleniyor.
 
 > **Motor dokunuşu:** `getDisplayName()` içinde `P2P` literal'i temizlenip rehber adı / numara fallback zinciri güçlendirildi. Ayrıca signaling sırasında `state.users` içine çıplak `P2P` yazılması engellendi.
+
+---
+
+## 5) Adım 5 — Akışkan Tab Geçişleri & Parmak Swipe (Telegram benzeri)
+
+> **Yeni dosya:** `sohbeto-fluid-tabs.js`. Motora **dokunmaz**, ana adapter'ı
+> kirletmez. Sadece 4 ana sekme arasında (Sohbetler ↔ Kişiler ↔ Gruplar ↔ Ayarlar)
+> yönlü kayma ve dokunmatik swipe ekler.
+
+### Yükleme sırası
+```html
+<script src="./sohbeto-adapter.js"></script>
+<script src="./sohbeto-engine.js"></script>
+<!-- Adım 5 — fluid katmanı, en sonda yüklenir -->
+<script src="./sohbeto-fluid-tabs.js"></script>
+```
+
+### Davranış
+- `app.navigate('kisiler')` çağrısı bir **tab → tab** geçişiyse, hidden/active
+  sınıfları ile değil **`translateX(±100%)`** ile yapılır. Süre `260ms`,
+  easing `cubic-bezier(0.22, 0.61, 0.36, 1)`.
+- Tab dışına çıkış (chat, ooCall, ayarlar derinine) olduğunda fluid mode
+  otomatik kapanır ve orijinal `app.navigate` (ana adapter) çalışır.
+- **Parmak / fare swipe**: `.app-container` üzerinde yatay sürükleme; %18
+  veya hızlı flick (>0.45 px/ms) komşu sekmeye geçirir; uçlarda %35 elastik
+  direnç. Yatay/dikey karar eşiği `|dx| > |dy|*1.4`. Input/textarea/button/
+  contenteditable veya yatay scroll içeren elementlerin üzerinde başlatılan
+  drag yutulmaz.
+
+### Yeni tema eklerken
+- 4 ana sekme ekranının ID'leri **aynı kalmalı**:
+  `#screen-sohbetler`, `#screen-kisiler`, `#screen-gruplar`, `#screen-ayarlar`.
+- Alt-nav butonlarının ID şeması `#nav-{sohbetler|kisiler|gruplar|ayarlar}`
+  korunmalı; fluid katmanı aktif tab'ı buradan da takip eder.
+- Tab sırasını değiştirmek istersen `sohbeto-fluid-tabs.js` içindeki `TABS`
+  dizisini güncelle (aynı sıra HTML'deki nav sırasıyla eşleşmeli).
+- Tema-spesifik özel davranışın varsa **bu dosyayı düzenleme** —
+  `sohbeto-fluid-tabs-XX.js` olarak kendi override'ını yaz ve fluid'den sonra yükle.
+
+### Motor değişikliği
+- **Yok.** `engine.js` tek satır bile değişmedi. Tab grubu DOM'a hep mount
+  kaldığı için `renderConvList`, `renderContacts` gibi motor render
+  fonksiyonları hedef ekran şu an görünür olmasa bile çalışmaya devam eder
+  (sadece `transform`'la kayar).
+
+---
+
+## Adım 6 — Doğu Türkistan Bayrağı + Boş Sekmeler + Mesaj Kutusu
+
+### Doğu Türkistan bayrağı (gerçek görsel)
+- **Yeni dosya:** `public/apps/flag-dogu-turkistan.png` — gerçek bayrak.
+- `sohbeto-adapter.js` içindeki `FLAG_DOGU_TURKISTAN` artık inline SVG
+  yerine bu PNG'ye işaret eder.
+- Emoji panelinde Türkiye 🇹🇷'den hemen sonra **22×22 px** bir bayrak
+  butonu olarak görünür (Unicode emoji boyutuyla aynı).
+- Tıklanınca chat input'a **`☪`** (U+262A Star and Crescent) emoji'si
+  yazılır — düz `<input>` olduğundan inline `<img>` eklenemez; bu emoji
+  bayrağı temsil eden tek karakterlik en yakın Unicode karşılığıdır.
+- Yeni özel bayrak eklemek için: PNG/SVG'yi `public/apps/` altına koy,
+  `EMOJI_FLAGS` dizisinde sıraya `{ img: 'dosya.png', t: 'Ad' }` ekle,
+  istersen tıklama davranışı için `b.onclick = function(){ ciInsertEmoji('…'); }`
+  bloğunu özelleştir.
+
+### Kişiler & Gruplar boş ekranları (sadeleştirme)
+- **Kişiler boş** (`#contactsEmpty`): "Henüz kişi yok" başlığı ve
+  yardım metni kaldırıldı → **sadece simge + `Kişi Ekle` butonu**.
+  `+` ikonu üstte sağdaki header'da kalmaya devam ediyor.
+- **Gruplar boş**: başlık, paragraf ve "Gruba Katıl" linki kaldırıldı →
+  **sadece simge + `Grup Oluştur` butonu**.
+- `.empty-state` `height: 60%` yerine `height: 100%` oldu →
+  içerik tam dikey ortalanır (önceki sürümdeki "simge yukarı kayma"
+  düzeltildi).
+
+### Chat mesaj kutusu — biraz yukarı
+- `.chat-input-bar` alt padding'i:
+  `max(8px, env(safe-area-inset-bottom))` → `max(20px, calc(env(safe-area-inset-bottom) + 12px))`.
+- Sonuç: input bar telefon altına yapışık durmuyor, ~12 px yukarı taşındı.
+  Sol/sağ değerleri (padding 8 px ve `.ci-field` `border-radius:22px`) korundu.
+
+### Motor değişikliği
+- **Yok.** Tüm değişiklikler tema (`sohbetoOO.html`) ve adapter
+  (`sohbeto-adapter.js`) katmanında yapıldı.
+
+---
+
+## Adım 7 — Doğu Türkistan / KKTC bayraklarını gerçek görsel olarak gönderme
+
+### Sorun
+- Tıklayınca mesaja `☪` (U+262A) ekleniyordu; bu karakter Apple/Twemoji
+  fontlarında **mor** renklenir ve gönderilen Doğu Türkistan PNG'siyle hiç
+  alakası yoktur.
+- "Profil fotoğrafı oldu" izlenimi: aslında engine avatarı `peerProfile.image`
+  veya `emoji`'den çiziyor; mor ☪ + sol tarafta küçük yuvarlak avatar alanı
+  görsel olarak karışıklık yaratıyordu.
+
+### Çözüm (sohbeto-adapter.js)
+1. **Token gönderme:** Bayrak emoji panelinde Doğu Türkistan'a tıklayınca
+   `:dt-flag:`, KKTC'ye tıklayınca `:kktc-flag:` sentinel metin token'ı
+   eklenir (`ciInsertEmoji(token)`).
+2. **Render değiştirici:** `setupFlagTokenReplacer()` IIFE'si bir
+   MutationObserver ile `#chatMessages .msg-bubble` ve `.conv-preview`
+   altındaki yeni text node'ları izler; içindeki token'ları gerçek
+   `<img>` etiketine çevirir (`1.15em × 1.15em`, `vertical-align:-0.2em`,
+   `border-radius:2px`). Hem gönderen hem alıcı tarafta gerçek bayrak
+   görünür çünkü token mesajın gövdesinde ağ üzerinden taşınır.
+3. **Input alanına dokunulmaz:** `INPUT`/`TEXTAREA`/`SCRIPT`/`STYLE` walk
+   sırasında atlanır — kullanıcı token'ı silebilsin diye.
+
+### Yeni bayrak / özel görsel ekleme rehberi
+1. Görseli `public/apps/` altına koy (örn: `flag-yeni.png`).
+2. `EMOJI_FLAGS` dizisine ekle: `{ img: 'flag-yeni.png', t: 'Ülke Adı' }`.
+3. `setupFlagTokenReplacer` içinde yeni token sabiti tanımla
+   (`var FLAG_X_SRC = 'flag-yeni.png';`) ve `TOKEN_RE` ile `replaceInTextNode`
+   içindeki `.replace()` zincirine `:x-flag:` token'ını ekle.
+4. `ciRenderEmojis` içindeki `var token = (item.t === ...)` koşuluna
+   yeni `t` etiketini bağla.
+
+### Motor değişikliği
+- **Yok.** Engine `escapeHtml(text)` kullanmaya devam ediyor; tüm
+  görselleştirme adapter katmanında yapılıyor. Engine'e dokunmadık.

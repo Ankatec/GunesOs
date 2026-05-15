@@ -398,7 +398,7 @@
         .empty-state {
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
-            height: 60%; text-align: center; padding: 0 40px;
+            height: 100%; text-align: center; padding: 0 40px;
         }
         .empty-icon {
             width: 80px; height: 80px;
@@ -540,7 +540,7 @@
 
         .chat-input-bar {
             padding: 8px 8px;
-            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            padding-bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
             background:var(--bg-white);
             border-top:1px solid var(--border-light);
             display:flex; align-items:center; gap:6px;
@@ -903,8 +903,6 @@
                     <div class="empty-icon">
                         <i class="fa-regular fa-address-book" style="font-size:32px;color:var(--primary-green)"></i>
                     </div>
-                    <h3 class="text-[1.1rem] font-semibold mb-2">Henüz kişi yok</h3>
-                    <p class="text-[0.9rem] text-[var(--text-secondary)] mb-6">Sağ üstteki <b>+</b> ile ilk kişinizi ekleyin.</p>
                     <button class="btn-solid" style="max-width:240px;padding:14px;border-radius:10px" onclick="openAddContact()">Kişi Ekle</button>
                 </div>
                 <div class="alphabet-sidebar">
@@ -1074,11 +1072,7 @@
                             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                         </svg>
                     </div>
-                    <h3 class="text-[1.1rem] font-semibold mb-2">Henüz grup yok</h3>
-                    <p class="text-[0.9rem] text-[var(--text-secondary)] mb-8">Yeni bir grup oluşturun veya<br>sizinle paylaşılan bir gruba katılın.</p>
-                    
-                    <button class="btn-solid mb-4" style="padding: 14px; border-radius: 8px;">Yeni Grup Oluştur</button>
-                    <button class="font-semibold text-[0.9rem]" style="color: var(--primary-green);">Gruba Katıl</button>
+                    <button class="btn-solid" style="max-width:240px;padding:14px;border-radius:10px">Grup Oluştur</button>
                 </div>
             </div>
         </div>
@@ -1247,5 +1241,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
     <script src="./sohbeto-adapter.js"></script>
     <script src="./sohbeto-engine.js"></script>
+    <!-- Adım 5: Telegram benzeri akışkan tab geçişleri + parmak swipe (motora dokunmaz) -->
+    <script src="./sohbeto-fluid-tabs.js"></script>
 </body>
 </html>
