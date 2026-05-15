@@ -11,7 +11,7 @@
   var TABS = ['sohbetler', 'kisiler', 'gruplar', 'ayarlar'];
   var SCREEN_IDS = TABS.map(function (t) { return 'screen-' + t; });
   // Kayma eşikleri: Telegram benzeri akışkanlık
-  var DURATION_MS = 260;
+  var DURATION_MS = 319;
   var EASING = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
   var SWIPE_DISTANCE_RATIO = 0.18;   // genişliğin %18'inden fazlaysa geç
   var SWIPE_VELOCITY = 0.45;          // px/ms — bunu aşan hızlı flick yeter
