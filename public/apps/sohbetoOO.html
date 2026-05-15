@@ -539,40 +539,37 @@
         .chat-empty { text-align:center; color:var(--text-secondary); font-size:.85rem; padding:30px 24px; }
 
         .chat-input-bar {
-            padding: 10px 12px;
-            padding-bottom: max(10px, env(safe-area-inset-bottom));
+            padding: 8px 8px;
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
             background:var(--bg-white);
             border-top:1px solid var(--border-light);
-            display:flex; align-items:center; gap:8px;
+            display:flex; align-items:center; gap:6px;
+            min-width:0;
         }
-        .ci-plus {
-            width:38px; height:38px; border-radius:50%;
-            background:transparent; border:1px solid #e5e7eb;
-            color:var(--text-secondary); display:flex; align-items:center; justify-content:center;
-            cursor:pointer; flex-shrink:0; transition:background .15s, color .15s;
-            font-size:1rem;
-        }
-        .ci-plus:hover { background:var(--light-green-bg); color:var(--primary-green); }
         .ci-field {
-            flex:1; display:flex; align-items:center;
+            flex:1 1 auto; min-width:0;
+            display:flex; align-items:center;
             background:#f3f4f6; border-radius:22px;
-            padding:6px 10px 6px 16px; gap:6px;
+            padding:4px 6px; gap:2px;
             transition:background .15s;
         }
         .ci-field:focus-within { background:#eef0f3; }
         .ci-field input {
-            flex:1; border:none; background:transparent; outline:none;
+            flex:1 1 auto; min-width:0;
+            border:none; background:transparent; outline:none;
             font-size:.95rem; color:var(--text-main); font-family:inherit;
-            min-width:0;
+            padding:4px 4px;
         }
         .ci-field input::placeholder { color:#9ca3af; }
-        .ci-cam {
-            width:30px; height:30px; border-radius:50%;
+        .ci-inner-btn {
+            width:32px; height:32px; border-radius:50%;
             background:transparent; border:none; color:var(--text-secondary);
             display:flex; align-items:center; justify-content:center; cursor:pointer;
-            font-size:.95rem;
+            flex-shrink:0; font-size:1rem; padding:0;
+            transition:background .15s, color .15s, transform .15s;
         }
-        .ci-cam:hover { color:var(--primary-green); }
+        .ci-inner-btn:hover { background:rgba(0,0,0,.05); color:var(--primary-green); }
+        .ci-inner-btn.active { color:var(--primary-green); background:var(--light-green-bg); }
         .ci-send {
             width:40px; height:40px; border-radius:50%;
             background:var(--primary-green); color:#fff;
@@ -583,10 +580,78 @@
         }
         .ci-send:hover { background:var(--primary-green-hover); transform:scale(1.05); }
         .ci-send:active { transform:scale(.95); }
+        .ci-send.recording { background:#dc2626; animation:micPulse 1s ease-in-out infinite; }
+        @keyframes micPulse { 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.12);} }
         .ci-send .send-arrow,
         .ci-send .send-mic { display:none; }
         .ci-send.is-send .send-arrow { display:inline; }
         .ci-send.is-mic .send-mic { display:inline; }
+
+        /* Tek seferlik responsive: 360px ve altı için ek sıkıştırma */
+        @media (max-width: 360px) {
+            .chat-input-bar { padding:6px 6px; gap:4px; }
+            .ci-inner-btn { width:28px; height:28px; font-size:.9rem; }
+            .ci-send { width:36px; height:36px; }
+            .ci-field { padding:3px 4px; }
+            .ci-field input { font-size:.9rem; }
+        }
+
+        /* ===== Ek panel ve Emoji paneli (klavyenin yerini alır) ===== */
+        .ci-panel {
+            background:var(--bg-white);
+            border-top:1px solid var(--border-light);
+            max-height:280px; overflow:hidden;
+            display:flex; flex-direction:column;
+            animation:ciPanelIn .18s ease;
+        }
+        .ci-panel.hidden { display:none; }
+        @keyframes ciPanelIn { from{ transform:translateY(8px); opacity:0; } to{ transform:translateY(0); opacity:1; } }
+        .ci-panel-head {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:10px 14px 6px; border-bottom:1px solid var(--border-light);
+        }
+        .ci-panel-title { font-weight:700; font-size:.95rem; color:var(--text-main); letter-spacing:.2px; }
+        .ci-panel-tabs { display:flex; gap:4px; }
+        .ci-tab {
+            border:none; background:transparent; cursor:pointer;
+            padding:6px 12px; border-radius:14px;
+            font-size:.82rem; color:var(--text-secondary); font-weight:600;
+            transition:background .15s, color .15s;
+        }
+        .ci-tab:hover { color:var(--primary-green); }
+        .ci-tab.active { background:var(--light-green-bg); color:var(--primary-green); }
+        .ci-emoji-grid {
+            flex:1; overflow-y:auto;
+            display:grid; grid-template-columns:repeat(auto-fill, minmax(38px, 1fr));
+            gap:2px; padding:8px 10px;
+        }
+        .ci-emoji-grid button {
+            border:none; background:transparent; cursor:pointer;
+            font-size:1.45rem; padding:4px 0; border-radius:8px;
+            transition:background .12s, transform .12s;
+        }
+        .ci-emoji-grid button:hover { background:var(--light-green-bg); transform:scale(1.15); }
+        .ci-attach-grid {
+            display:grid; grid-template-columns:repeat(4, 1fr);
+            gap:10px; padding:14px 14px 18px;
+        }
+        .ci-attach-item {
+            display:flex; flex-direction:column; align-items:center; gap:6px;
+            background:transparent; border:none; cursor:pointer;
+            color:var(--text-main); font-size:.72rem; font-weight:500;
+        }
+        .ci-attach-item .ci-attach-ic {
+            width:48px; height:48px; border-radius:50%;
+            display:flex; align-items:center; justify-content:center;
+            color:#fff; font-size:1.1rem;
+            box-shadow:0 4px 10px -4px rgba(0,0,0,.2);
+            transition:transform .15s;
+        }
+        .ci-attach-item:hover .ci-attach-ic { transform:scale(1.08); }
+        .ci-attach-ic.ic-photo  { background:linear-gradient(135deg,#a855f7,#7c3aed); }
+        .ci-attach-ic.ic-camera { background:linear-gradient(135deg,#0a7c4a,#10b981); }
+        .ci-attach-ic.ic-doc    { background:linear-gradient(135deg,#3b82f6,#1d4ed8); }
+        .ci-attach-ic.ic-loc    { background:linear-gradient(135deg,#ef4444,#b91c1c); }
 
         /* ===== Motor mesaj balonu hizalama köprüsü =====
            Motor: <div class="msg msg-own|msg-other|msg-private"><div class="msg-bubble">…</div></div>
@@ -638,8 +703,12 @@
         }
         #screen-ooCall.video-on .ooc-video-stage { display:block; }
         #screen-ooCall.video-on .ooc-mid > .ooc-avatar,
-        #screen-ooCall.video-on .ooc-mid > .ooc-name,
-        #screen-ooCall.video-on .ooc-mid > .ooc-duration { display:none; }
+        #screen-ooCall.video-on .ooc-mid > .ooc-name { display:none; }
+        #screen-ooCall.video-on .ooc-mid > .ooc-duration {
+            display:block; position:absolute; left:0; right:0;
+            top:calc(max(28px, env(safe-area-inset-top)) + 58px);
+            z-index:3; text-align:center;
+        }
         #screen-ooCall.video-on .ooc-top,
         #screen-ooCall.video-on .ooc-actions { position:relative; z-index:3; text-shadow:0 1px 6px rgba(0,0,0,.6); }
         .ooc-video-stage .ooc-remote {
@@ -955,15 +1024,37 @@
             </div>
             <div class="chat-messages" id="chatMessages"></div>
             <div class="chat-input-bar">
-                <button class="ci-plus" onclick="chatAttach()" aria-label="Ekle"><i class="fa-solid fa-plus"></i></button>
                 <div class="ci-field">
-                    <input id="chatInput" type="text" placeholder="Bir mesaj yaz..." oninput="updateSendIcon()" onkeydown="if(event.key==='Enter')sendChatMsg()">
-                    <button class="ci-cam" onclick="chatCamera()" aria-label="Kamera"><i class="fa-regular fa-camera"></i></button>
+                    <button type="button" class="ci-inner-btn ci-plus" id="ciPlusBtn" onclick="chatToggleAttach()" aria-label="Ekle"><i class="fa-solid fa-plus"></i></button>
+                    <input id="chatInput" type="text" placeholder="Bir mesaj yaz..." oninput="updateSendIcon()" onkeydown="if(event.key==='Enter')sendChatMsg()" onfocus="ciClosePanels()">
+                    <button type="button" class="ci-inner-btn ci-emoji" id="ciEmojiBtn" onclick="chatToggleEmoji()" aria-label="Emoji"><i class="fa-regular fa-face-smile"></i></button>
+                    <button type="button" class="ci-inner-btn ci-cam" onclick="chatCamera()" aria-label="Kamera"><i class="fa-solid fa-camera"></i></button>
                 </div>
                 <button class="ci-send is-mic" id="chatSendBtn" onclick="onSendBtn()" aria-label="Gönder">
                     <i class="fa-solid fa-microphone send-mic"></i>
                     <i class="fa-solid fa-paper-plane send-arrow"></i>
                 </button>
+            </div>
+            <div class="ci-panel hidden" id="ciAttachPanel">
+                <div class="ci-panel-head">
+                    <div class="ci-panel-title">Ekle</div>
+                </div>
+                <div class="ci-attach-grid">
+                    <button type="button" class="ci-attach-item" onclick="chatPickPhoto()"><div class="ci-attach-ic ic-photo"><i class="fa-solid fa-image"></i></div><span>Fotoğraf</span></button>
+                    <button type="button" class="ci-attach-item" onclick="chatCamera()"><div class="ci-attach-ic ic-camera"><i class="fa-solid fa-camera"></i></div><span>Kamera</span></button>
+                    <button type="button" class="ci-attach-item" onclick="chatPickDoc()"><div class="ci-attach-ic ic-doc"><i class="fa-solid fa-file"></i></div><span>Dosya</span></button>
+                    <button type="button" class="ci-attach-item" onclick="chatPickLocation()"><div class="ci-attach-ic ic-loc"><i class="fa-solid fa-location-dot"></i></div><span>Konum</span></button>
+                </div>
+            </div>
+            <div class="ci-panel hidden" id="ciEmojiPanel">
+                <div class="ci-panel-head">
+                    <div class="ci-panel-title">Emoji</div>
+                    <div class="ci-panel-tabs">
+                        <button type="button" class="ci-tab active" data-emoji-tab="faces" onclick="ciSwitchEmojiTab('faces')">İfadeler</button>
+                        <button type="button" class="ci-tab" data-emoji-tab="flags" onclick="ciSwitchEmojiTab('flags')">Bayraklar</button>
+                    </div>
+                </div>
+                <div class="ci-emoji-grid" id="ciEmojiGrid"></div>
             </div>
         </div>
         <div id="screen-gruplar" class="screen hidden-screen">
@@ -1150,6 +1241,8 @@
 
     </div>
 
+    <!-- Twemoji: tüm OS'lerde (özellikle Windows) emoji ve bayrakları gerçek görüntüyle render eder -->
+    <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
     <script src="./sohbeto-adapter.js"></script>
     <script src="./sohbeto-engine.js"></script>
 </body>

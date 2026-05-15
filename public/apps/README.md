@@ -409,11 +409,13 @@ OO'da örneği: `sohbetoOO.html` içinde "Motor mesaj balonu hizalama köprüsü
 
 ---
 
-## 6.0) Adım 4b — Çağrı UX & Stabilite (yeni temalar için sözleşme)
+## 6.0) Adım 4b/4c — Çağrı UX & Stabilite (yeni temalar için sözleşme)
 
-Bu adım **sadece adapter + HTML** seviyesinde yapıldı; `sohbeto-engine.js` HİÇ
-değiştirilmedi. Yeni bir tema yazarken çağrı ekranınızda aşağıdaki davranışları
-aynen koruyun — adapter bunları otomatik bağlar:
+Bu adımda ana yük yine **adapter + HTML** tarafındadır; ancak görüntülü çağrının
+kabul öncesi kendiliğinden düşmemesi ve kabul sonrası sürenin tek kaynakla akması
+için engine tarafında da küçük, güvenli sinyal düzeltmeleri vardır. Yeni bir tema
+yazarken çağrı ekranınızda aşağıdaki davranışları aynen koruyun — adapter bunları
+otomatik bağlar:
 
 ### 6.0.1) Caller (arayan) akışı
 
@@ -432,9 +434,18 @@ aynen koruyun — adapter bunları otomatik bağlar:
 
 ### 6.0.2) Callee (alan) akışı
 
-- Engine `acceptCall()` → `startAudioCall(connId, true)` → status = 'Bağlandı'
+- Engine `acceptCall()` → `startAudioCall/startVideoCall(connId, true)` → status = 'Bağlandı'
 - bridge bu anı yakalar ve OO call ekranını **aynı anda** 00:00'dan başlatır.
 - Böylece iki taraf **eş zamanlı** sayar.
+
+### 6.0.2a) Cevapsız görüntülü çağrı kuralı
+
+- Engine artık `showIncomingCall()` içinde 30 saniyelik otomatik `rejectCall()` çalıştırmaz.
+- Sebep: görüntülü çağrıda kamera/mikrofon izni ve P2P hazırlığı uzayınca, kullanıcı kabul etmeden
+  çağrı kendiliğinden düşmüş gibi görünüyordu.
+- Yeni kural: kabul edilmemiş çağrı yalnızca arayan kapatırsa (`CALL_END`), alıcı reddederse
+  (`CALL_REJECT`) veya taraflardan biri gerçekten aramayı bitirirse kapanır.
+- Yeni tema bu davranış için ekstra kod yazmaz; sadece `#screen-ooIncoming` ekranını doğru göstermelidir.
 
 ### 6.0.3) Hangup stabilitesi
 
@@ -468,6 +479,15 @@ Aşağıdaki ID'ler değişmemeli — adapter bunları okur/yazar:
 | `oocVideo`          | Sesli → görüntülü geçiş butonu                           |
 | `screen-ooIncoming` | Gelen çağrı ekranı                                       |
 | `ooiDuration`       | Gelen çağrı bekleme süresi                               |
+
+### 6.0.6) Görüntülü çağrıda süre görünürlüğü
+
+- `#screen-ooCall.video-on` aktifken avatar ve isim gizlenebilir; fakat `#oocDuration`
+  **gizlenmemelidir**. OO temasında süre video sahnesinin üstünde sabit gösterilir.
+- Adapter `startOOCallTimer()` artık `#oocDuration` ile birlikte motor stub'ları
+  `#activeCallDuration` ve `#videoCallDuration` alanlarını da günceller.
+- Engine `startCallTimer()` her tick'te `#activeCallStatus = "Bağlandı"` yazar; böylece
+  görüntülü aramada "Çalıyor…" yazısı kabulden sonra kalıcı olamaz.
 
 ### 6.0.6) Engine.js'e DOKUNULMASI GEREKEN potansiyel iyileştirmeler
 
@@ -595,3 +615,234 @@ o ekranın id'sini eklemek **zorundadır**.
    trafiği olmalı.)
 5. A uygulamayı kapat → B'de durum anında "çevrimdışı" olmalı (H5).
 6. Sohbet kapat (geri butonu) → alt nav geri **görünmeli**.
+
+---
+
+## 6.1) Adım 4c — Çağrı Sinyal Yan Etkileri (handleCallSignal sarmalaması)
+
+> **Tarih:** Sonradan eklendi. İlk aşamada düzeltmeler adapter içindeki
+> `window.handleCallSignal` sarmalamasıyla yapıldı; sonra güvenli olan kısımlar
+> engine seviyesine taşındı. Monkey-patch artık eski/farklı engine sürümlerine
+> karşı savunma katmanı olarak durur. Yeni temaların ekstra bir şey yapması gerekmez.
+
+### 6.1.1) Düzeltilen Sorunlar
+
+**Sorun A — Caller iptal edince callee'nin "Gelen Arama" ekranı düşmüyordu**
+
+- Adım: A, B'yi arıyor → B'de `#screen-ooIncoming` açılıyor (çalıyor) → A
+  cevap beklemekten vazgeçip `oocHangup()` basıyor → `CALL_END` P2P ile B'ye
+  gidiyor.
+- Eski davranış: Engine `handleCallSignal('CALL_END')` sadece
+  `endActiveCall(true) + endVideoCall(true)` çağırıyordu; ama callee henüz
+  kabul etmediği için `#activeCallScreen` ve `videoContainer` zaten
+  kapalıydı. `#callScreen` (gelen arama stub'ı) ise **kapatılmıyordu** →
+  adapter'ın `bridgeEngineIncomingToOO` MutationObserver'ı tetiklenmiyor →
+  `#screen-ooIncoming` overlay'i ekranda asılı kalıyordu.
+- Yeni davranış: Adapter `handleCallSignal`'i sarmaladı; `CALL_END` veya
+  `CALL_REJECT` geldiği anda gelen arama overlay'i açıksa **elle**:
+  - `#callScreen.classList.add('hidden')`
+  - `state.incomingCallFrom = null`
+  - `stopBeep()` (varsa)
+  - `closeOOIncomingScreen()`
+
+**Sorun B — Görüntülü aramada caller'da "Çalıyor…" yazısı asılı kalıyordu**
+
+- Adım: A, B'yi görüntülü arıyor → B kabul ediyor → B'de "Bağlandı" ve 00:00
+  başlıyor; A'da hâlâ "Çalıyor…" yazıyor, sayaç hareketsiz.
+- Sebep: Engine sesli aramada `#activeCallScreen`'i kullanıyor ve
+  `activeCallStatus = 'Bağlandı'` yazıp `startCallTimer()` tetikliyor.
+  Görüntülü aramada ise sadece `videoContainer.classList.add('active')`
+  oluyor; `#activeCallScreen` AÇILMIYOR. Adapter'ın
+  `bridgeEngineCallToOO` polling'i bu yüzden "Bağlandı"yı göremiyordu.
+- Yeni davranış: `handleCallSignal` sarmasında `CALL_ACCEPT` /
+  `CALL_ACCEPT###<ts>` geldiğinde, `#screen-ooCall` açıksa şunlar **elle**
+  yapılıyor:
+  - `oocStatus.textContent = 'Bağlandı'`
+  - `oocDuration.style.visibility = 'visible'`
+  - `screen-ooCall.classList.add('connected')`
+  - `stopRingbackTone()`, `ooOutgoingPending = false`,
+    `ooEngineActiveSeen = true`
+  - `startOOCallTimer(acceptedAt)` — engine'in damgaladığı timestamp'tan
+    eşzamanlı 00:00.
+
+### 6.1.2) Yeni Tema Eklerken Notu
+
+Yeni bir tema yazarsan `engine.js`'e dokunma; aşağıdaki ID'leri sözleşmeye
+göre koyman yeterli (zaten 6.0.5'te listelendi):
+
+- `screen-ooCall`, `oocStatus`, `oocDuration` (caller / aktif arama)
+- `screen-ooIncoming` (callee gelen arama)
+
+Tema-özel adapter (`sohbeto-adapter-XX.js`) yazıyorsan, ana adapter'ın
+`handleCallSignal` sarmasını **bozma**; sadece kendi UI yan etkilerini ekle
+(ör. arayüze özel ses, vibration, animasyon). Sıralama:
+
+```html
+<script src="./sohbeto-adapter.js"></script>      <!-- önce ana adapter -->
+<script src="./sohbeto-adapter-XX.js"></script>   <!-- sonra tema-özel -->
+<script src="./sohbeto-engine.js"></script>       <!-- en son motor -->
+```
+
+### 6.1.3) Engine.js'e Yapılan Düzeltmeler (UYGULANDI)
+
+Kullanıcının onayıyla `sohbeto-engine.js`'e aşağıdaki **cerrahi** eklemeler
+yapıldı. Davranış kontratı değişmedi, sadece adapter köprüleri için eksik
+sinyaller dolduruldu:
+
+1. **`handleCallSignal('CALL_END')` ve `'CALL_REJECT')`** dallarına eklendi:
+   ```js
+   if (state.incomingCallFrom) {
+     document.getElementById('callScreen').classList.add('hidden');
+     state.incomingCallFrom = null; state.incomingCallType = "audio";
+   }
+   ```
+   → Karşı taraf aramayı iptal/red ettiğinde callee'nin `#callScreen` (gelen
+   arama stub'ı) anında kapanır; `bridgeEngineIncomingToOO`
+   MutationObserver'ı tetiklenip OO incoming overlay'i kendiliğinden düşer.
+   Eski adapter monkey-patch'i artık savunma amaçlı.
+
+2. **`handleCallSignal('CALL_ACCEPT')`** dalı sesli/görüntülü ayrımı
+   yapmadan başta `#activeCallStatus = 'Bağlandı'` yazıyor ve global
+   `window.__SOHBETO_CALL_CONNECTED_AT = acceptedAt` damgalıyor. Tüm temalar
+   "Bağlandı" yazısını ve doğru başlangıç zamanını **tek kaynaktan** okur.
+
+3. **`startVideoCall(...)`** artık görüntülü aramada da `#activeCallScreen`
+   stub'ını açıyor ve `#activeCallStatus` / `#activeCallName` yazıyor:
+   - `isIncoming === true` → status `'Bağlandı'` (callee kabul etti, anında
+     bağlı).
+   - `isIncoming === false` → status `'Çalıyor…'` (caller, kabul bekliyor).
+   Adapter'ın `bridgeEngineCallToOO` MutationObserver'ı görüntülü aramada
+   da tetiklenir; callee tarafında OO call ekranı otomatik açılır,
+   caller'da polling "Bağlandı"yı görüp 00:00'ı başlatır.
+
+### 6.1.4) Görüntülü Aramada Bilinen Davranış Notları
+
+- **Görsel etki yok**: Engine'in `#activeCallScreen` stub'ı iframe içinde
+  offscreen tutuluyor; yukarıdaki ek sadece ID'lere yazar, OO sahnesindeki
+  hiçbir piksel etkilenmez.
+- **Tek kaynak status**: Yeni temalar artık sadece `#activeCallStatus`
+  içeriğini izleyerek "Çalıyor…" → "Bağlandı" geçişini güvenle yakalar.
+  `videoContainer.active` artık gerekli değil — sadece medya ipucu.
+- **Cevapsız çağrı timeout'u kaldırıldı**: `showIncomingCall` artık 30 sn sonra
+  otomatik `rejectCall()` çağırmaz. Kabul edilmemiş görüntülü çağrı, kullanıcı
+  dokunmadan düşmemelidir; yalnızca `CALL_END`, `CALL_REJECT` veya gerçek bağlantı
+  sonlandırma sinyaliyle kapanır.
+
+### 6.1.5) Yeni Tema Sözleşmesi (özet)
+
+Yeni tema yazarken engine'e dokunma. İhtiyacın olan ID kontratı:
+
+| Engine ID (OKU) | Anlam |
+|---|---|
+| `#activeCallStatus` | "Çalıyor…" / "Bağlandı" — temel status string'i |
+| `#activeCallName` | Karşı tarafın görünen adı |
+| `#activeCallDuration` | Engine'in kendi sayacı (mm:ss) |
+| `#videoContainer.active` | Görüntülü medya ipucu (opsiyonel) |
+| `window.__SOHBETO_CALL_CONNECTED_AT` | Bağlanma timestamp'i (timer için) |
+
+| Tema ID (YAZ) | Anlam |
+|---|---|
+| `#screen-ooIncoming` | Gelen arama overlay'i |
+| `#screen-ooCall` | Aktif/giden arama overlay'i |
+| `#oocStatus` / `#oocDuration` | Tema'nın gösterdiği status/sayaç |
+
+Yükleme sırası (HTML):
+```html
+<script src="./sohbeto-adapter.js"></script>
+<script src="./sohbeto-adapter-XX.js"></script>  <!-- tema-özel ekstra -->
+<script src="./sohbeto-engine.js"></script>      <!-- en son -->
+```
+
+---
+
+## 6.2) Adım 5 — Mesaj Kutusu (Composer) Sözleşmesi
+
+`sohbetoOO.html` üzerinde mesaj kutusunu tamamen elden geçirdik. Yeni temalar bu yapıyı baz almalıdır.
+
+### 6.2.1) Yapı (zorunlu DOM)
+
+```
+.chat-input-bar
+ ├─ .ci-field                     ← yuvarlak alan (input + iç butonlar)
+ │   ├─ button#ciPlusBtn          ← "+" : Ekle paneli toggle
+ │   ├─ input#chatInput
+ │   ├─ button#ciEmojiBtn         ← "😊" : Emoji paneli toggle
+ │   └─ button.ci-cam             ← kamera (fa-solid fa-camera)
+ └─ button#chatSendBtn            ← .is-mic / .is-send / .recording
+
+.ci-panel.hidden#ciAttachPanel    ← Ekle paneli (Fotoğraf/Kamera/Dosya/Konum)
+.ci-panel.hidden#ciEmojiPanel     ← Emoji paneli (İfadeler / Bayraklar)
+  └─ #ciEmojiGrid
+```
+
+**Kural:** "+" butonu KESİNLİKLE `.ci-field` içinde olmalı. Dış flex satırına
+konursa 320px altında input gözükmez. Bu en sık karşılaşılan responsive bug'dır.
+
+### 6.2.2) Adapter API'leri
+
+| Fonksiyon | Görev |
+|---|---|
+| `chatToggleAttach()` | Ekle panelini aç/kapa, input blur |
+| `chatToggleEmoji()`  | Emoji panelini aç/kapa, input blur |
+| `ciSwitchEmojiTab('faces'\|'flags')` | İki sekmeli emoji listesi |
+| `ciClosePanels()` | Input focus alınca panelleri kapatır |
+| `chatPickPhoto()` / `chatPickDoc()` / `chatPickLocation()` | Ekle paneli aksiyonları |
+| `chatCamera()` | `<input type=file accept=image/* capture=environment>` |
+| `onSendBtn()` | Yazı varsa metin gönder, yoksa mikrofon (basılı tut) |
+
+Mikrofon **bas-konuş**: `pointerdown` → kayıt başlar (`#chatSendBtn.recording`
+kırmızı yanıp söner), `pointerup` → kayıt durur ve `🎤 Sesli mesaj (Xs)`
+metni P2P kanalı üzerinden gönderilir. **NOT:** Ses verisi şu an P2P üstünden
+iletilmiyor (engine'de `sendVoice` yok). Yalnızca süre etiketi gönderilir.
+Gerçek ses transferi engine.js'e küçük bir ekleme gerektirir.
+
+### 6.2.3) Responsive Notu (320px)
+
+`@media (max-width: 360px)` kuralı ile iç buton boyutları 32→28px,
+send butonu 40→36px'e düşer. "+" `.ci-field` içinde olduğu için
+input minimum genişlik almakta zorlanmaz.
+
+### 6.2.4) Yeni Tema Geçişi
+
+Başka temalar (kuran.html dışındaki gelecek sohbet temaları) için:
+1. Yukarıdaki DOM iskeletini birebir kullan (sınıf adları farklı olabilir
+   ama ID'ler — `chatInput`, `chatSendBtn`, `ciPlusBtn`, `ciEmojiBtn`,
+   `ciAttachPanel`, `ciEmojiPanel`, `ciEmojiGrid` — aynı kalmalı).
+2. `sohbeto-adapter.js`'in mevcut handler'ları otomatik bağlanır.
+3. Görsel stili tema kendine göre değiştirebilir; mantık adapter'da.
+
+### 6.2.5) Sesli Mesaj (P2P, gerçek ses verisi)
+
+Artık `🎤 Sesli mesaj (Xs)` metni değil, **gerçek opus/webm ses verisi** P2P
+data channel üzerinden iletilir. Akış:
+
+1. Adapter `MediaRecorder` ile `audio/webm;codecs=opus` (24 kbps) kaydı yapar.
+2. `pointerup` → blob → base64 → `window.sendVoiceMessage(targetConnId, b64, dur, mime)`.
+3. Engine, payload'ı `VOICE_PART###vid###idx###total###mime###dur###chunk` paketleri
+   halinde (≈6 KB) parçalayıp P2P kanalından yollar, sonunda `VOICE_END###vid`.
+4. Alıcı tarafta engine parçaları birleştirir, `Blob URL` üretir ve sohbet
+   balonuna `<audio controls>` olarak gömer.
+
+**ID sözleşmesi:** Tema sadece `chatSendBtn`'i sağlamalı; render edilen bubble
+`engine.js` içindeki `buildVoiceMsgEl()` tarafından `#chatMessages` konteynerine
+eklenir. Ek CSS gerektirmez.
+
+**Sınırlar (P2P stabilitesi için):**
+- Maks. 25 saniye (daha uzun kayıt 25s'e kırpılır).
+- Yalnızca özel sohbet (HERKES hedefine sesli mesaj gitmez).
+- P2P kanalı `open` değilse engine `initP2P` çağırır ve kullanıcıya
+  log düşer ("kısa süre sonra tekrar deneyin").
+- Yeniden açılan eski sohbette blob URL kalıcı değildir; IDB sadece
+  `🎤 Sesli mesaj (Ns)` etiketini saklar (oynatma yalnızca canlı oturumda).
+
+### 6.2.6) Bayraklar Bölümü Sözleşmesi
+
+Bayrak listesi **sabit ve sıralıdır** (kullanıcı talebi):
+Türkiye → Doğu Türkistan → Azerbaycan → Türkmenistan →
+Kazakistan → Kırgızistan → Özbekistan → KKTC → İslam ülkeleri
+(Körfez → Levant → Güney/Orta Asya → Kuzey Afrika).
+
+- Doğu Türkistan ve KKTC için Unicode flag emoji yok → adapter içinde
+  inline SVG (data URI) kullanılır; grid butonuna `<img>` olarak basılır.
+- Tıklanınca metin olarak `[Doğu Türkistan]` / `[KKTC]` eklenir.
+- **Bu listeye onay alınmadan başka ülke EKLENMEYECEK.**

@@ -1,6 +1,6 @@
 // ===== CACHE BUST: Force reload if stale version detected =====
 (function(){
-    var VER = 'v2026_05_07_p2p_media_profile_2';
+    var VER = 'v2026_05_15_video_call_stability_1';
     try {
         var stored = sessionStorage.getItem('_sp_ver');
         if (stored && stored !== VER) {
@@ -515,6 +515,7 @@ function createMsgPacket(text, targetConnId) {
         text.startsWith("LOG_CEVAP") || text.startsWith("ADMIN_ONLINE") || text.startsWith("CALL_") ||
         text.startsWith("SEC###") || text.startsWith("PROFILE_UPDATE###") ||
         text.startsWith("LOOKUP###") || text.startsWith("LOOKUP_REPLY###") ||
+        text.startsWith("VOICE_PART###") || text.startsWith("VOICE_END###") ||
         text === "GIRIS_YAPILDI" || text === "BURADAYIM") {
         encBody = "P2PRAW:" + rawBody;
     } else { encBody = encodeTxt(rawBody); }
@@ -643,7 +644,9 @@ function showIncomingCall(senderConnId, type = "audio") {
     renderProfileAvatar(document.getElementById('callAvatar'), senderConnId, 'call-avatar', nick);
     document.getElementById('callScreen').classList.remove('hidden');
     playBeep(true);
-    setTimeout(() => { if (state.incomingCallFrom === senderConnId) rejectCall(); }, 30000);
+    // Cevapsız çağrıyı otomatik kapatmıyoruz: özellikle görüntülü aramada P2P/izin
+    // hazırlığı uzayabiliyor. Çağrı yalnızca arayan kapatırsa, alıcı reddederse veya
+    // taraflardan biri gerçekten bağlantıyı sonlandırırsa düşmeli.
 }
 
 async function acceptCall() {
@@ -806,6 +809,7 @@ async function handleP2PMsg(senderConnId, data) {
         log(`[P2P] Profil güncellendi: ${senderConnId.substring(0,8)}`, "#22d3ee");
     }
     else if (data.startsWith("CALL_")) { handleCallSignal(senderConnId, data, true); }
+    else if (data.startsWith("VOICE_PART###") || data.startsWith("VOICE_END###")) { handleVoicePacket(senderConnId, data); }
     else { renderIncomingMsg(senderConnId, CONFIG.connectionId, data, true, null); }
 }
 
@@ -827,8 +831,13 @@ function handleCallSignal(senderConnId, text, viaP2P) {
     if (text === "CALL_ACCEPT" || text.startsWith("CALL_ACCEPT###")) {
         const acceptedAt = Number(text.split("###")[1]) || Date.now();
         log(`✅ [${via}] ${sNick} aramayı kabul etti`, "#22c55e");
+        // Tek kaynak status: tema/adapter'ler #activeCallStatus'u izleyebilsin diye
+        // sesli/görüntülü ayrımı olmadan "Bağlandı" yazıyoruz.
+        const acsEl = document.getElementById('activeCallStatus');
+        if (acsEl) acsEl.innerText = 'Bağlandı';
+        // Köprülerin (themes) tutunabilmesi için global ipucu
+        try { window.__SOHBETO_CALL_CONNECTED_AT = acceptedAt; } catch (e) {}
         if (!document.getElementById('activeCallScreen').classList.contains('hidden')) {
-            document.getElementById('activeCallStatus').innerText = 'Bağlandı';
             startCallTimer(acceptedAt);
             if (localAudioStream && peers[senderConnId]?.pc) {
                 const changed = addStreamTracksToPeer(senderConnId, localAudioStream);
@@ -845,11 +854,21 @@ function handleCallSignal(senderConnId, text, viaP2P) {
     }
     if (text === "CALL_REJECT") {
         log(`❌ [${via}] ${sNick} aramayı reddetti`, "#ef4444");
+        // Karşı taraf reddetti — bizde gelen arama overlay'i açıksa onu da temizle.
+        if (state.incomingCallFrom) {
+            document.getElementById('callScreen').classList.add('hidden');
+            state.incomingCallFrom = null; state.incomingCallType = "audio";
+        }
         endActiveCall(true); endVideoCall(true);
         return;
     }
     if (text === "CALL_END") {
         log(`📵 [${via}] ${sNick} aramayı bitirdi`, "#fbbf24");
+        // Karşı taraf bitirdi — bizdeki gelen arama overlay'i de düşmeli.
+        if (state.incomingCallFrom) {
+            document.getElementById('callScreen').classList.add('hidden');
+            state.incomingCallFrom = null; state.incomingCallType = "audio";
+        }
         endActiveCall(true); endVideoCall(true);
         return;
     }
@@ -1511,6 +1530,128 @@ function cardSendGroupInvite(){
     } catch(e){ log('Grup daveti gönderilemedi: '+e.message, '#f87171'); }
 }
 
+// ==================== VOICE MESSAGES (P2P) ====================
+// Sesli mesaj: opus/webm base64 chunk halinde (P2P data channel) iletilir.
+// Paket formatı:
+//   VOICE_PART###vid###index###total###mime###durSec###base64chunk
+//   VOICE_END###vid
+// Adapter (sohbeto-adapter.js) MediaRecorder ile kayıt yapıp sendVoiceMessage()
+// çağırır; alıcıda parçalar birleştirilip Blob URL ile <audio> bubble'ı render edilir.
+const _voiceRx = new Map(); // vid -> { parts:[], total, mime, dur, count }
+const VOICE_CHUNK = 8000;   // base64 karakter cinsinden ~6 KB parça
+
+function buildVoiceMsgEl(displaySender, blobUrl, durSec, isOwn, isP2P, timeStr, msgId) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + (isOwn ? 'msg-own' : 'msg-other');
+    if (msgId) div.dataset.msgId = msgId;
+    const tag = isP2P ? '<span class="msg-tag tag-p2p">P2P</span>' : '<span class="msg-tag tag-wss">WSS</span>';
+    const head = isOwn
+        ? `<div class="msg-meta" style="justify-content:flex-start;margin-bottom:2px"><span style="font-size:10px;opacity:.5">SEN${tag}</span></div>`
+        : `<div class="msg-sender">${escapeHtml(displaySender)} ${tag}</div>`;
+    const body = blobUrl
+        ? `<audio controls preload="metadata" src="${blobUrl}" style="max-width:220px;height:34px;display:block"></audio>`
+        : `<div style="opacity:.6;font-size:12px">🎤 Sesli mesaj (${durSec}s)</div>`;
+    div.innerHTML = `<div class="msg-bubble">${head}${body}<div class="msg-meta"><span class="msg-time">${timeStr} · 🎤 ${durSec}s</span></div></div>`;
+    return div;
+}
+
+function renderOwnVoice(targetConnId, blobUrl, durSec, msgId) {
+    const isPrivate = (targetConnId !== "HERKES");
+    const chatId = getChatIdForMsg(targetConnId, null, true);
+    const ts = Date.now();
+    const now = new Date(ts);
+    const timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    const el = buildVoiceMsgEl('SEN', blobUrl, durSec, true, true, timeStr, msgId);
+    if (shouldRenderInActiveChat(chatId)) appendMsgToDOM(el);
+    state.sentMsgs.set(msgId, { el, status: 'sent', chatId });
+    const previewText = `🎤 Sesli mesaj (${durSec}s)`;
+    dbSaveMessage(chatId, { text: previewText, ts, sender: 'SEN', isOwn: true, isP2P: true, isPrivate, msgId, status: 'sent' });
+    updateConversation(targetConnId, previewText, true, isPrivate);
+}
+
+function renderIncomingVoice(senderConnId, blobUrl, durSec) {
+    const chatId = senderConnId;
+    const ts = Date.now();
+    const now = new Date(ts);
+    const timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    const displaySender = getDisplayName(senderConnId);
+    const el = buildVoiceMsgEl(displaySender, blobUrl, durSec, false, true, timeStr, null);
+    if (shouldRenderInActiveChat(chatId)) appendMsgToDOM(el);
+    playBeep(true);
+    const previewText = `🎤 Sesli mesaj (${durSec}s)`;
+    dbSaveMessage(chatId, { text: previewText, ts, sender: displaySender, isOwn: false, isP2P: true, isPrivate: true });
+    if (!(state.chatMode === 'chat' && state.activeChat === senderConnId)) {
+        ozelSayac++;
+        const badge = document.getElementById('convOzelBadge'); if (badge) { badge.innerText = ozelSayac; badge.classList.remove('hidden'); }
+        const navBadge = document.getElementById('navBadgeSohbet'); if (navBadge) { navBadge.innerText = ozelSayac; navBadge.classList.remove('hidden'); }
+    }
+    updateConversation(senderConnId, previewText, false, true);
+}
+
+function handleVoicePacket(senderConnId, data) {
+    if (data.startsWith("VOICE_PART###")) {
+        const parts = data.split("###");
+        const vid = parts[1], idx = parseInt(parts[2],10), total = parseInt(parts[3],10);
+        const mime = parts[4] || 'audio/webm', dur = parseInt(parts[5],10) || 1;
+        const chunk = parts.slice(6).join("###");
+        const key = senderConnId + ':' + vid;
+        let rec = _voiceRx.get(key);
+        if (!rec) { rec = { parts: new Array(total), total, mime, dur, count: 0 }; _voiceRx.set(key, rec); }
+        if (rec.parts[idx] === undefined) { rec.parts[idx] = chunk; rec.count++; }
+    } else if (data.startsWith("VOICE_END###")) {
+        const vid = data.split("###")[1];
+        const key = senderConnId + ':' + vid;
+        const rec = _voiceRx.get(key); if (!rec) return;
+        _voiceRx.delete(key);
+        try {
+            const b64 = rec.parts.join('');
+            const bin = atob(b64);
+            const u8 = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+            const blob = new Blob([u8], { type: rec.mime });
+            const url = URL.createObjectURL(blob);
+            renderIncomingVoice(senderConnId, url, rec.dur);
+            log(`[P2P ←] 🎤 Sesli mesaj (${rec.dur}s) ${senderConnId.substring(0,8)}`, '#22c55e');
+        } catch (e) { console.warn('voice reassemble error', e); }
+    }
+}
+
+async function sendVoiceMessage(targetConnId, base64Audio, durSec, mime) {
+    if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) return false;
+    if (!base64Audio) return false;
+    const peer = peers[targetConnId];
+    if (!peer || !peer.dc || peer.dc.readyState !== 'open') {
+        try { initP2P(targetConnId); } catch(e) {}
+        log('[P2P] Sesli mesaj için P2P kanal hazır değil; kısa süre sonra tekrar deneyin.', '#fbbf24');
+        return false;
+    }
+    const vid = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    const total = Math.ceil(base64Audio.length / VOICE_CHUNK);
+    const m = mime || 'audio/webm';
+    const dur = Math.max(1, Math.round(durSec || 1));
+    for (let i = 0; i < total; i++) {
+        const chunk = base64Audio.slice(i * VOICE_CHUNK, (i + 1) * VOICE_CHUNK);
+        const pkt = `VOICE_PART###${vid}###${i}###${total}###${m}###${dur}###${chunk}`;
+        if (!sendDataChannelText(targetConnId, pkt)) {
+            await new Promise(r => setTimeout(r, 30));
+            if (!sendDataChannelText(targetConnId, pkt)) { log('[P2P] Sesli mesaj parçası gönderilemedi', '#ef4444'); return false; }
+        }
+        if (i % 8 === 7) await new Promise(r => setTimeout(r, 10));
+    }
+    sendDataChannelText(targetConnId, `VOICE_END###${vid}`);
+    try {
+        const bin = atob(base64Audio);
+        const u8 = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        const blob = new Blob([u8], { type: m });
+        const url = URL.createObjectURL(blob);
+        renderOwnVoice(targetConnId, url, dur, vid);
+    } catch(e) {}
+    log(`[P2P →] 🎤 Sesli mesaj (${dur}s) gönderildi`, '#22c55e');
+    return true;
+}
+window.sendVoiceMessage = sendVoiceMessage;
+
 
 function showContactCard(connId) {
     cardTargetConnId = connId;
@@ -1652,6 +1793,8 @@ function startCallTimer(startedAt) {
         const secs = Math.floor((elapsed % 60000) / 1000);
         const timeStr = mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
         document.getElementById('activeCallDuration').innerText = timeStr;
+        const activeStatusEl = document.getElementById('activeCallStatus');
+        if (activeStatusEl) activeStatusEl.innerText = 'Bağlandı';
         // Also update video call duration if active
         if (document.getElementById('videoContainer').classList.contains('active')) {
             document.getElementById('videoCallDuration').innerText = timeStr;
@@ -1725,6 +1868,17 @@ async function startVideoCall(connId, isIncoming, connectedAt) {
         document.getElementById('videoCallName').innerText = nick.replace(/\[.*?\]/g, '').trim() || nick;
         document.getElementById('videoContainer').classList.add('active');
 
+        // Tema/adapter köprüleri için #activeCallScreen'i de aç ve durumu yaz —
+        // görsel ekran iframe içinde offscreen stub'ta, etki yok; sadece sinyal.
+        const acScreen = document.getElementById('activeCallScreen');
+        if (acScreen) acScreen.classList.remove('hidden');
+        const acName = document.getElementById('activeCallName');
+        if (acName) acName.innerText = nick.replace(/\[.*?\]/g, '').trim() || nick;
+        const acStatus = document.getElementById('activeCallStatus');
+        if (acStatus) acStatus.innerText = isIncoming ? 'Bağlandı' : 'Çalıyor…';
+        const acDuration = document.getElementById('activeCallDuration');
+        if (acDuration) acDuration.innerText = '00:00';
+
         // Init P2P first so peer connection exists, then add tracks
         await initP2P(connId);
 
@@ -1734,6 +1888,10 @@ async function startVideoCall(connId, isIncoming, connectedAt) {
 
         if (isIncoming) {
             // Incoming/switching from audio - start timer immediately
+            const acStatus = document.getElementById('activeCallStatus');
+            if (acStatus) acStatus.innerText = 'Bağlandı';
+            const videoDuration = document.getElementById('videoCallDuration');
+            if (videoDuration) videoDuration.innerText = '00:00';
             startCallTimer(connectedAt || Date.now());
             log("Görüntülü arama kabul edildi", "#22c55e");
         } else {

@@ -325,8 +325,323 @@
     window.chatVideo   = window.chatVideo   || function () { startCallForActiveChat('video'); };
     window.chatMore    = window.chatMore    || function () { console.info('[adapter] chatMore'); };
     window.chatNext    = window.chatNext    || function () { console.info('[adapter] chatNext'); };
-    window.chatAttach  = window.chatAttach  || function () { console.info('[adapter] chatAttach'); };
-    window.chatCamera  = window.chatCamera  || function () { console.info('[adapter] chatCamera'); };
+    // ---------- 2G) Mesaj kutusu içi: Ekle / Emoji / Kamera / Mikrofon ----------
+    // Emoji listeleri (faces + flags)
+    var EMOJI_FACES = [
+      '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇',
+      '🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝',
+      '🤑','🤗','🤭','🤫','🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄',
+      '😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧',
+      '🥵','🥶','🥴','😵','🤯','🤠','🥳','😎','🤓','🧐','😕','😟','🙁',
+      '☹️','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭',
+      '😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈',
+      '👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖','😺','😸',
+      '😹','😻','😼','😽','🙀','😿','😾','❤️','🧡','💛','💚','💙','💜',
+      '🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟',
+      '👍','👎','👏','🙌','👐','🤲','🤝','🙏','✌️','🤞','🤟','🤘','👌',
+      '🤌','🤏','👈','👉','👆','👇','☝️','✋','🤚','🖐️','🖖','👋','🤙','💪'
+    ];
+    // Bayraklar (sırası kullanıcı tarafından belirlendi, başkası eklenmeyecek):
+    // Türkiye → Doğu Türkistan → Azerbaycan → Türkmenistan →
+    // diğer Türk devletleri (Kazakistan, Kırgızistan, Özbekistan, KKTC) →
+    // İslam ülkeleri (Körfez → Levant → Güney/Orta Asya → Kuzey Afrika).
+    // Doğu Türkistan ve KKTC için Unicode flag emoji yok; inline SVG (data URI) kullanılır.
+    var FLAG_DOGU_TURKISTAN = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600">' +
+      '<rect width="900" height="600" fill="#1E90D7"/>' +
+      '<circle cx="335" cy="300" r="120" fill="#fff"/>' +
+      '<circle cx="370" cy="300" r="100" fill="#1E90D7"/>' +
+      '<polygon fill="#fff" points="470,300 545,278 499,340 499,260 545,322"/>' +
+      '</svg>'
+    );
+    var FLAG_KKTC = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">' +
+      '<rect width="1200" height="800" fill="#fff"/>' +
+      '<rect y="60" width="1200" height="80" fill="#E30A17"/>' +
+      '<rect y="660" width="1200" height="80" fill="#E30A17"/>' +
+      '<circle cx="540" cy="400" r="135" fill="#E30A17"/>' +
+      '<circle cx="585" cy="400" r="110" fill="#fff"/>' +
+      '<polygon fill="#E30A17" points="700,400 783,376 732,448 732,352 783,424"/>' +
+      '</svg>'
+    );
+    var EMOJI_FLAGS = [
+      { e: '🇹🇷', t: 'Türkiye' },
+      { img: FLAG_DOGU_TURKISTAN, t: 'Doğu Türkistan' },
+      { e: '🇦🇿', t: 'Azerbaycan' },
+      { e: '🇹🇲', t: 'Türkmenistan' },
+      { e: '🇰🇿', t: 'Kazakistan' },
+      { e: '🇰🇬', t: 'Kırgızistan' },
+      { e: '🇺🇿', t: 'Özbekistan' },
+      { img: FLAG_KKTC, t: 'KKTC' },
+      { e: '🇸🇦', t: 'Suudi Arabistan' },
+      { e: '🇦🇪', t: 'BAE' },
+      { e: '🇶🇦', t: 'Katar' },
+      { e: '🇰🇼', t: 'Kuveyt' },
+      { e: '🇧🇭', t: 'Bahreyn' },
+      { e: '🇴🇲', t: 'Umman' },
+      { e: '🇾🇪', t: 'Yemen' },
+      { e: '🇯🇴', t: 'Ürdün' },
+      { e: '🇱🇧', t: 'Lübnan' },
+      { e: '🇵🇸', t: 'Filistin' },
+      { e: '🇸🇾', t: 'Suriye' },
+      { e: '🇮🇶', t: 'Irak' },
+      { e: '🇮🇷', t: 'İran' },
+      { e: '🇦🇫', t: 'Afganistan' },
+      { e: '🇵🇰', t: 'Pakistan' },
+      { e: '🇧🇩', t: 'Bangladeş' },
+      { e: '🇲🇾', t: 'Malezya' },
+      { e: '🇮🇩', t: 'Endonezya' },
+      { e: '🇧🇳', t: 'Brunei' },
+      { e: '🇲🇻', t: 'Maldivler' },
+      { e: '🇪🇬', t: 'Mısır' },
+      { e: '🇱🇾', t: 'Libya' },
+      { e: '🇹🇳', t: 'Tunus' },
+      { e: '🇩🇿', t: 'Cezayir' },
+      { e: '🇲🇦', t: 'Fas' },
+      { e: '🇸🇩', t: 'Sudan' },
+      { e: '🇸🇴', t: 'Somali' }
+    ];
+    var __ciEmojiTab = 'faces';
+
+    function ciRenderEmojis() {
+      var grid = document.getElementById('ciEmojiGrid'); if (!grid) return;
+      var list = (__ciEmojiTab === 'flags') ? EMOJI_FLAGS : EMOJI_FACES;
+      grid.innerHTML = '';
+      list.forEach(function (item) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        if (typeof item === 'string') {
+          b.textContent = item;
+          b.title = item;
+          b.onclick = function () { ciInsertEmoji(item); };
+        } else if (item && item.img) {
+          b.title = item.t || '';
+          b.style.padding = '2px';
+          var im = document.createElement('img');
+          im.src = item.img; im.alt = item.t || '';
+          im.style.width = '26px'; im.style.height = '18px';
+          im.style.objectFit = 'cover'; im.style.borderRadius = '2px';
+          im.style.display = 'block'; im.style.margin = '0 auto';
+          b.appendChild(im);
+          // Unicode olmadığı için metin olarak [Bayrak: X] eklenir
+          b.onclick = function () { ciInsertEmoji('[' + (item.t || 'Bayrak') + ']'); };
+        } else if (item && item.e) {
+          b.textContent = item.e;
+          b.title = item.t || item.e;
+          b.onclick = function () { ciInsertEmoji(item.e); };
+        }
+        grid.appendChild(b);
+      });
+      // Unicode bayraklar Windows'ta "TR/AZ" harfleri gösterir; twemoji ile gerçek bayrağa çevir
+      try { window.twemoji && window.twemoji.parse(grid, { folder: 'svg', ext: '.svg' }); } catch (_) {}
+    }
+    function ciInsertEmoji(em) {
+      var inp = document.getElementById('chatInput'); if (!inp) return;
+      var s = inp.selectionStart != null ? inp.selectionStart : inp.value.length;
+      var e = inp.selectionEnd != null ? inp.selectionEnd : s;
+      inp.value = inp.value.slice(0, s) + em + inp.value.slice(e);
+      var pos = s + em.length;
+      try { inp.setSelectionRange(pos, pos); } catch (_) {}
+      try { window.updateSendIcon && window.updateSendIcon(); } catch (_) {}
+    }
+    window.ciSwitchEmojiTab = function (tab) {
+      __ciEmojiTab = (tab === 'flags') ? 'flags' : 'faces';
+      var tabs = document.querySelectorAll('#ciEmojiPanel .ci-tab');
+      tabs.forEach(function (t) {
+        t.classList.toggle('active', t.getAttribute('data-emoji-tab') === __ciEmojiTab);
+      });
+      ciRenderEmojis();
+    };
+    window.ciClosePanels = function () {
+      var a = document.getElementById('ciAttachPanel'); if (a) a.classList.add('hidden');
+      var e = document.getElementById('ciEmojiPanel');  if (e) e.classList.add('hidden');
+      var pb = document.getElementById('ciPlusBtn');    if (pb) pb.classList.remove('active');
+      var eb = document.getElementById('ciEmojiBtn');   if (eb) eb.classList.remove('active');
+    };
+    window.chatToggleAttach = function () {
+      var a = document.getElementById('ciAttachPanel');
+      var e = document.getElementById('ciEmojiPanel');
+      var pb = document.getElementById('ciPlusBtn');
+      var eb = document.getElementById('ciEmojiBtn');
+      if (!a) return;
+      var open = a.classList.contains('hidden');
+      if (e) e.classList.add('hidden');
+      if (eb) eb.classList.remove('active');
+      a.classList.toggle('hidden', !open);
+      if (pb) pb.classList.toggle('active', open);
+      if (open) { try { document.getElementById('chatInput').blur(); } catch (_) {} }
+    };
+    window.chatToggleEmoji = function () {
+      var a = document.getElementById('ciAttachPanel');
+      var e = document.getElementById('ciEmojiPanel');
+      var pb = document.getElementById('ciPlusBtn');
+      var eb = document.getElementById('ciEmojiBtn');
+      if (!e) return;
+      var open = e.classList.contains('hidden');
+      if (a) a.classList.add('hidden');
+      if (pb) pb.classList.remove('active');
+      e.classList.toggle('hidden', !open);
+      if (eb) eb.classList.toggle('active', open);
+      if (open) {
+        try { document.getElementById('chatInput').blur(); } catch (_) {}
+        ciRenderEmojis();
+      }
+    };
+
+    // Ekle paneli aksiyonları (basit dosya seçici + bilgi mesajı)
+    function ciPickFile(accept, label) {
+      var inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = accept || '*/*';
+      inp.onchange = function () {
+        var f = inp.files && inp.files[0]; if (!f) return;
+        var sizeKb = Math.round(f.size / 1024);
+        var ci = document.getElementById('chatInput');
+        if (ci) {
+          ci.value = '📎 ' + (label || 'Dosya') + ': ' + f.name + ' (' + sizeKb + ' KB)';
+          try { window.updateSendIcon && window.updateSendIcon(); } catch (_) {}
+          window.sendChatMsg && window.sendChatMsg();
+        }
+        window.ciClosePanels && window.ciClosePanels();
+      };
+      inp.click();
+    }
+    window.chatAttach     = function () { window.chatToggleAttach(); };
+    window.chatPickPhoto  = function () { ciPickFile('image/*', 'Fotoğraf'); };
+    window.chatPickDoc    = function () { ciPickFile('*/*', 'Dosya'); };
+    window.chatPickLocation = function () {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        var ci = document.getElementById('chatInput');
+        if (ci) {
+          ci.value = '📍 Konum: ' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5);
+          try { window.updateSendIcon && window.updateSendIcon(); } catch (_) {}
+          window.sendChatMsg && window.sendChatMsg();
+        }
+        window.ciClosePanels && window.ciClosePanels();
+      }, function () { window.ciClosePanels && window.ciClosePanels(); });
+    };
+    window.chatCamera = function () {
+      var inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment';
+      inp.onchange = function () {
+        var f = inp.files && inp.files[0]; if (!f) return;
+        var ci = document.getElementById('chatInput');
+        if (ci) {
+          ci.value = '📷 Fotoğraf: ' + (f.name || 'kamera.jpg');
+          try { window.updateSendIcon && window.updateSendIcon(); } catch (_) {}
+          window.sendChatMsg && window.sendChatMsg();
+        }
+        window.ciClosePanels && window.ciClosePanels();
+      };
+      inp.click();
+    };
+
+    // ---------- Mikrofon: bas-konuş kayıt ----------
+    // Mikrofon: bas-konuş kayıt → gerçek ses verisi (opus/webm) P2P üzerinden gönderilir.
+    // engine.js içindeki sendVoiceMessage(targetConnId, base64, durSec, mime) çağrılır.
+    var __ciMic = { rec: null, stream: null, startedAt: 0, recording: false, chunks: [], mime: 'audio/webm' };
+    function ciCanRecord() {
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+    }
+    function ciPickMime() {
+      var cands = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+      for (var i = 0; i < cands.length; i++) {
+        try { if (window.MediaRecorder && MediaRecorder.isTypeSupported(cands[i])) return cands[i]; } catch (_) {}
+      }
+      return '';
+    }
+    function _blobToBase64(blob) {
+      return new Promise(function (resolve, reject) {
+        var fr = new FileReader();
+        fr.onload = function () {
+          var s = String(fr.result || '');
+          var i = s.indexOf(','); resolve(i >= 0 ? s.slice(i + 1) : s);
+        };
+        fr.onerror = reject;
+        fr.readAsDataURL(blob);
+      });
+    }
+    async function ciStartRecord() {
+      if (!ciCanRecord() || __ciMic.recording) return;
+      try {
+        __ciMic.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        var mime = ciPickMime();
+        __ciMic.rec = mime ? new MediaRecorder(__ciMic.stream, { mimeType: mime, audioBitsPerSecond: 24000 })
+                           : new MediaRecorder(__ciMic.stream);
+        __ciMic.mime = (__ciMic.rec.mimeType || mime || 'audio/webm').split(';')[0];
+        __ciMic.chunks = [];
+        __ciMic.rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) __ciMic.chunks.push(ev.data); };
+        __ciMic.rec.start(250);
+        __ciMic.startedAt = Date.now();
+        __ciMic.recording = true;
+        var btn = document.getElementById('chatSendBtn');
+        if (btn) btn.classList.add('recording');
+      } catch (e) { console.warn('[adapter] mic error', e); }
+    }
+    function ciStopRecord(send) {
+      if (!__ciMic.recording) return;
+      __ciMic.recording = false;
+      var rec = __ciMic.rec, stream = __ciMic.stream, chunks = __ciMic.chunks, mime = __ciMic.mime;
+      var dur = Math.max(1, Math.round((Date.now() - __ciMic.startedAt) / 1000));
+      var btn = document.getElementById('chatSendBtn');
+      if (btn) btn.classList.remove('recording');
+      __ciMic.rec = null; __ciMic.stream = null; __ciMic.chunks = [];
+      var stopAndCleanup = function () {
+        try { stream && stream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+      };
+      if (!rec) { stopAndCleanup(); return; }
+      rec.onstop = async function () {
+        stopAndCleanup();
+        if (!send) return;
+        try {
+          var blob = new Blob(chunks, { type: mime });
+          if (!blob.size) { console.warn('[adapter] boş ses kaydı (çok kısa basıldı?)'); return; }
+          if (dur > 25) dur = 25;
+          var b64 = await _blobToBase64(blob);
+          // engine.js içindeki state `const` ile tanımlı; window.state yok.
+          // İframe içinden doğrudan global "state" referansı ile okuyoruz.
+          var target = null;
+          try { target = (typeof state !== 'undefined' && state) ? (state.target || state.activeChat) : null; } catch (_) {}
+          if (!target || target === 'HERKES') {
+            console.warn('[adapter] sesli mesaj için aktif özel sohbet gerekir (target=' + target + ')');
+            return;
+          }
+          if (typeof window.sendVoiceMessage !== 'function') {
+            console.warn('[adapter] engine.sendVoiceMessage yüklenmedi');
+            return;
+          }
+          await window.sendVoiceMessage(target, b64, dur, mime);
+        } catch (e) { console.warn('[adapter] voice send error', e); }
+      };
+      // Mevcut buffer'ı zorla flush et, sonra durdur (aksi halde kısa basışlarda chunk gelmeyebilir)
+      try { rec.requestData && rec.requestData(); } catch (_) {}
+      try { rec.stop(); } catch (_) { stopAndCleanup(); }
+    }
+    // Mikrofon basılı tut → kayıt; bırak → gönder. Tek tıklamada (yazı varsa) sendChatMsg() onSendBtn üstünden çalışır.
+    (function bindMicHold() {
+      var bound = false;
+      function tryBind() {
+        var btn = document.getElementById('chatSendBtn');
+        if (!btn || bound) return;
+        bound = true;
+        btn.addEventListener('pointerdown', function (ev) {
+          if (btn.classList.contains('is-send')) return; // yazı varken normal gönder
+          ev.preventDefault();
+          ciStartRecord();
+        });
+        var endHandler = function () { if (__ciMic.recording) ciStopRecord(true); };
+        btn.addEventListener('pointerup', endHandler);
+        btn.addEventListener('pointerleave', endHandler);
+        btn.addEventListener('pointercancel', function () { if (__ciMic.recording) ciStopRecord(false); });
+      }
+      // OO ekranı sonradan render olabilir; biraz gecikmeli ve MutationObserver ile bağla
+      tryBind();
+      var mo = new MutationObserver(tryBind);
+      mo.observe(document.body, { childList: true, subtree: true });
+      setTimeout(tryBind, 500);
+    })();
+
+
     // ---------- KİŞİLER (Adım 2) ----------
     window.openAddContact = function () {
       var s = document.getElementById('addContactSheet');
@@ -696,6 +1011,9 @@
       } catch (e) {}
       var c = { name: name, number: number, connId: connId, engineIndex: -1 };
       openOOCallScreen(c, kind);
+      var st2 = document.getElementById('oocStatus'); if (st2) st2.textContent = 'Çalıyor…';
+      startRingbackTone();
+      muteOutgoingTracksUntilAccepted(connId);
       try {
         if (kind === 'video' && typeof window.startVideoCall === 'function') window.startVideoCall(connId, false);
         else if (typeof window.startAudioCall === 'function') window.startAudioCall(connId, false);
@@ -877,6 +1195,10 @@
       var tick = function () {
         var el = document.getElementById('oocDuration');
         if (el) el.textContent = formatOOElapsed(ooCallStartedAt);
+        var engineDur = document.getElementById('activeCallDuration');
+        if (engineDur) engineDur.innerText = formatOOElapsed(ooCallStartedAt);
+        var videoDur = document.getElementById('videoCallDuration');
+        if (videoDur) videoDur.innerText = formatOOElapsed(ooCallStartedAt);
       };
       tick();
       ooCallTimer = setInterval(tick, 1000);
@@ -1198,6 +1520,45 @@
     }
     bridgeEngineIncomingToOO();
 
+    // ---------- SİNYAL YAN ETKİLERİ (motor handleCallSignal sarmalama) ----------
+    // NOT: Engine düzeltildikten sonra (CALL_END/REJECT incoming overlay'i kapatıyor,
+    // CALL_ACCEPT activeCallStatus="Bağlandı" yazıyor) bu sarmalayıcı çoğunlukla
+    // gereksizdir; eski/farklı engine sürümleriyle çalışsın diye savunma amaçlı bırakıldı.
+    (function patchHandleCallSignal() {
+      var orig = window.handleCallSignal;
+      if (typeof orig !== 'function') {
+        return setTimeout(patchHandleCallSignal, 200);
+      }
+      window.handleCallSignal = function (senderConnId, text, viaP2P) {
+        var incomingScr = document.getElementById('screen-ooIncoming');
+        var wasIncomingOpen = !!(incomingScr && !incomingScr.classList.contains('hidden-screen'));
+        try { orig.apply(this, arguments); } catch (e) { console.error('[adapter] handleCallSignal:', e); }
+        try {
+          // Savunma: incoming overlay açıkken CALL_END/REJECT geldiyse mutlaka kapat
+          if ((text === 'CALL_END' || text === 'CALL_REJECT') && wasIncomingOpen) {
+            try { if (typeof window.stopBeep === 'function') window.stopBeep(); } catch (e) {}
+            closeOOIncomingScreen();
+          }
+          // Savunma: CALL_ACCEPT geldiğinde OO call ekranı açıksa "Bağlandı" + 00:00 başlat
+          if (typeof text === 'string' && (text === 'CALL_ACCEPT' || text.indexOf('CALL_ACCEPT###') === 0)) {
+            var oo = document.getElementById('screen-ooCall');
+            if (oo && !oo.classList.contains('hidden-screen')) {
+              var oS = document.getElementById('oocStatus'); if (oS) oS.textContent = 'Bağlandı';
+              var oD = document.getElementById('oocDuration'); if (oD) oD.style.visibility = 'visible';
+              oo.classList.add('connected');
+              stopRingbackTone();
+              ooOutgoingPending = false;
+              ooEngineActiveSeen = true;
+              if (!ooCallTimer) {
+                var acceptedAt = Number(text.split('###')[1]) || 0;
+                startOOCallTimer(acceptedAt || Date.now());
+              }
+            }
+          }
+        } catch (e) { console.warn('[adapter] handleCallSignal yan etki hata:', e); }
+      };
+    })();
+
     window.ooiAccept = function () {
       // Motor: acceptCall() → startAudioCall/startVideoCall(callerConnId, true) →
       // #activeCallScreen açılır → bridgeEngineCallToOO OO ekranını da açar.
@@ -1260,6 +1621,34 @@
       // Aksi halde phone ekranı gösterilsin
       if (!enteredMain) showScreen('screen-phone');
     }, 600);
+
+    // ---------- Twemoji: tüm sohbet balonlarındaki emojileri (özellikle bayrakları) gerçek görüntüye çevir ----------
+    (function bindTwemoji() {
+      function parseAll() {
+        if (!window.twemoji) return;
+        try {
+          var c = document.getElementById('chatMessages');
+          if (c) window.twemoji.parse(c, { folder: 'svg', ext: '.svg' });
+          // Sohbet listesi önizlemeleri
+          var lists = document.querySelectorAll('#convListGenel, #convListOzel, .conv-preview, .conv-name');
+          lists.forEach(function (n) { window.twemoji.parse(n, { folder: 'svg', ext: '.svg' }); });
+        } catch (_) {}
+      }
+      // Yeni mesaj eklendikçe parse et
+      var target = document.getElementById('chatMessages');
+      if (target && window.MutationObserver) {
+        var mo = new MutationObserver(function () { parseAll(); });
+        mo.observe(target, { childList: true, subtree: true });
+      } else {
+        // Hedef DOM henüz yoksa kısa süre sonra tekrar dene
+        setTimeout(bindTwemoji, 500);
+      }
+      // İlk açılışta da bir kez tara
+      setTimeout(parseAll, 300);
+      // chat ekranı her açıldığında bir tarama daha
+      var bodyObs = new MutationObserver(function () { parseAll(); });
+      bodyObs.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
+    })();
 
     console.info('[sohbeto-adapter] hazır — Adım 1 (login + sohbet listesi + chat) bağlandı.');
   });
