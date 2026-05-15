@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sohbeto - Minimalist</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Tema Renkleri (Dinamik Değişecek) */
+            --primary-green: #0a7c4a; 
+            --primary-green-hover: #08633b;
+            --light-green-bg: #e6f3eb; /* İkonların arkasındaki açık renk */
+            
+            /* Zemin Rengi (Dinamik Değişecek) */
+            --bg-white: #ffffff;
+            
+            /* Sabit Renkler */
+            --text-main: #111111;
+            --text-secondary: #6b7280;
+            --border-light: #f3f4f6;
+            --nav-bg: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-white);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f2f5; 
+            transition: background-color 0.3s ease;
+        }
+
+        .app-container {
+            width: 100%;
+            height: 100vh;
+            max-width: 600px;
+            background-color: var(--bg-white);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 20px rgba(0,0,0,0.05);
+            transition: background-color 0.3s ease;
+        }
+
+        @media (max-width: 600px) {
+            .app-container {
+                max-width: 100%;
+                box-shadow: none;
+            }
+        }
+
+        /* ========== SPLASH (Korunan kısım — "güvenli sohbet") ========== */
+        #screenSplash{
+            display:flex;position:fixed;inset:0;z-index:9999;
+            background:radial-gradient(ellipse at 30% 20%,#1e1b4b 0%,#0e1621 60%,#0a0e1a 100%);
+            align-items:center;justify-content:center;flex-direction:column;
+            animation:fadeIn .35s ease;
+        }
+        #screenSplash.fade-out{animation:splashOut .45s ease forwards;pointer-events:none}
+        #screenSplash.gone{display:none}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes slideUpSheet{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes splashOut{to{opacity:0;transform:scale(1.04)}}
+        .splash-icon{
+            width:38vw;max-width:200px;min-width:140px;aspect-ratio:1;
+            filter:drop-shadow(0 18px 36px rgba(99,102,241,.55)) drop-shadow(0 6px 10px rgba(0,0,0,.45));
+            animation:splashIn .8s cubic-bezier(.2,.9,.25,1.15);
+        }
+        @keyframes splashIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
+        .splash-name{
+            margin-top:22px;font-size:22px;font-weight:800;letter-spacing:.5px;
+            background:linear-gradient(135deg,#22d3ee 0%,#6366f1 100%);
+            -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+            animation:fadeIn .9s ease .2s backwards;
+        }
+        .splash-tag{margin-top:6px;font-size:12px;color:#7c8da6;animation:fadeIn .9s ease .35s backwards}
+
+        /* Ekran Geçiş Sınıfları */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            opacity: 1;
+            transform: translateX(0);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+            background-color: var(--bg-white);
+            z-index: 10;
+        }
+        .hidden-screen {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(20px);
+            z-index: 5;
+        }
+
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 80px;
+        }
+        .content-area::-webkit-scrollbar { display: none; }
+
+        /* Doğrulama Ekranı */
+        .auth-header {
+            padding: 24px;
+            padding-top: max(30px, env(safe-area-inset-top));
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .back-btn { font-size: 1.2rem; color: var(--text-main); margin-bottom: 24px; cursor: pointer; }
+        .brand-text { color: var(--primary-green); font-weight: 600; font-size: 1.1rem; margin-bottom: 32px; }
+        .auth-title { font-size: 2.2rem; font-weight: 700; line-height: 1.1; margin-bottom: 12px; letter-spacing: -0.5px; }
+        .auth-subtitle { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; margin-bottom: 40px; }
+
+        .code-input-container { display: flex; gap: 8px; margin-bottom: 24px; width: 100%; justify-content: space-between; }
+        .code-input {
+            width: calc((100% - 40px) / 6);
+            max-width: 45px;
+            aspect-ratio: 1 / 1.2;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1.5rem;
+            text-align: center;
+            font-weight: 600;
+            color: var(--text-main);
+            background: transparent;
+        }
+        .code-input:focus { outline: none; border-color: var(--primary-green); box-shadow: 0 0 0 2px var(--light-green-bg); }
+
+        .btn-solid {
+            background-color: var(--primary-green);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            width: 100%;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-solid:hover { background-color: var(--primary-green-hover); }
+
+        /* Ana Header */
+        .main-header {
+            padding: 20px 24px;
+            padding-top: max(20px, env(safe-area-inset-top));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--bg-white);
+            z-index: 20;
+            position: sticky;
+            top: 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .main-title { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.3px; }
+        .header-icon { font-size: 1.2rem; color: var(--primary-green); cursor: pointer; }
+
+        .search-container { padding: 12px 24px; background-color: var(--bg-white); }
+        .search-box { display: flex; align-items: center; background-color: #f3f4f6; border-radius: 12px; padding: 10px 16px; }
+        .search-box i { color: #9ca3af; font-size: 0.9rem; margin-right: 10px; }
+        .search-box input { border: none; background: transparent; width: 100%; font-size: 0.95rem; color: var(--text-main); }
+        .search-box input:focus { outline: none; }
+        .search-box input::placeholder { color: #9ca3af; }
+
+        #screen-sohbetler .content-area { padding: 4px 14px 92px; background: linear-gradient(180deg, var(--bg-white), rgba(243,244,246,.7)); }
+        #screen-sohbetler .conv-item {
+            position: relative; display: flex; align-items: center; gap: 12px;
+            margin: 8px 0; padding: 12px 12px;
+            background: rgba(255,255,255,.88); border: 1px solid rgba(255,255,255,.82);
+            border-radius: 22px; box-shadow: 0 10px 24px rgba(15,23,42,.07);
+            cursor: pointer; transition: transform .16s ease, background .16s ease, box-shadow .16s ease;
+        }
+        #screen-sohbetler .conv-item::after { content:""; position:absolute; left:14px; right:14px; bottom:-5px; height:1px; background:rgba(255,255,255,.65); }
+        #screen-sohbetler .conv-item:hover { background:#fff; box-shadow:0 14px 28px rgba(15,23,42,.09); }
+        #screen-sohbetler .conv-item:active { transform:scale(.99); }
+        #screen-sohbetler .conv-avatar {
+            width: 50px; height: 50px; border-radius: 17px; flex: 0 0 50px; overflow: hidden;
+            display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700;
+            background: linear-gradient(135deg, var(--primary-green), #12b981); color:#fff;
+            box-shadow:0 6px 14px rgba(15,23,42,.14); border:1px solid rgba(0,0,0,.04);
+        }
+        #screen-sohbetler .conv-avatar img { width:100%; height:100%; object-fit:cover; }
+        #screen-sohbetler .conv-info { min-width:0; flex:1; padding-right:4px; }
+        #screen-sohbetler .conv-name { font-size:.92rem; font-weight:700; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        #screen-sohbetler .conv-preview { margin-top:4px; font-size:.78rem; line-height:1.25; color:var(--text-secondary); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        #screen-sohbetler .conv-meta { align-self:stretch; min-width:42px; display:flex; flex-direction:column; align-items:flex-end; justify-content:space-between; gap:8px; }
+        #screen-sohbetler .conv-time { font-size:.66rem; font-weight:600; color:#9ca3af; white-space:nowrap; }
+        #screen-sohbetler .conv-unread { min-width:20px; height:20px; padding:0 6px; border-radius:999px; display:flex; align-items:center; justify-content:center; background:var(--primary-green); color:#fff; font-size:.66rem; font-weight:800; box-shadow:0 4px 10px rgba(10,124,74,.26); }
+
+        .alphabet-sidebar {
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column;
+            font-size: 0.6rem; font-weight: 600; color: var(--primary-green);
+            line-height: 1.2; text-align: center;
+        }
+
+        /* Ayarlar Listesi */
+        .settings-list { display: flex; flex-direction: column; width: 100%; padding: 0 16px; margin-top: 10px; }
+        .settings-item {
+            display: flex; align-items: center;
+            padding: 16px 8px;
+            border-bottom: 1px solid rgba(0,0,0,0.04);
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .settings-item:active { opacity: 0.7; }
+        .settings-item:last-child { border-bottom: none; }
+        
+        .settings-icon-wrapper {
+            width: 44px; height: 44px;
+            border-radius: 14px;
+            display: flex; justify-content: center; align-items: center;
+            margin-right: 16px; flex-shrink: 0;
+            color: white; font-size: 1.1rem;
+        }
+        .icon-dynamic { background-color: var(--primary-green); opacity: 0.85; }
+        .icon-warning { background-color: #dc9b35; }
+        .icon-danger  { background-color: #c4624b; }
+
+        .settings-text { flex-grow: 1; display: flex; flex-direction: column; }
+        .settings-item-title { font-size: 1.05rem; font-weight: 500; color: var(--text-main); margin-bottom: 2px; }
+        .settings-item-subtitle { font-size: 0.85rem; color: var(--text-secondary); }
+        .settings-action { margin-left: 12px; color: #9ca3af; font-size: 0.9rem; }
+
+        /* Toggle Switch */
+        .toggle-switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #cbd5e1;
+            transition: .3s; border-radius: 30px;
+        }
+        .toggle-slider:before {
+            position: absolute; content: "";
+            height: 22px; width: 22px;
+            left: 2px; bottom: 2px;
+            background-color: white;
+            transition: .3s; border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .toggle-switch input:checked + .toggle-slider { background-color: var(--primary-green); }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(22px); }
+
+        /* Tema Alt Sayfası */
+        .theme-header {
+            padding: 20px 24px;
+            padding-top: max(20px, env(safe-area-inset-top));
+            display: flex; align-items: center;
+            border-bottom: 1px solid var(--border-light);
+            background-color: var(--bg-white);
+        }
+        .theme-header i { margin-right: 16px; font-size: 1.2rem; cursor: pointer; }
+
+        .settings-section { width: 100%; margin-top: 24px; text-align: left; padding: 0 24px; }
+        .settings-section h3 {
+            font-size: 0.9rem; color: var(--text-secondary);
+            font-weight: 600; margin-bottom: 12px;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .palette-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+        .color-swatch {
+            width: 36px; height: 36px;
+            border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent;
+            transition: transform 0.2s, border-color 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .color-swatch:hover { transform: scale(1.1); }
+        .color-swatch.active { border-color: var(--text-main); transform: scale(1.15); }
+
+        .circle-icon-bg {
+            width: 120px; height: 120px;
+            background-color: var(--light-green-bg);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            margin-bottom: 10px;
+        }
+
+        /* ===== Profil Bloğu (Ayarlar başına eklenen) ===== */
+        .profile-block {
+            display: flex; flex-direction: column; align-items: center;
+            padding: 24px 24px 8px;
+        }
+        .profile-pic-select {
+            width: 96px; height: 96px; border-radius: 50%;
+            position: relative; cursor: pointer;
+            transition: transform .2s ease;
+        }
+        .profile-pic-select:hover { transform: scale(1.04); }
+        .profile-pic-select .pic-circle {
+            width: 100%; height: 100%; border-radius: 50%;
+            background: linear-gradient(135deg, #22d3ee, #6366f1, #a855f7);
+            border: 3px solid var(--light-green-bg);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 38px; color: #fff; overflow: hidden;
+            box-shadow: 0 8px 22px -8px rgba(99,102,241,.45);
+        }
+        .profile-pic-select .pic-circle img {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        .profile-pic-select .pic-badge {
+            position: absolute; bottom: 2px; right: 2px;
+            width: 30px; height: 30px; border-radius: 50%;
+            background: var(--primary-green);
+            color: #fff; display: flex; align-items: center; justify-content: center;
+            font-size: 13px;
+            border: 3px solid var(--bg-white);
+            box-shadow: 0 2px 6px rgba(0,0,0,.18);
+        }
+        .profile-hint {
+            margin-top: 10px;
+            font-size: .82rem;
+            color: var(--text-secondary);
+        }
+
+        .profile-fields {
+            padding: 8px 24px 4px;
+            display: flex; flex-direction: column; gap: 14px;
+        }
+        .profile-field label {
+            display: flex; align-items: center; gap: 6px;
+            font-size: .82rem; font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 6px;
+        }
+        .profile-field label .lbl-emoji { font-size: .95rem; }
+        .profile-field input,
+        .profile-field textarea {
+            width: 100%;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-size: .95rem;
+            color: var(--text-main);
+            background: var(--bg-white);
+            font-family: 'Inter', sans-serif;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .profile-field textarea { resize: none; min-height: 76px; }
+        .profile-field input:focus,
+        .profile-field textarea:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px var(--light-green-bg);
+        }
+        .profile-divider {
+            height: 1px;
+            background: var(--border-light);
+            margin: 18px 24px 4px;
+        }
+
+        /* Bottom Nav */
+        .bottom-nav {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            background-color: var(--nav-bg);
+            display: flex; justify-content: space-around; align-items: center;
+            padding-top: 12px;
+            padding-bottom: max(16px, env(safe-area-inset-bottom));
+            border-top: 1px solid var(--border-light);
+            z-index: 20;
+        }
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center;
+            color: #9ca3af; font-size: 0.75rem; font-weight: 500;
+            cursor: pointer; width: 25%;
+            transition: color 0.2s;
+        }
+        .nav-item i { font-size: 1.3rem; margin-bottom: 6px; transition: transform 0.2s; }
+        .nav-item.active { color: var(--primary-green); }
+        .nav-item.active i { transform: translateY(-2px); font-weight: 600; }
+
+        .empty-state {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 60%; text-align: center; padding: 0 40px;
+        }
+        .empty-icon {
+            width: 80px; height: 80px;
+            background-color: var(--light-green-bg);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            margin-bottom: 24px;
+        }
+
+        /* ===== Kişi Avatar (tıklanabilir) ===== */
+        .contact-row { display:flex; align-items:center; padding:12px 4px; border-bottom:1px solid rgba(0,0,0,.04); cursor:pointer; transition:background-color .15s; border-radius:10px; }
+        .contact-row:hover { background:rgba(0,0,0,.025); }
+        .contact-avatar {
+            width:44px; height:44px; border-radius:50%;
+            background:var(--primary-green); color:#fff;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:700; margin-right:14px; flex-shrink:0;
+            cursor:pointer; overflow:hidden;
+            transition:transform .18s ease, box-shadow .18s ease;
+            box-shadow:0 2px 6px rgba(0,0,0,.08);
+        }
+        .contact-avatar:hover { transform:scale(1.06); box-shadow:0 4px 12px rgba(0,0,0,.15); }
+        .contact-avatar img { width:100%; height:100%; object-fit:cover; }
+
+        /* ===== Kişi Kartı (Modal) ===== */
+        #contactCardOverlay {
+            position:absolute; inset:0; z-index:60;
+            background:rgba(0,0,0,0); 
+            display:none; align-items:center; justify-content:center;
+            transition:background .25s ease;
+            pointer-events:none;
+        }
+        #contactCardOverlay.open {
+            display:flex; pointer-events:auto;
+            background:rgba(0,0,0,0.42);
+            backdrop-filter:blur(4px);
+            -webkit-backdrop-filter:blur(4px);
+        }
+        .contact-card {
+            width:86%; max-width:340px;
+            background:var(--bg-white); border-radius:24px;
+            padding:24px 22px 20px;
+            box-shadow:0 24px 60px -10px rgba(0,0,0,.35);
+            transform-origin: var(--tx, 50%) var(--ty, 50%);
+            transform: scale(.05) translate(var(--dx,0), var(--dy,0));
+            opacity:0;
+            transition: transform .42s cubic-bezier(.2,.9,.25,1.15), opacity .28s ease;
+        }
+        #contactCardOverlay.open .contact-card {
+            transform: scale(1) translate(0,0);
+            opacity:1;
+        }
+        #contactCardOverlay.closing .contact-card {
+            transform: scale(.05) translate(var(--dx,0), var(--dy,0));
+            opacity:0;
+        }
+        #contactCardOverlay.closing { background:rgba(0,0,0,0); backdrop-filter:none; -webkit-backdrop-filter:none; }
+        .cc-avatar {
+            width:96px; height:96px; border-radius:50%;
+            margin:0 auto 14px;
+            background:linear-gradient(135deg,var(--primary-green),var(--primary-green-hover));
+            color:#fff; display:flex; align-items:center; justify-content:center;
+            font-size:38px; font-weight:700; overflow:hidden;
+            box-shadow:0 10px 24px -6px rgba(0,0,0,.25);
+        }
+        .cc-avatar img { width:100%; height:100%; object-fit:cover; }
+        .cc-name { text-align:center; font-size:1.2rem; font-weight:700; color:var(--text-main); letter-spacing:-.2px; }
+        .cc-phone { text-align:center; font-size:.85rem; color:var(--text-secondary); margin-top:3px; }
+        .cc-actions { display:flex; justify-content:space-around; margin-top:20px; gap:8px; }
+        .cc-action {
+            flex:1; display:flex; flex-direction:column; align-items:center;
+            gap:6px; padding:10px 6px; border-radius:14px;
+            background:var(--light-green-bg); color:var(--primary-green);
+            cursor:pointer; transition:transform .15s, background .15s;
+            border:none; font-family:inherit;
+        }
+        .cc-action:hover { transform:translateY(-2px); }
+        .cc-action:active { transform:translateY(0); }
+        .cc-action i { font-size:1.05rem; }
+        .cc-action span { font-size:.72rem; font-weight:600; }
+        .cc-msg-btn {
+            margin-top:14px; width:100%;
+            padding:12px; border-radius:14px;
+            background:var(--primary-green); color:#fff;
+            border:none; font-weight:600; font-size:.95rem; cursor:pointer;
+            transition:background .2s;
+            font-family:inherit;
+        }
+        .cc-msg-btn:hover { background:var(--primary-green-hover); }
+
+        /* ===== Sohbet Detay Ekranı ===== */
+        .chat-header {
+            padding: 10px 12px;
+            padding-top: max(12px, env(safe-area-inset-top));
+            display:flex; align-items:center; gap:8px;
+            background:var(--bg-white);
+            border-bottom:1px solid var(--border-light);
+            position:sticky; top:0; z-index:25;
+        }
+        .chat-hbtn {
+            width:36px; height:36px; border-radius:50%;
+            display:flex; align-items:center; justify-content:center;
+            color:var(--primary-green); cursor:pointer;
+            transition:background .15s;
+            flex-shrink:0; background:transparent; border:none;
+            font-size:1rem;
+        }
+        .chat-hbtn:hover { background:var(--light-green-bg); }
+        .chat-h-avatar {
+            width:38px; height:38px; border-radius:50%;
+            background:var(--primary-green); color:#fff;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:700; flex-shrink:0; overflow:hidden;
+            font-size:.95rem;
+        }
+        .chat-h-avatar img { width:100%; height:100%; object-fit:cover; }
+        .chat-h-info { flex:1; min-width:0; line-height:1.15; }
+        .chat-h-name { font-weight:600; font-size:.98rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .chat-h-status { font-size:.72rem; color:var(--primary-green); margin-top:2px; }
+
+        .chat-messages {
+            flex:1; overflow-y:auto;
+            padding:14px 14px 12px;
+            display:flex; flex-direction:column; gap:8px;
+            background:linear-gradient(180deg, var(--bg-white) 0%, var(--light-green-bg) 280%);
+        }
+        .chat-messages::-webkit-scrollbar { display:none; }
+        .msg-bubble {
+            max-width:78%; padding:9px 13px; border-radius:18px;
+            font-size:.92rem; line-height:1.35; word-wrap:break-word;
+            box-shadow:0 1px 1px rgba(0,0,0,.04);
+            animation:msgIn .22s ease;
+        }
+        @keyframes msgIn { from{ opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+        .msg-me { align-self:flex-end; background:var(--primary-green); color:#fff; border-bottom-right-radius:6px; }
+        .msg-them { align-self:flex-start; background:#fff; color:var(--text-main); border-bottom-left-radius:6px; border:1px solid rgba(0,0,0,.04); }
+        .msg-time { font-size:.62rem; opacity:.6; margin-top:3px; text-align:right; }
+        .chat-empty { text-align:center; color:var(--text-secondary); font-size:.85rem; padding:30px 24px; }
+
+        .chat-input-bar {
+            padding: 10px 12px;
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+            background:var(--bg-white);
+            border-top:1px solid var(--border-light);
+            display:flex; align-items:center; gap:8px;
+        }
+        .ci-plus {
+            width:38px; height:38px; border-radius:50%;
+            background:transparent; border:1px solid #e5e7eb;
+            color:var(--text-secondary); display:flex; align-items:center; justify-content:center;
+            cursor:pointer; flex-shrink:0; transition:background .15s, color .15s;
+            font-size:1rem;
+        }
+        .ci-plus:hover { background:var(--light-green-bg); color:var(--primary-green); }
+        .ci-field {
+            flex:1; display:flex; align-items:center;
+            background:#f3f4f6; border-radius:22px;
+            padding:6px 10px 6px 16px; gap:6px;
+            transition:background .15s;
+        }
+        .ci-field:focus-within { background:#eef0f3; }
+        .ci-field input {
+            flex:1; border:none; background:transparent; outline:none;
+            font-size:.95rem; color:var(--text-main); font-family:inherit;
+            min-width:0;
+        }
+        .ci-field input::placeholder { color:#9ca3af; }
+        .ci-cam {
+            width:30px; height:30px; border-radius:50%;
+            background:transparent; border:none; color:var(--text-secondary);
+            display:flex; align-items:center; justify-content:center; cursor:pointer;
+            font-size:.95rem;
+        }
+        .ci-cam:hover { color:var(--primary-green); }
+        .ci-send {
+            width:40px; height:40px; border-radius:50%;
+            background:var(--primary-green); color:#fff;
+            display:flex; align-items:center; justify-content:center;
+            cursor:pointer; flex-shrink:0; border:none;
+            transition:background .15s, transform .15s;
+            font-size:.95rem;
+        }
+        .ci-send:hover { background:var(--primary-green-hover); transform:scale(1.05); }
+        .ci-send:active { transform:scale(.95); }
+        .ci-send .send-arrow,
+        .ci-send .send-mic { display:none; }
+        .ci-send.is-send .send-arrow { display:inline; }
+        .ci-send.is-mic .send-mic { display:inline; }
+
+        /* ===== Motor mesaj balonu hizalama köprüsü =====
+           Motor: <div class="msg msg-own|msg-other|msg-private"><div class="msg-bubble">…</div></div>
+           OO'nun kendi .msg-bubble stili var; sadece dış kapsayıcıyı flex'e çevirip
+           kendi/karşı tarafa hizalıyoruz ve renkleri bağlıyoruz. */
+        .chat-messages .msg { display:flex; width:100%; }
+        .chat-messages .msg-own { justify-content:flex-end; }
+        .chat-messages .msg-other,
+        .chat-messages .msg-private { justify-content:flex-start; }
+        .chat-messages .msg-own > .msg-bubble {
+            background:var(--primary-green); color:#fff;
+            border-bottom-right-radius:6px;
+        }
+        .chat-messages .msg-other > .msg-bubble,
+        .chat-messages .msg-private > .msg-bubble {
+            background:#fff; color:var(--text-main);
+            border:1px solid rgba(0,0,0,.04);
+            border-bottom-left-radius:6px;
+        }
+        .chat-messages .msg-bubble .msg-meta {
+            display:flex; align-items:center; gap:6px; justify-content:flex-end;
+        }
+        .chat-messages .msg-bubble .msg-sender {
+            font-size:.7rem; font-weight:600; opacity:.7; margin-bottom:2px;
+        }
+        .chat-messages .msg-bubble .msg-tag {
+            font-size:.55rem; padding:1px 5px; border-radius:8px; margin-left:4px;
+            background:rgba(0,0,0,.08); color:inherit; font-weight:600; letter-spacing:.5px;
+        }
+        .chat-messages .msg-own > .msg-bubble .msg-tag { background:rgba(255,255,255,.22); }
+        .chat-messages .msg-bubble .tick { font-size:.7rem; }
+        .chat-messages .msg-bubble .tick.blue { color:#34b7f1; }
+        .chat-messages .msg-own > .msg-bubble .tick.gray { color:rgba(255,255,255,.75); }
+
+        /* ===== ARAMA EKRANI (Adım 4) ===== */
+        #screen-ooCall, #screen-ooIncoming {
+            position:absolute; inset:0; z-index:70;
+            background:linear-gradient(160deg,#0f3d2e 0%, #0a7c4a 55%, #064d2c 100%);
+            color:#fff; display:flex; flex-direction:column;
+            /* Bottom: nav bar (parent OS) ~64px + safe area */
+            padding:max(28px, env(safe-area-inset-top)) 22px calc(max(22px, env(safe-area-inset-bottom)) + 72px);
+        }
+        #screen-ooCall.hidden-screen, #screen-ooIncoming.hidden-screen { display:none; }
+        /* Video stage — engine'in #videoLocal/#videoRemote node'ları buraya taşınır */
+        .ooc-video-stage {
+            position:absolute; inset:0; z-index:1;
+            background:#000; display:none;
+            overflow:hidden;
+        }
+        #screen-ooCall.video-on .ooc-video-stage { display:block; }
+        #screen-ooCall.video-on .ooc-mid > .ooc-avatar,
+        #screen-ooCall.video-on .ooc-mid > .ooc-name,
+        #screen-ooCall.video-on .ooc-mid > .ooc-duration { display:none; }
+        #screen-ooCall.video-on .ooc-top,
+        #screen-ooCall.video-on .ooc-actions { position:relative; z-index:3; text-shadow:0 1px 6px rgba(0,0,0,.6); }
+        .ooc-video-stage .ooc-remote {
+            position:absolute; inset:0;
+            display:flex; align-items:center; justify-content:center;
+        }
+        .ooc-video-stage .ooc-remote video,
+        .ooc-video-stage .ooc-remote > * > video {
+            width:100% !important; height:100% !important; object-fit:cover; display:block;
+        }
+        .ooc-video-stage .ooc-local {
+            position:absolute; right:14px;
+            top:calc(max(28px, env(safe-area-inset-top)) + 60px);
+            width:28%; max-width:140px; aspect-ratio:9/14;
+            border-radius:14px; overflow:hidden; z-index:2;
+            background:#111; box-shadow:0 6px 20px rgba(0,0,0,.5);
+            border:2px solid rgba(255,255,255,.18);
+        }
+        .ooc-video-stage .ooc-local video,
+        .ooc-video-stage .ooc-local > * > video {
+            width:100% !important; height:100% !important; object-fit:cover; display:block;
+        }
+        .ooc-top { text-align:center; padding-top:6px; }
+        .ooc-mode { font-size:.78rem; letter-spacing:2px; opacity:.75; text-transform:uppercase; }
+        .ooc-status { font-size:.95rem; opacity:.9; margin-top:6px; min-height:1.1em; }
+        .ooc-mid { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; }
+        .ooc-avatar {
+            width:148px; height:148px; border-radius:50%;
+            background:linear-gradient(135deg,#34b7f1,#128c7e);
+            display:flex; align-items:center; justify-content:center;
+            font-size:56px; font-weight:700; color:#fff; overflow:hidden;
+            box-shadow:0 18px 40px -10px rgba(0,0,0,.55);
+            animation:oocPulse 2.2s ease-in-out infinite;
+        }
+        #screen-ooCall.connected .ooc-avatar { animation:none; }
+        @keyframes oocPulse {
+            0%,100% { box-shadow:0 18px 40px -10px rgba(0,0,0,.55), 0 0 0 0 rgba(255,255,255,.25); }
+            50%     { box-shadow:0 18px 40px -10px rgba(0,0,0,.55), 0 0 0 18px rgba(255,255,255,0); }
+        }
+        .ooc-avatar img { width:100%; height:100%; object-fit:cover; }
+        .ooc-name { font-size:1.55rem; font-weight:600; letter-spacing:-.3px; text-align:center; }
+        .ooc-duration { font-size:1rem; opacity:.85; font-variant-numeric:tabular-nums; }
+        .ooc-actions {
+            display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
+            padding:18px 4px 4px;
+        }
+        .ooc-btn {
+            display:flex; flex-direction:column; align-items:center; gap:6px;
+            background:transparent; border:none; color:#fff; cursor:pointer;
+            font-family:inherit;
+        }
+        .ooc-btn .ooc-ico {
+            width:58px; height:58px; border-radius:50%;
+            background:rgba(255,255,255,.14);
+            display:flex; align-items:center; justify-content:center;
+            font-size:1.15rem; transition:background .15s, transform .12s;
+            backdrop-filter:blur(6px);
+        }
+        .ooc-btn:hover .ooc-ico { background:rgba(255,255,255,.22); }
+        .ooc-btn:active .ooc-ico { transform:scale(.94); }
+        .ooc-btn.active .ooc-ico { background:#fff; color:var(--primary-green); }
+        .ooc-btn span { font-size:.72rem; opacity:.85; }
+        .ooc-btn.danger .ooc-ico { background:#e63946; }
+        .ooc-btn.danger:hover .ooc-ico { background:#d62836; }
+
+    </style>
+</head>
+<body>
+
+    <!-- ========== SPLASH (Sohbeto · güvenli sohbet) ========== -->
+    <div id="screenSplash">
+        <svg class="splash-icon" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-label="Sohbeto">
+            <defs>
+                <linearGradient id="splashBody" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#22d3ee"/>
+                    <stop offset="55%" stop-color="#6366f1"/>
+                    <stop offset="100%" stop-color="#a855f7"/>
+                </linearGradient>
+                <linearGradient id="splashGloss" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="rgba(255,255,255,0.55)"/>
+                    <stop offset="55%" stop-color="rgba(255,255,255,0.05)"/>
+                    <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+                </linearGradient>
+                <radialGradient id="splashSpark" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#fff7ae"/>
+                    <stop offset="100%" stop-color="#f59e0b"/>
+                </radialGradient>
+            </defs>
+            <rect x="2" y="2" width="60" height="60" rx="16" ry="16" fill="url(#splashBody)"/>
+            <rect x="2" y="2" width="60" height="34" rx="16" ry="16" fill="url(#splashGloss)"/>
+            <rect x="2.5" y="2.5" width="59" height="59" rx="15.5" ry="15.5" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+            <path d="M16 22c0-3.3 2.7-6 6-6h20c3.3 0 6 2.7 6 6v14c0 3.3-2.7 6-6 6H30l-7 6v-6h-1c-3.3 0-6-2.7-6-6V22z" fill="rgba(255,255,255,0.96)"/>
+            <text x="32" y="36" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="800" fill="#6366f1" letter-spacing="-0.5">So</text>
+            <circle cx="48" cy="16" r="4" fill="url(#splashSpark)"/>
+            <circle cx="48" cy="16" r="4" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="0.8"/>
+        </svg>
+        <div class="splash-name">Sohbeto</div>
+        <div class="splash-tag">güvenli sohbet</div>
+    </div>
+
+    <div class="app-container">
+
+        <!-- 0. NUMARA EKRANI (Mesajlara kod gönder) -->
+        <div id="screen-phone" class="screen">
+            <div class="auth-header">
+                <div>
+                    <i class="fa-solid fa-arrow-left back-btn"></i>
+                    <div class="brand-text">Sohbeto</div>
+                    <h1 class="auth-title">Numaraya<br>Mesaj Gönder</h1>
+                    <p class="auth-subtitle">Devam etmek için telefon numaranızı girin.<br>Mesajlar uygulamanıza 6 haneli doğrulama kodu göndereceğiz.</p>
+
+                    <input id="phoneInput" type="tel" inputmode="tel" placeholder="+90 555 123 45 67"
+                        style="width:100%;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;font-size:1rem;font-weight:500;color:var(--text-main);background:transparent;margin-bottom:16px"
+                        onfocus="this.style.borderColor='var(--primary-green)';this.style.boxShadow='0 0 0 3px var(--light-green-bg)';"
+                        onblur="this.style.borderColor='#e5e7eb';this.style.boxShadow='none';"
+                        value="+90 555 123 45 67">
+
+                    <p class="text-[0.8rem] text-[var(--text-secondary)] font-medium">
+                        Kod, <span style="color: var(--primary-green); font-weight:600;">Mesajlar</span> uygulamasına ulaşacak.
+                    </p>
+                </div>
+
+                <div class="mt-auto pb-4">
+                    <button class="btn-solid" onclick="app.sendCode()">Kodu Gönder</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 1. DOĞRULAMA EKRANI -->
+        <div id="screen-auth" class="screen hidden-screen">
+            <div class="auth-header">
+                <div>
+                    <i class="fa-solid fa-arrow-left back-btn" onclick="app.navigate('phone')"></i>
+                    <div class="brand-text">Sohbeto</div>
+                    <h1 class="auth-title">Doğrulama<br>Kodu</h1>
+                    <p class="auth-subtitle"><span id="authPhoneLabel">+90 555 123 45 67</span> numarasına<br>gönderilen 6 haneli kodu Mesajlar'dan alın.</p>
+
+                    <div class="code-input-container" id="codeInputs">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                        <input type="text" class="code-input" maxlength="1" inputmode="numeric">
+                    </div>
+
+                    <div class="mb-10 text-sm">
+                        <span class="text-[0.8rem] text-[var(--text-secondary)] font-medium">Kodu yeniden gönder
+                            <span style="color: var(--primary-green); cursor:pointer; font-weight:600" onclick="app.sendCode(true)">tekrar gönder</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="mt-auto pb-4">
+                    <button class="btn-solid" onclick="app.verifyCode()">Doğrula</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. SOHBETLER -->
+        <div id="screen-sohbetler" class="screen hidden-screen">
+            <div class="main-header">
+                <div class="main-title">Sohbetler</div>
+                <div class="header-icon"><i class="fa-regular fa-pen-to-square"></i></div>
+            </div>
+            <div class="search-container">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" placeholder="Ara">
+                </div>
+            </div>
+            <div class="content-area"></div>
+        </div>
+
+        <!-- 3. KİŞİLER -->
+        <div id="screen-kisiler" class="screen hidden-screen">
+            <div class="main-header">
+                <div class="main-title">Kişiler</div>
+                <div class="header-icon" onclick="openAddContact()"><i class="fa-solid fa-plus" style="font-weight: 300;"></i></div>
+            </div>
+            <div class="search-container">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="contactSearch" placeholder="Ara" oninput="renderContacts()">
+                </div>
+            </div>
+            <div class="content-area position-relative">
+                <div id="contactsList" style="padding: 4px 24px 20px;"></div>
+                <div id="contactsEmpty" class="empty-state" style="display:none">
+                    <div class="empty-icon">
+                        <i class="fa-regular fa-address-book" style="font-size:32px;color:var(--primary-green)"></i>
+                    </div>
+                    <h3 class="text-[1.1rem] font-semibold mb-2">Henüz kişi yok</h3>
+                    <p class="text-[0.9rem] text-[var(--text-secondary)] mb-6">Sağ üstteki <b>+</b> ile ilk kişinizi ekleyin.</p>
+                    <button class="btn-solid" style="max-width:240px;padding:14px;border-radius:10px" onclick="openAddContact()">Kişi Ekle</button>
+                </div>
+                <div class="alphabet-sidebar">
+                    A<br>B<br>C<br>D<br>E<br>F<br>G<br>H<br>I<br>J<br>K<br>L<br>M<br>N<br>O<br>P<br>R<br>S<br>T<br>U<br>V<br>Y<br>Z<br>#
+                </div>
+            </div>
+        </div>
+
+        <!-- Kişi Ekle Sheet -->
+        <div id="addContactSheet" class="screen hidden-screen" style="z-index:30;background:rgba(0,0,0,0.4);justify-content:flex-end;">
+            <div style="background:var(--bg-white);width:100%;border-radius:24px 24px 0 0;padding:24px;box-shadow:0 -10px 30px rgba(0,0,0,.15);animation:slideUpSheet .25s ease;">
+                <div style="width:40px;height:4px;background:#e5e7eb;border-radius:2px;margin:0 auto 16px"></div>
+                <h3 style="font-size:1.3rem;font-weight:700;margin-bottom:18px">Yeni Kişi</h3>
+                <div style="display:flex;flex-direction:column;gap:14px">
+                    <div>
+                        <label style="font-size:.82rem;font-weight:600;display:block;margin-bottom:6px">📌 Ad Soyad</label>
+                        <input id="newContactName" type="text" placeholder="Örn. Ayşe Yılmaz" maxlength="40"
+                            style="width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;font-size:.95rem;font-family:inherit">
+                    </div>
+                    <div>
+                        <label style="font-size:.82rem;font-weight:600;display:block;margin-bottom:6px">📞 Telefon</label>
+                        <input id="newContactPhone" type="tel" inputmode="tel" placeholder="+90 555 123 45 67" maxlength="20"
+                            style="width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;font-size:.95rem;font-family:inherit">
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:22px">
+                    <button onclick="closeAddContact()" style="flex:1;padding:14px;border-radius:12px;border:1px solid #e5e7eb;background:transparent;font-weight:600;color:var(--text-main)">Vazgeç</button>
+                    <button class="btn-solid" style="flex:1;padding:14px" onclick="saveContact()">Kaydet</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- KİŞİ KARTI OVERLAY -->
+        <div id="contactCardOverlay" onclick="closeContactCard(event)">
+            <div class="contact-card" id="contactCard" onclick="event.stopPropagation()">
+                <div class="cc-avatar" id="ccAvatar">?</div>
+                <div class="cc-name" id="ccName">—</div>
+                <div class="cc-phone" id="ccPhone">—</div>
+                <div class="cc-actions">
+                    <button class="cc-action" onclick="ccCall()"><i class="fa-solid fa-phone"></i><span>Sesli</span></button>
+                    <button class="cc-action" onclick="ccVideo()"><i class="fa-solid fa-video"></i><span>Görüntülü</span></button>
+                    <button class="cc-action" onclick="ccInfo()"><i class="fa-solid fa-circle-info"></i><span>Bilgi</span></button>
+                </div>
+                <button class="cc-msg-btn" onclick="ccOpenChat()"><i class="fa-regular fa-comment" style="margin-right:6px"></i>Mesaj Gönder</button>
+            </div>
+        </div>
+
+        <!-- ARAMA EKRANI (Adım 4) -->
+        <div id="screen-ooCall" class="screen hidden-screen">
+            <div class="ooc-video-stage">
+                <div class="ooc-remote" id="oocVideoRemote"></div>
+                <div class="ooc-local"  id="oocVideoLocal"></div>
+            </div>
+            <div class="ooc-top">
+                <div class="ooc-mode" id="oocMode">Sesli Arama</div>
+                <div class="ooc-status" id="oocStatus">Çalıyor…</div>
+            </div>
+            <div class="ooc-mid">
+                <div class="ooc-avatar" id="oocAvatar">?</div>
+                <div class="ooc-name" id="oocName">—</div>
+                <div class="ooc-duration" id="oocDuration">00:00</div>
+            </div>
+            <div class="ooc-actions">
+                <button class="ooc-btn" id="oocMute" onclick="oocToggleMute()" aria-label="Sessize al">
+                    <div class="ooc-ico"><i class="fa-solid fa-microphone-slash"></i></div>
+                    <span>Sessiz</span>
+                </button>
+                <button class="ooc-btn" id="oocSpeaker" onclick="oocToggleSpeaker()" aria-label="Hoparlör">
+                    <div class="ooc-ico"><i class="fa-solid fa-volume-high"></i></div>
+                    <span>Hoparlör</span>
+                </button>
+                <button class="ooc-btn" id="oocVideo" onclick="oocToggleVideo()" aria-label="Görüntülü">
+                    <div class="ooc-ico"><i class="fa-solid fa-video"></i></div>
+                    <span>Video</span>
+                </button>
+                <button class="ooc-btn danger" onclick="oocHangup()" aria-label="Kapat">
+                    <div class="ooc-ico"><i class="fa-solid fa-phone-slash"></i></div>
+                    <span>Kapat</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- GELEN ARAMA EKRANI (Adım 4 — callee tarafı) -->
+        <div id="screen-ooIncoming" class="screen hidden-screen">
+            <div class="ooc-top">
+                <div class="ooc-mode" id="ooiMode">Gelen Sesli Arama</div>
+                <div class="ooc-status" id="ooiStatus">Seni arıyor…</div>
+            </div>
+            <div class="ooc-mid">
+                <div class="ooc-avatar" id="ooiAvatar">?</div>
+                <div class="ooc-name" id="ooiName">—</div>
+                <div class="ooc-duration" id="ooiDuration">00:00</div>
+            </div>
+            <div class="ooc-actions" style="grid-template-columns:repeat(2,1fr);gap:24px;padding:18px 18px 4px">
+                <button class="ooc-btn danger" onclick="ooiReject()" aria-label="Reddet">
+                    <div class="ooc-ico"><i class="fa-solid fa-phone-slash"></i></div>
+                    <span>Reddet</span>
+                </button>
+                <button class="ooc-btn" onclick="ooiAccept()" aria-label="Kabul et" style="--accept-bg:#22c55e">
+                    <div class="ooc-ico" style="background:#22c55e"><i class="fa-solid fa-phone"></i></div>
+                    <span>Kabul</span>
+                </button>
+            </div>
+        </div>
+
+
+        <div id="screen-chat" class="screen hidden-screen" style="z-index:18;">
+            <div class="chat-header">
+                <button class="chat-hbtn" onclick="closeChat()" title="Geri" aria-label="Geri"><i class="fa-solid fa-arrow-left"></i></button>
+                <div class="chat-h-avatar" id="chatHAvatar">?</div>
+                <div class="chat-h-info">
+                    <div class="chat-h-name" id="chatHName">—</div>
+                    <div class="chat-h-status">çevrimiçi</div>
+                </div>
+                <button class="chat-hbtn" onclick="chatVideo()" title="Görüntülü arama" aria-label="Görüntülü arama"><i class="fa-solid fa-video"></i></button>
+                <button class="chat-hbtn" onclick="chatCall()" title="Sesli arama" aria-label="Sesli arama"><i class="fa-solid fa-phone"></i></button>
+                <button class="chat-hbtn" onclick="chatMore()" title="Daha fazla" aria-label="Daha fazla"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                <button class="chat-hbtn" onclick="chatNext()" title="Sonraki kişi" aria-label="Sonraki kişi"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input-bar">
+                <button class="ci-plus" onclick="chatAttach()" aria-label="Ekle"><i class="fa-solid fa-plus"></i></button>
+                <div class="ci-field">
+                    <input id="chatInput" type="text" placeholder="Bir mesaj yaz..." oninput="updateSendIcon()" onkeydown="if(event.key==='Enter')sendChatMsg()">
+                    <button class="ci-cam" onclick="chatCamera()" aria-label="Kamera"><i class="fa-regular fa-camera"></i></button>
+                </div>
+                <button class="ci-send is-mic" id="chatSendBtn" onclick="onSendBtn()" aria-label="Gönder">
+                    <i class="fa-solid fa-microphone send-mic"></i>
+                    <i class="fa-solid fa-paper-plane send-arrow"></i>
+                </button>
+            </div>
+        </div>
+        <div id="screen-gruplar" class="screen hidden-screen">
+            <div class="main-header">
+                <div class="main-title">Gruplar</div>
+                <div class="header-icon"><i class="fa-solid fa-plus" style="font-weight: 300;"></i></div>
+            </div>
+            <div class="content-area">
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary-green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-[1.1rem] font-semibold mb-2">Henüz grup yok</h3>
+                    <p class="text-[0.9rem] text-[var(--text-secondary)] mb-8">Yeni bir grup oluşturun veya<br>sizinle paylaşılan bir gruba katılın.</p>
+                    
+                    <button class="btn-solid mb-4" style="padding: 14px; border-radius: 8px;">Yeni Grup Oluştur</button>
+                    <button class="font-semibold text-[0.9rem]" style="color: var(--primary-green);">Gruba Katıl</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. AYARLAR -->
+        <div id="screen-ayarlar" class="screen hidden-screen">
+            <div class="main-header">
+                <div class="main-title">Ayarlar</div>
+            </div>
+
+            <div class="content-area">
+
+                <!-- ===== Profil Bloğu (yeni eklenen) ===== -->
+                <div class="profile-block">
+                    <div class="profile-pic-select" onclick="document.getElementById('profilePicInput').click()">
+                        <div class="pic-circle" id="profilePicCircle">
+                            <i class="fa-regular fa-user"></i>
+                        </div>
+                        <div class="pic-badge"><i class="fa-solid fa-camera"></i></div>
+                    </div>
+                    <div class="profile-hint">Değiştirmek için tıklayın</div>
+                    <input type="file" id="profilePicInput" accept="image/*" style="display:none" onchange="handleProfilePic(event)">
+                </div>
+
+                <div class="profile-fields">
+                    <div class="profile-field">
+                        <label><span class="lbl-emoji">📌</span> Ad</label>
+                        <input type="text" id="profileName" placeholder="Adınız" maxlength="30" autocomplete="off" value="Kullanıcı">
+                    </div>
+                    <div class="profile-field">
+                        <label><span class="lbl-emoji">📝</span> Biyografi</label>
+                        <textarea id="profileBio" placeholder="Kendinizi tanıtın..." maxlength="200"></textarea>
+                    </div>
+                </div>
+
+                <div class="profile-divider"></div>
+
+                <div class="settings-list">
+                    
+                    <div class="settings-item">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-user"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Hesap</span>
+                            <span class="settings-item-subtitle">Profil, telefon, gizlilik</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
+                    </div>
+
+                    <div class="settings-item" onclick="app.openThemeSettings()">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-sun"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Tema</span>
+                            <span class="settings-item-subtitle" id="current-theme-name">Orman · Açık</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
+                    </div>
+
+                    <div class="settings-item">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-bell"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Bildirimler</span>
+                            <span class="settings-item-subtitle">Sessiz saatler · 22:00–07:00</span>
+                        </div>
+                        <div class="settings-action">
+                            <label class="toggle-switch">
+                                <input type="checkbox" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-item">
+                        <div class="settings-icon-wrapper icon-warning"><i class="fa-regular fa-star"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Çevrimdışı Mod</span>
+                            <span class="settings-item-subtitle">Patikada veri yok mu?<br>Sorun değil.</span>
+                        </div>
+                        <div class="settings-action">
+                            <label class="toggle-switch">
+                                <input type="checkbox">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-item">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-lock" style="font-size: 1rem; font-weight:300;"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Gizlilik & Güvenlik</span>
+                            <span class="settings-item-subtitle">Uçtan uca şifreleme · Aktif</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
+                    </div>
+
+                    <div class="settings-item">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-circle-question"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Yardım & Topluluk</span>
+                            <span class="settings-item-subtitle">SSS, geri bildirim</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
+                    </div>
+
+                    <div class="settings-item mt-2">
+                        <div class="settings-icon-wrapper icon-danger"><i class="fa-solid fa-arrow-right-from-bracket"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title" style="color: #c4624b;">Çıkış Yap</span>
+                            <span class="settings-item-subtitle">Oturumu sonlandır</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. TEMA AYARLARI -->
+        <div id="screen-tema" class="screen hidden-screen" style="z-index: 15;">
+            <div class="theme-header">
+                <i class="fa-solid fa-arrow-left" onclick="app.closeThemeSettings()"></i>
+                <div class="main-title" style="font-size: 1.2rem;">Tema Ayarları</div>
+            </div>
+
+            <div class="content-area flex flex-col items-center pt-6 pb-20">
+                <div class="circle-icon-bg"> 
+                    <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--primary-green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Vurgu Rengi</h3>
+                    <div class="palette-grid" id="primary-colors"></div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Arka Plan Rengi</h3>
+                    <div class="palette-grid" id="bg-colors"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="bottom-nav" class="bottom-nav" style="display: none;">
+            <div class="nav-item active" id="nav-sohbetler" onclick="app.navigate('sohbetler')">
+                <i class="fa-solid fa-comment"></i>
+                <span>Sohbetler</span>
+            </div>
+            <div class="nav-item" id="nav-kisiler" onclick="app.navigate('kisiler')">
+                <i class="fa-solid fa-user" style="opacity: 0.5;"></i> 
+                <span>Kişiler</span>
+            </div>
+            <div class="nav-item" id="nav-gruplar" onclick="app.navigate('gruplar')">
+                <i class="fa-solid fa-user-group" style="opacity: 0.5;"></i>
+                <span>Gruplar</span>
+            </div>
+            <div class="nav-item" id="nav-ayarlar" onclick="app.navigate('ayarlar')">
+                <i class="fa-solid fa-gear" style="opacity: 0.5;"></i>
+                <span>Ayarlar</span>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="./sohbeto-adapter.js"></script>
+    <script src="./sohbeto-engine.js"></script>
+</body>
+</html>

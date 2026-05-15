@@ -2,7 +2,7 @@ import React from "react";
 
 const Sohbeto: React.FC = () => {
   // BASE_URL takes care of "/gunesos/" prefix on GitHub Pages and "/" in dev.
-  const src = `${import.meta.env.BASE_URL}apps/sohbeto.html`;
+  const src = `${import.meta.env.BASE_URL}apps/sohbetoOO.html`;
   return (
     <iframe
       title="Sohbeto"

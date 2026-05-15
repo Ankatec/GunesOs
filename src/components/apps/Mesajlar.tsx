@@ -113,23 +113,32 @@ const Mesajlar: React.FC = () => {
               </div>
             )}
             {threads.map((t) => (
-              <div key={t.id} className="relative group">
+              <div
+                key={t.id}
+                className="relative group px-3 py-1.5 after:absolute after:left-6 after:right-6 after:bottom-0 after:h-px after:bg-white/55"
+              >
                 <button
                   onClick={() => openThread(t.id)}
-                  className="w-full flex items-center gap-3 px-3 py-3 border-b border-black/5 hover:bg-emerald-50 active:bg-emerald-100 transition text-left"
+                  className="w-full flex items-center gap-3 rounded-[22px] border border-white/75 bg-white/85 px-3 py-3 text-left shadow-[0_10px_24px_rgba(15,23,42,0.07)] transition hover:bg-white active:scale-[0.99]"
                 >
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-2xl shadow-md">
+                  <div className="w-12 h-12 rounded-[17px] bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-2xl shadow-md ring-1 ring-black/5 overflow-hidden">
                     {t.avatar}
                   </div>
-                  <div className="flex-1 min-w-0 pr-8">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-[14px] truncate">{t.name}</span>
-                      <span className="text-[10px] text-slate-400 shrink-0">{t.time}</span>
+                      <span className="font-semibold text-[14px] text-slate-900 truncate">
+                        {t.name}
+                      </span>
+                      <span className="shrink-0 text-[10px] font-medium text-slate-400">
+                        {t.time}
+                      </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2 mt-0.5">
-                      <span className="text-[12px] text-slate-500 truncate">{t.preview}</span>
+                    <div className="mt-1 flex items-end justify-between gap-2">
+                      <span className="min-w-0 text-[12px] leading-snug text-slate-500 line-clamp-2">
+                        {t.preview}
+                      </span>
                       {t.unread > 0 && (
-                        <span className="shrink-0 bg-emerald-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1.5 flex items-center justify-center">
+                        <span className="shrink-0 bg-emerald-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow-sm">
                           {t.unread}
                         </span>
                       )}
@@ -160,7 +169,7 @@ const Mesajlar: React.FC = () => {
             >
               ← Geri
             </button>
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-lg shadow">
+            <div className="w-9 h-9 rounded-[14px] bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-lg shadow ring-1 ring-black/5 overflow-hidden">
               {active.avatar}
             </div>
             <div className="flex-1 min-w-0">
