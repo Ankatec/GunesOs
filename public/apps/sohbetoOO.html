@@ -63,6 +63,10 @@
             transition: background-color 0.3s ease;
         }
 
+        .app-container.instant-open .screen {
+            transition: opacity .12s ease, background-color .3s ease;
+        }
+
         @media (max-width: 600px) {
             .app-container {
                 max-width: 100%;
@@ -114,7 +118,7 @@
         .hidden-screen {
             opacity: 0;
             pointer-events: none;
-            transform: translateX(20px);
+            transform: translateX(0);
             z-index: 5;
         }
 
@@ -440,25 +444,83 @@
             backdrop-filter:blur(4px);
             -webkit-backdrop-filter:blur(4px);
         }
+        /* === Kişi Kartı: boyut + animasyon varyasyonları (Adım 14) ===
+           Overlay'e size-lg / size-md / size-sm  ve  anim-default / anim-spin / anim-flip
+           sınıfları sohbeto-card-anim.js tarafından eklenir. */
         .contact-card {
-            width:86%; max-width:340px;
             background:var(--bg-white); border-radius:24px;
             padding:24px 22px 20px;
             box-shadow:0 24px 60px -10px rgba(0,0,0,.35);
             transform-origin: var(--tx, 50%) var(--ty, 50%);
-            transform: scale(.05) translate(var(--dx,0), var(--dy,0));
             opacity:0;
             transition: transform .42s cubic-bezier(.2,.9,.25,1.15), opacity .28s ease;
         }
-        #contactCardOverlay.open .contact-card {
-            transform: scale(1) translate(0,0);
-            opacity:1;
+        /* Varsayılan boyut (geri uyum için) */
+        .contact-card { width:86%; max-width:340px; }
+
+        /* Boyutlar */
+        #contactCardOverlay.size-lg .contact-card { width:86%; max-width:340px; padding:24px 22px 20px; border-radius:24px; }
+        #contactCardOverlay.size-md .contact-card { width:74%; max-width:280px; padding:18px 18px 16px; border-radius:20px; }
+        #contactCardOverlay.size-sm .contact-card { width:64%; max-width:230px; padding:14px 14px 12px; border-radius:18px; }
+        #contactCardOverlay.size-md .cc-avatar { width:78px; height:78px; font-size:30px; margin-bottom:10px; }
+        #contactCardOverlay.size-sm .cc-avatar { width:60px; height:60px; font-size:22px; margin-bottom:8px; }
+        #contactCardOverlay.size-md .cc-name  { font-size:1.05rem; }
+        #contactCardOverlay.size-sm .cc-name  { font-size:.95rem; }
+        #contactCardOverlay.size-sm .cc-phone { font-size:.74rem; }
+        #contactCardOverlay.size-sm .cc-actions { margin-top:14px; gap:6px; }
+        #contactCardOverlay.size-sm .cc-action { padding:8px 4px; border-radius:12px; }
+        #contactCardOverlay.size-sm .cc-action span { font-size:.66rem; }
+        #contactCardOverlay.size-sm .cc-msg-btn { padding:10px; font-size:.85rem; margin-top:10px; }
+
+        /* Anim 1 — Varsayılan: tıklanan noktadan büyüyerek aç, geri kapanırken aynı noktaya küçül */
+        #contactCardOverlay.anim-default .contact-card { transform: scale(.05) translate(var(--dx,0), var(--dy,0)); }
+        #contactCardOverlay.anim-default.open .contact-card { transform: scale(1) translate(0,0); opacity:1; }
+        #contactCardOverlay.anim-default.closing .contact-card { transform: scale(.05) translate(var(--dx,0), var(--dy,0)); opacity:0; }
+
+        /* Anim 2 — Dönerek gel: kart 540° dönerek büyür, kapanırken ters yöne dönüp küçülür */
+        #contactCardOverlay.anim-spin { perspective: 1200px; }
+        #contactCardOverlay.anim-spin .contact-card {
+            transform: scale(.05) rotate(-540deg);
+            transition: transform .58s cubic-bezier(.18,.85,.25,1.08), opacity .35s ease;
         }
-        #contactCardOverlay.closing .contact-card {
-            transform: scale(.05) translate(var(--dx,0), var(--dy,0));
-            opacity:0;
+        #contactCardOverlay.anim-spin.open    .contact-card { transform: scale(1)   rotate(0deg);    opacity:1; }
+        #contactCardOverlay.anim-spin.closing .contact-card { transform: scale(.05) rotate(540deg);  opacity:0; }
+
+        /* Anim 3 — Sürpriz: 3B kart çevirme (flip) + hafif yukarı yay; kapanırken ters çevrilir */
+        #contactCardOverlay.anim-flip { perspective: 1500px; }
+        #contactCardOverlay.anim-flip .contact-card {
+            transform-style: preserve-3d;
+            transform: rotateY(115deg) rotateX(-14deg) translateY(-36px) scale(.82);
+            transition: transform .6s cubic-bezier(.2,.85,.25,1.05), opacity .35s ease;
+            box-shadow: 0 30px 80px -10px rgba(0,0,0,.5);
         }
+        #contactCardOverlay.anim-flip.open    .contact-card { transform: rotateY(0deg)    rotateX(0deg)  translateY(0)    scale(1);   opacity:1; }
+        #contactCardOverlay.anim-flip.closing .contact-card { transform: rotateY(-115deg) rotateX(14deg) translateY(-36px) scale(.82); opacity:0; }
+
         #contactCardOverlay.closing { background:rgba(0,0,0,0); backdrop-filter:none; -webkit-backdrop-filter:none; }
+
+        /* Tema ayarlarındaki seçim ızgaraları (kart boyutu + animasyonu) */
+        .pick-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:6px; }
+        .pick-tile {
+            border:2px solid transparent; border-radius:14px;
+            background:var(--light-green-bg, #eafaf2);
+            padding:12px 8px; text-align:center; cursor:pointer;
+            transition: transform .15s, border-color .15s, background .15s;
+            font-family:inherit;
+        }
+        .pick-tile:hover { transform: translateY(-2px); }
+        .pick-tile.active { border-color: var(--primary-green, #0a7c4a); background:#fff; box-shadow:0 6px 14px rgba(10,124,74,.18); }
+        .pick-tile .pt-demo {
+            width:100%; aspect-ratio:1/1; max-width:64px; margin:0 auto 6px;
+            border-radius:12px; background:linear-gradient(135deg,#0a7c4a,#16a34a);
+            display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800;
+            box-shadow:0 4px 10px rgba(10,124,74,.25);
+        }
+        .pick-tile .pt-demo.lg { width:64px; height:64px; font-size:22px; }
+        .pick-tile .pt-demo.md { width:48px; height:48px; font-size:18px; }
+        .pick-tile .pt-demo.sm { width:34px; height:34px; font-size:14px; }
+        .pick-tile .pt-label { font-size:.74rem; font-weight:700; color:var(--text-main,#111); }
+        .pick-tile .pt-sub   { font-size:.65rem; color:var(--text-secondary,#6b7280); margin-top:2px; }
         .cc-avatar {
             width:96px; height:96px; border-radius:50%;
             margin:0 auto 14px;
@@ -857,7 +919,10 @@
     <div class="app-container">
 
         <!-- 0. NUMARA EKRANI (Mesajlara kod gönder) -->
-        <div id="screen-phone" class="screen">
+        <!-- Splash (screenSplash) en üstte iken bu ekran zaten görünmez; adapter
+             ilk açılışta hangi ekrana gideceğine karar verene kadar gizli kalsın
+             ki "screen-phone" bir frame parlayıp arkasından themepicker'a sıçramasın. -->
+        <div id="screen-phone" class="screen hidden-screen">
             <div class="auth-header">
                 <div>
                     <i class="fa-solid fa-arrow-left back-btn"></i>
@@ -1103,10 +1168,10 @@
         <div id="screen-gruplar" class="screen hidden-screen">
             <div class="main-header">
                 <div class="main-title">Gruplar</div>
-                <div class="header-icon"><i class="fa-solid fa-plus" style="font-weight: 300;"></i></div>
+                <div class="header-icon" id="hdr-create-group" role="button" tabindex="0" title="Yeni grup" aria-label="Yeni grup"><i class="fa-solid fa-plus" style="font-weight: 300;"></i></div>
             </div>
-            <div class="content-area">
-                <div class="empty-state">
+            <div class="content-area" id="groups-content">
+                <div class="empty-state" id="groups-empty">
                     <div class="empty-icon">
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary-green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -1115,8 +1180,9 @@
                             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                         </svg>
                     </div>
-                    <button class="btn-solid" style="max-width:240px;padding:14px;border-radius:10px">Grup Oluştur</button>
+                    <button class="btn-solid" id="btn-create-group" style="max-width:240px;padding:14px;border-radius:10px">Grup Oluştur</button>
                 </div>
+                <div id="groups-list"></div>
             </div>
         </div>
 
@@ -1160,7 +1226,7 @@
                         <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-sun"></i></div>
                         <div class="settings-text">
                             <span class="settings-item-title">Tema</span>
-                            <span class="settings-item-subtitle" id="current-theme-name">Orman · Açık</span>
+                            <span class="settings-item-subtitle" id="current-theme-name">Okyanus · Açık</span>
                         </div>
                         <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
                     </div>
@@ -1247,6 +1313,49 @@
                 <div class="settings-section">
                     <h3>Arka Plan Rengi</h3>
                     <div class="palette-grid" id="bg-colors"></div>
+                </div>
+
+                <!-- Adım 14: Profil fotoğrafı kartı — boyut + animasyon -->
+                <div class="settings-section">
+                    <h3>Profil Fotoğrafı Kartı — Boyut</h3>
+                    <div class="pick-grid" id="cardSizePicker">
+                        <button type="button" class="pick-tile" data-size="lg">
+                            <div class="pt-demo lg">A</div>
+                            <div class="pt-label">Büyük</div>
+                            <div class="pt-sub">Varsayılan</div>
+                        </button>
+                        <button type="button" class="pick-tile" data-size="md">
+                            <div class="pt-demo md">A</div>
+                            <div class="pt-label">Orta</div>
+                            <div class="pt-sub">Dengeli</div>
+                        </button>
+                        <button type="button" class="pick-tile" data-size="sm">
+                            <div class="pt-demo sm">A</div>
+                            <div class="pt-label">Küçük</div>
+                            <div class="pt-sub">Minimal</div>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Profil Fotoğrafı Kartı — Animasyon</h3>
+                    <div class="pick-grid" id="cardAnimPicker">
+                        <button type="button" class="pick-tile" data-anim="default">
+                            <div class="pt-demo lg"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></div>
+                            <div class="pt-label">Klasik</div>
+                            <div class="pt-sub">Tıklanan noktadan</div>
+                        </button>
+                        <button type="button" class="pick-tile" data-anim="spin">
+                            <div class="pt-demo lg"><i class="fa-solid fa-rotate"></i></div>
+                            <div class="pt-label">Dönerek</div>
+                            <div class="pt-sub">Aç/Kapat dönüşü</div>
+                        </button>
+                        <button type="button" class="pick-tile" data-anim="flip">
+                            <div class="pt-demo lg"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                            <div class="pt-label">Sürpriz</div>
+                            <div class="pt-sub">3B kart çevirme</div>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1402,5 +1511,9 @@
     <script src="./sohbeto-engine.js"></script>
     <!-- Adım 5: Telegram benzeri akışkan tab geçişleri + parmak swipe (motora dokunmaz) -->
     <script src="./sohbeto-fluid-tabs.js"></script>
+    <!-- Adım 13: Sohbetler başlığı 3 ikon + Notlar/Aramalar/Gelen Kutusu tam-ekran -->
+    <script src="./sohbeto-extras.js"></script>
+    <!-- Adım 14: Kişi kartı boyut + animasyon tercihleri -->
+    <script src="./sohbeto-card-anim.js"></script>
 </body>
 </html>

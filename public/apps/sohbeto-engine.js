@@ -1551,7 +1551,8 @@ function updateContactList(filter) {
 // Numara üzerinden kişiyi aç: connId bilinmiyorsa LOOKUP gönder, P2P kur, sohbeti aç
 async function openContactByNumber(number) {
     const c = getContactByNumber(number); if (!c) return;
-    if (c.connId && state.users.has(c.connId)) {
+    if (c.connId) {
+        if (!state.users.has(c.connId)) state.users.set(c.connId, `${c.name || c.number} [${c.number}]`);
         switchView('sohbetler'); openChat(c.connId); return;
     }
     // Henüz connId yok ya da peer offline → LOOKUP yayımla

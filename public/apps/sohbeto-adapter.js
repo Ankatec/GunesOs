@@ -282,7 +282,21 @@
 
       var avEl = document.getElementById('ccAvatar');
       if (avEl) {
-        var sourceAvatar = anchorEl && anchorEl.querySelector ? anchorEl.querySelector('img') : null;
+        // BUG FIX (Adım 12): Eski kod anchorEl içindeki herhangi bir <img>'i
+        // profil fotoğrafı sanıyordu. Twemoji, mesajlardaki/önizlemedeki emojileri
+        // <img class="emoji"> haline getirdiği için kişi kartını mesaj balonundan
+        // açtığında son gönderilen emoji avatar olarak gözüküyordu. Sadece gerçek
+        // profil fotoğrafı kapsayıcılarındaki img'leri kabul et ve twemoji'yi ele.
+        var sourceAvatar = null;
+        if (anchorEl && anchorEl.querySelector) {
+          sourceAvatar = anchorEl.querySelector(
+            '.conv-avatar img, .contact-avatar img, .chat-h-avatar img, .cc-avatar img, .profile-pic img'
+          );
+          if (sourceAvatar && (sourceAvatar.classList.contains('emoji') ||
+              /twemoji|emoji/i.test(sourceAvatar.src || ''))) {
+            sourceAvatar = null;
+          }
+        }
         if (sourceAvatar && sourceAvatar.src) avEl.innerHTML = '<img src="' + sourceAvatar.src + '" alt="Profil">';
         else avEl.innerHTML = escapeHtml(getInitials(name || displayName, number));
       }
@@ -337,40 +351,72 @@
         var prev = clone.querySelector('.conv-preview');
         if (prev) prev.textContent = (prev.textContent || '').replace(/\[.*?\]/g, '').trim();
         if (connId) clone.dataset.connId = connId;
+        // Dedup sonrası src ↔ clone eşlemesini bozmamak için doğrudan kaynak öğeyi tutuyoruz.
+        clone.__srcChild = child;
+        // Sohbet kutusuna tıklayınca DOĞRUDAN sohbet penceresini aç (capture phase, garantili).
+        clone.addEventListener('click', function (ev) {
+          // Avatara tıklama kendi handler'ı ile kişi kartını açıyor; burada karışmıyoruz.
+          if (ev.target.closest && ev.target.closest('.conv-avatar')) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+          if (connId && typeof window.openChat === 'function') {
+            try { window.openChat(connId); return; } catch (e) { console.error('[adapter] openChat hata:', e); }
+          }
+          // Son çare: kaynak motor öğesinin onclick'ini çağır (openChat closure'u onda)
+          try { child.click(); } catch (e) { console.error('[adapter] src.click hata:', e); }
+        }, true);
         // Avatara tıklayınca: kişi kartı (motorun showContactCard'ı). Sohbet kutusuna tıklayınca: openChat.
         var avEl = clone.querySelector('.conv-avatar');
-        if (avEl && connId) {
-          paintAvatarPresence(avEl, isConnOnline(connId));
+        if (avEl) {
+          if (connId) paintAvatarPresence(avEl, isConnOnline(connId));
           avEl.style.cursor = 'pointer';
           avEl.addEventListener('click', function (ev) {
             ev.stopPropagation();
             ev.preventDefault();
-            try { openPeerCardByConnId(connId, clone, ev); } catch (e) { console.error('[adapter] peer card hata:', e); }
-          });
+            if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+            if (connId) {
+              try { openPeerCardByConnId(connId, clone, ev); } catch (e) { console.error('[adapter] peer card hata:', e); }
+            } else {
+              // connId yoksa kişi kartı yerine direkt sohbeti aç
+              try { child.click(); } catch (e) {}
+            }
+          }, true);
         }
         oo.appendChild(clone);
       });
       enterMain();
     };
 
-    // OO listesine click delegasyonu — connId varsa direkt openChat, yoksa stub'a forward
+    // OO listesine click delegasyonu — yukarıdaki per-clone handler çalışmazsa son güvenlik ağı.
     document.addEventListener('click', function (ev) {
-      // Avatar tıklamasını yukarıdaki listener yutar (stopPropagation); buraya yalnızca gövde gelir.
-      var item = ev.target.closest('#screen-sohbetler .content-area .conv-item');
+      var item = ev.target.closest && ev.target.closest('#screen-sohbetler .content-area .conv-item');
       if (!item) return;
+      // Avatar üzerinde kendi handler'ı çalışıyor.
+      if (ev.target.closest && ev.target.closest('.conv-avatar')) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
       var cid = item.dataset.connId;
-      if (cid && typeof window.openChat === 'function') { window.openChat(cid); return; }
+      if (cid && typeof window.openChat === 'function') {
+        try { window.openChat(cid); return; } catch (e) { console.error('[adapter] openChat hata:', e); }
+      }
+      // Doğrudan kaynak öğeye delege
+      if (item.__srcChild && typeof item.__srcChild.click === 'function') {
+        try { item.__srcChild.click(); return; } catch (e) {}
+      }
       var oo = document.querySelector('#screen-sohbetler .content-area');
       var idx = Array.prototype.indexOf.call(oo.children, item);
       var src = document.getElementById('convListOzel');
       if (src && src.children[idx]) src.children[idx].click();
-    });
+    }, true);
 
     // ---------- 2E) openChat monkey-patch → OO chat ekranını göster + başlık/avatar ----------
     var origOpenChat = window.openChat;
     window.openChat = async function (id) {
+      // OO chat ekranını hemen aç; motor mesajları yüklerken kullanıcı boş/kapalı ekran görmesin.
+      showScreen('screen-chat');
       try { if (typeof origOpenChat === 'function') await origOpenChat.apply(this, arguments); } catch (e) { console.error(e); }
-      // OO chat ekranını aç
       showScreen('screen-chat');
       // OO başlık/avatar
       var nameEl = document.getElementById('chatHName');
@@ -918,12 +964,21 @@
         }
       } catch (e) { stateValues = []; }
 
+      var searchVal = ((document.getElementById('contactSearch') || {}).value || '').toLocaleLowerCase('tr').trim();
+      var visibleContacts = stateValues.slice().sort(function (a, b) {
+        return String(a.name || a.number || '').localeCompare(String(b.name || b.number || ''), 'tr');
+      }).filter(function (c) {
+        var nm = String(c.name || c.number || '').toLocaleLowerCase('tr');
+        var no = String(c.number || '').toLocaleLowerCase('tr');
+        return !searchVal || nm.indexOf(searchVal) !== -1 || no.indexOf(searchVal) !== -1;
+      });
+
       listEl.innerHTML = engineItems.map(function (item, idx) {
         var name = (item.querySelector('.contact-name') || {}).textContent || '—';
         var avatarHtml = (item.querySelector('.contact-avatar') || {}).innerHTML || escapeHtml(getInitials(name, ''));
-        // Aynı isimle eşleşeni bulmaya çalış; bulunamazsa boş bırak (Adım 4'te
-        // ccOpenChat connId üzerinden de gidebilecek, şimdilik number yeterli).
-        var match = stateValues.find(function (c) { return (c.name || '') === name; });
+        // Motor listesi sıralı/filtreli geldiği için önce aynı sıradaki kaydı kullan;
+        // isim çakışırsa bile satırın numarası ve connId'si doğru kalır.
+        var match = visibleContacts[idx] || stateValues.find(function (c) { return (c.name || c.number || '') === name; });
         var number = match ? (match.number || '') : '';
         var connId = match && match.connId ? match.connId : '';
         var online = match ? isContactOnline(match) : isConnOnline(connId);
@@ -957,7 +1012,40 @@
 
     // Arama input'u zaten oninput="renderContacts()" çağırıyor — ek listener'a gerek yok.
 
-    // ---------- Kişi satırı tıklaması → OO Kişi Kartı (overlay) ----------
+    function openChatFromCardData(c) {
+      if (!c) return false;
+      if (c.connId && typeof window.openChat === 'function') {
+        try {
+          var st = getEngineState();
+          if (st && st.users && !st.users.has(c.connId)) st.users.set(c.connId, (c.name || c.number || 'Kişi') + (c.number ? ' [' + c.number + ']' : ''));
+        } catch (e) {}
+        try { window.openChat(c.connId); } catch (e) { console.error('[adapter] openChat hata:', e); }
+        return true;
+      }
+      if (c.number && typeof window.openContactByNumber === 'function') {
+        // Kişi henüz çevrimiçi olarak görülmemiş olabilir; yine de sohbet penceresini
+        // hemen aç. LOOKUP cevabı geldiğinde motor openChat'i tekrar çağıracak.
+        try {
+          showScreen('screen-chat');
+          var nameEl = document.getElementById('chatHName');
+          if (nameEl) nameEl.innerText = c.name || c.number || 'Sohbet';
+          var avEl = document.getElementById('chatHAvatar');
+          if (avEl) {
+            avEl.innerHTML = escapeHtml(getInitials(c.name || '', c.number || ''));
+            avEl.className = 'chat-h-avatar';
+            avEl.style.background = 'linear-gradient(135deg,#34b7f1,#128c7e)';
+            avEl.style.color = '#fff';
+          }
+          var ci = document.getElementById('chatInput');
+          if (ci) ci.value = '';
+        } catch (e) {}
+        try { window.openContactByNumber(c.number); } catch (e) { console.error('[adapter] openContactByNumber hata:', e); }
+        return true;
+      }
+      return false;
+    }
+
+    // ---------- Kişi satırı tıklaması → avatar kart, satır sohbet ----------
     // ÖNEMLİ: Artık motorun .contact-item click'ine forward etmiyoruz.
     // OO'nun #contactCardOverlay'ini açıp veriyi DOM'dan dolduruyoruz.
     // Sohbet başlatma (ccOpenChat) Adım 4'te bağlanacak.
@@ -1003,23 +1091,19 @@
       if (!row) return;
       ev.preventDefault();
       ev.stopPropagation();
-      var isAvatarTap = !!(ev.target.closest && ev.target.closest('[data-avatar="1"]'));
-      var connId = row.getAttribute('data-connid') || '';
-      var number = row.getAttribute('data-number') || '';
-      if (isAvatarTap) {
+      if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+      if (ev.target.closest && ev.target.closest('[data-avatar="1"], .contact-avatar')) {
         openContactCard(row, ev);
         return;
       }
-      if (connId && typeof window.openChat === 'function') {
-        window.openChat(connId);
-        return;
-      }
-      if (number && typeof window.openContactByNumber === 'function') {
-        window.openContactByNumber(number);
-        return;
-      }
-      openContactCard(row, ev);
-    });
+      var c = {
+        name: row.getAttribute('data-name') || '',
+        number: row.getAttribute('data-number') || '',
+        connId: row.getAttribute('data-connid') || '',
+        engineIndex: Number(row.getAttribute('data-engine-index'))
+      };
+      if (!openChatFromCardData(c)) openContactCard(row, ev);
+    }, true);
 
     // Motor saveNewContact sonrası updateContactList çağırıyor → OO listesini de aynı anda tazele
     if (typeof _origUpdateContactList === 'function') {
@@ -1064,12 +1148,7 @@
             // DB connId varsa al, ama canlı users haritasında yoksa görmezden gel
             var dbConn = rec.connId || '';
             var liveState = getEngineState();
-            if (dbConn && liveState && liveState.users && liveState.users.has(dbConn)) {
-              c.connId = dbConn;
-            } else if (dbConn && (!c.connId || c.connId === dbConn)) {
-              // canlı değilse temizle ki LOOKUP yoluna düşsün
-              c.connId = '';
-            }
+            if (dbConn) c.connId = dbConn;
           }
         }
       } catch (e) {}
@@ -1084,27 +1163,14 @@
       var c = refreshedCard();
       console.info('[adapter] ccOpenChat →', c);
       closeCardThen(function () {
-        // 1) Canlı connId varsa direkt openChat
-        var liveState = getEngineState();
-        if (c.connId && liveState && liveState.users && liveState.users.has(c.connId)
-            && typeof window.openChat === 'function') {
-          try { window.openChat(c.connId); } catch (e) { console.error('[adapter] openChat hata:', e); }
-          return;
-        }
-        // 2) Number varsa motorun openContactByNumber'ı (LOOKUP atar, online ise otomatik openChat)
-        if (c.number && typeof window.openContactByNumber === 'function') {
-          try { window.openContactByNumber(c.number); } catch (e) { console.error('[adapter] openContactByNumber hata:', e); }
-          return;
-        }
-        // 3) Numara da yok → kullanıcıya açıklayıcı uyarı
-        alert('Bu kişi için sohbet açılamadı. Lütfen kişiyi telefon numarasıyla yeniden ekleyin.');
+        if (!openChatFromCardData(c)) alert('Bu kişi için sohbet açılamadı. Lütfen kişiyi telefon numarasıyla yeniden ekleyin.');
       });
     };
 
     function closeCardThen(fn) {
       window.closeContactCard({ target: { id: 'contactCardOverlay' } });
-      // animasyonun bitmesini bekle (CSS .42s)
-      setTimeout(fn, 260);
+      // Kart kapanırken sohbet ekranını bekletme; WhatsApp/Telegram gibi direkt aç.
+      setTimeout(fn, 0);
     }
 
     // ---------- ARAMA — kart veya chat üst barından başlat ----------
@@ -1526,7 +1592,7 @@
           var hh = String(when.getHours()).padStart(2, '0');
           var mm = String(when.getMinutes()).padStart(2, '0');
           var label = item.kind === 'video' ? 'görüntülü arama' : 'sesli arama';
-          var text = '📞 Sizi ' + hh + ':' + mm + ' civarında bir ' + label + ' ile aramayı denedim (çevrimdışıydınız).';
+          var text = 'Saat ' + hh + ':' + mm + ' civarında seni ' + label + ' ile aradım ama çevrimdışıydın.';
           var msgId = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
           var sent = false;
           try {
@@ -1989,7 +2055,20 @@
     //  - Eğer KULLANICI ZATEN GİRİŞ YAPMIŞSA → doğrudan enterMain (sohbetler)
     //  - Aksi halde: TEMA henüz seçilmediyse → screen-themepicker
     //                                  seçildiyse → screen-phone
+    // DEV: ?fresh=1 ile ilk-açılış akışını test et (splash + arayüz seçici)
+    try {
+      if (/[?&]fresh=1\b/.test(location.search)) {
+        ['sohbeto.oo.theme','sohbet_my_number_v1','sohbeto.oo.profile.number'].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+      }
+    } catch(e){}
     setTimeout(function () {
+      // DEV: fresh=1 ise her ihtimale karşı boot anında tekrar temizle
+      try {
+        if (/[?&]fresh=1\b/.test(location.search)) {
+          ['sohbeto.oo.theme','sohbet_my_number_v1','sohbeto.oo.profile.number'].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+          try { if (window.GunesOSStore) window.GunesOSStore.set(window.GunesOSStore.path.globalTheme(), ''); } catch(e){}
+        }
+      } catch(e){}
       var splash = document.getElementById('screenSplash');
       if (splash) splash.classList.add('fade-out');
       if (enteredMain) return;
@@ -2009,14 +2088,18 @@
         }
       } catch (e) {}
 
-      if (loggedIn) { enterMain(); return; }
+      var isFreshDev = false;
+      try { isFreshDev = /[?&]fresh=1\b/.test(location.search); } catch(e){}
+      if (loggedIn && !isFreshDev) { enterMain(); return; }
 
       // Tema seçimi kontrolü (localStorage + IDB fallback)
       var themeChosenLS = false;
       try { themeChosenLS = !!localStorage.getItem('sohbeto.oo.theme'); } catch (e) {}
       if (themeChosenLS) { showScreen('screen-phone'); return; }
 
-      if (window.GunesOSStore) {
+      var isFresh = false;
+      try { isFresh = /[?&]fresh=1\b/.test(location.search); } catch(e){}
+      if (window.GunesOSStore && !isFresh) {
         window.GunesOSStore.get(window.GunesOSStore.path.globalTheme()).then(function (v) {
           if (v) {
             try { localStorage.setItem('sohbeto.oo.theme', v); } catch (e) {}
@@ -2026,6 +2109,9 @@
           }
         });
       } else {
+        if (isFresh && window.GunesOSStore) {
+          try { window.GunesOSStore.set(window.GunesOSStore.path.globalTheme(), ''); } catch(e){}
+        }
         showScreen('screen-themepicker');
       }
     }, 600);
@@ -2166,16 +2252,21 @@
     // ---------- 10) TEMA AYARLARI ----------
     (function bindThemeSettings() {
       var THEMES = {
-        forest: { label: 'Orman · Açık', primary: '#0a7c4a', hover: '#08633b', light: '#e6f3eb', bg: '#ffffff' },
         ocean: { label: 'Okyanus · Açık', primary: '#0f766e', hover: '#115e59', light: '#dff7f5', bg: '#f8fffe' },
-        sunset: { label: 'Günbatımı · Açık', primary: '#ea580c', hover: '#c2410c', light: '#ffedd5', bg: '#fffaf5' },
-        night: { label: 'Gece · Koyu', primary: '#6366f1', hover: '#4f46e5', light: '#232848', bg: '#0f172a' }
+        forest: { label: 'Orman · Açık', primary: '#0a7c4a', hover: '#08633b', light: '#e6f3eb', bg: '#ffffff' },
+        sunset: { label: 'Günbatımı · Açık', primary: '#ea580c', hover: '#c2410c', light: '#ffedd5', bg: '#fffaf5' }
       };
-      var PRIMARY_ORDER = ['forest', 'ocean', 'sunset', 'night'];
-      var BG_ORDER = ['forest', 'ocean', 'sunset', 'night'];
+      var PRIMARY_ORDER = ['ocean', 'forest', 'sunset'];
+      var BG_ORDER = ['ocean', 'forest', 'sunset'];
+
+      // Eski tercih "night" idi: okyanusa zorla yükselt
+      try {
+        var __old = localStorage.getItem('sohbeto.oo.theme');
+        if (__old === 'night') localStorage.setItem('sohbeto.oo.theme', 'ocean');
+      } catch (e) {}
 
       function applyTheme(name) {
-        var theme = THEMES[name] || THEMES.forest;
+        var theme = THEMES[name] || THEMES.ocean;
         var root = document.documentElement;
         root.style.setProperty('--primary-green', theme.primary);
         root.style.setProperty('--primary-green-hover', theme.hover);
@@ -2206,7 +2297,7 @@
         renderPalette('primary-colors', PRIMARY_ORDER, 'primary');
         renderPalette('bg-colors', BG_ORDER, 'bg');
         showScreen('screen-tema');
-        try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'forest'); } catch (e) { applyTheme('forest'); }
+        try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'ocean'); } catch (e) { applyTheme('ocean'); }
       };
       window.app.closeThemeSettings = function () { showScreen('screen-ayarlar'); };
 
@@ -2336,7 +2427,7 @@
 
       renderPalette('primary-colors', PRIMARY_ORDER, 'primary');
       renderPalette('bg-colors', BG_ORDER, 'bg');
-      try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'forest'); } catch (e) { applyTheme('forest'); }
+      try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'ocean'); } catch (e) { applyTheme('ocean'); }
     })();
 
     // ---------- 10) PROFİL FOTOĞRAFI + AD/BİYO PERSİSTANSI ----------

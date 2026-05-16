@@ -1640,3 +1640,233 @@ listesine bir buton koy ve `window.__chooseTheme('YENI_TEMA_ADI')` çağır.
 Adapter geri kalanını halleder.
 
 Şu anda tek seçenek **OO**; ilerleyen sürümlerde 5–6 farklı tema buraya eklenecek.
+
+---
+
+## Adım 11 — Ayarlar alt-sayfaları + açılış splash görünürlüğü
+
+Bu adımda iki UX sorunu giderildi.
+
+### 11A) Ayarlar > Tema/Hesap/Gizlilik içindeyken alt nav direkt çalışmıyordu
+
+**Sorun:** Kullanıcı `Ayarlar → Tema` (veya `Hesap` / `Gizlilik`) açıkken alttaki
+`Sohbetler / Kişiler / Gruplar / Ayarlar` butonlarına bastığında ana sekme
+arkada açılıyor ama alt-sayfa overlay'i (`screen-tema` vb. — `z-index:15`,
+`.active`) üstte kaldığı için kullanıcı hâlâ aynı ekranı görüyordu.
+
+**Çözüm:** `public/apps/sohbeto-fluid-tabs.js` içindeki `patchNavigate()`,
+bir TAB hedefine (sohbetler/kisiler/gruplar/ayarlar) geçilmeden ÖNCE şu
+overlay'leri kapatıyor:
+
+```js
+var SUBSCREEN_IDS = ['screen-tema', 'screen-hesap', 'screen-gizlilik'];
+```
+
+**Yeni tema sözleşmesi:** Ayarlar üstüne kendi alt-sayfanı (overlay) açan bir
+ekran eklersen ID'sini bu listeye eklemelisin, aksi halde alt nav tıklaması
+o overlay'i kapatmaz. Alternatif: overlay'i `.screen` sınıfı yerine ayrı bir
+modal/sheet katmanı olarak yap (örn. `#dataInfoModal` gibi `position:fixed`).
+
+### 11B) İlk açılışta "So" splash + tema seçici görünmüyordu
+
+**Sorun:** React tarafındaki `Sohbeto.tsx` iframe'i yüklenene kadar `opacity:0`
+ile gizleyip üstüne kendi splash overlay'ini koyuyordu. iframe görünür hale
+geldiğinde içerideki `#screenSplash` zaten yarısı geçmiş oluyordu ve kullanıcı
+"So" ikonunu doğru dürüst göremeden `screen-phone` ya da themepicker'a düşüyordu.
+
+Ayrıca `screen-phone` HTML'de varsayılan **görünür** durumdaydı; splash kapanır
+kapanmaz adapter karar verene kadar bir frame parlayabiliyordu.
+
+**Çözümler:**
+1. `src/components/apps/Sohbeto.tsx` — React-level splash overlay tamamen
+   kaldırıldı. Sadece iframe yüklenene kadar koyu radial bir arkaplan
+   gösteriliyor. Splash artık **tek kaynak**: iframe içindeki `#screenSplash`.
+2. `public/apps/sohbetoOO.html` — `#screen-phone` artık varsayılan olarak
+   `hidden-screen` sınıfıyla başlıyor. Adapter `setTimeout(600)` içinde hangi
+   ekrana gideceğine karar verene kadar sadece splash görünür.
+
+**Yeni tema sözleşmesi:**
+- Splash mantığına dokunma. iframe açılışında `#screenSplash` her zaman
+  görünür olmalı ve `.fade-out` sınıfı adapter tarafından eklenmeli
+  (`public/apps/sohbeto-adapter.js`, ~satır 1992 civarı).
+- Splash kapandığında gösterilecek ilk ekran karar matrisi:
+  ```
+  loggedIn?              → enterMain (screen-sohbetler)
+  tema seçili değil?     → screen-themepicker
+  aksi halde             → screen-phone
+  ```
+  Yeni tema eklerken bu üç çıktıdan birine düşmen gerekiyor.
+- Yeni bir "ana ekran" (örn. `screen-phone` muadili) eklersen HTML'de
+  `hidden-screen` ile başlat; görünürlüğünü adapter karar versin.
+
+### 11C) Notlar (henüz yapılmadı — yapılacaklar)
+
+Bildirim akışı (kullanıcı isteği) ileride şöyle olmalı:
+- Masaüstündeyken yeni mesaj gelirse → sadece OS-bildirimi (GunesOS taskbar
+  veya `Mesajlar` köprüsü) çıksın, ses iframe'den gelmesin.
+- Sohbeto açıkken yeni mesaj gelirse → ses üstten gelen `topNotif` üzerinden;
+  bildirime tıklayınca direkt ilgili `openChat(connId)` çağrısı.
+- Engine'e dokunmadan, adapter'ın engine event'lerini dinlediği yere
+  (`renderConvList` monkey-patch + yeni bir `MESSAGE_IN` köprüsü) bağlanacak.
+
+Bu adım sonraki turda işlenecek; bu README ileride güncellenecek.
+
+## Adım 12 — Kişi kartı avatarı: "son emoji" bug'ı + Splash/Themepicker doğrulaması
+
+### 12A) Bug: Profil fotoğrafı olmayan kişide son emoji avatar olarak görünüyor
+`sohbeto-adapter.js → openPeerCardByConnId()` içinde avatar şu mantıkla
+çekiliyordu:
+```js
+var sourceAvatar = anchorEl.querySelector('img');
+if (sourceAvatar && sourceAvatar.src) ...
+```
+Twemoji, mesaj balonlarındaki ve önizlemelerdeki emojileri
+`<img class="emoji" src=".../twemoji/...svg">` haline getiriyor. Kişi kartı
+mesaj balonundan ya da sohbet listesinden açıldığında bu **emoji img**'i
+"profil fotoğrafı" sanılıp `ccAvatar`'a yerleştiriliyor — sonuç: sohbetteki
+**son emoji** profil resmi gibi görünüyordu.
+
+**Düzeltme:** Selector daraltıldı + twemoji elendi:
+```js
+sourceAvatar = anchorEl.querySelector(
+  '.conv-avatar img, .contact-avatar img, .chat-h-avatar img, .cc-avatar img, .profile-pic img'
+);
+if (sourceAvatar && (sourceAvatar.classList.contains('emoji') ||
+    /twemoji|emoji/i.test(sourceAvatar.src || ''))) sourceAvatar = null;
+```
+Artık sadece **gerçek avatar kapsayıcılarındaki** img'ler kabul ediliyor;
+profil fotoğrafı yoksa `getInitials(name, number)` baş harfleri gösteriliyor.
+
+> **Tema yazarken kural:** Avatar img'lerini DAİMA `.conv-avatar`,
+> `.contact-avatar`, `.chat-h-avatar`, `.cc-avatar` ya da `.profile-pic`
+> sınıflı bir kapsayıcı içine koy. Aksi halde adapter onları "gerçek profil
+> fotoğrafı" sanmaz ve baş harfe düşer. Twemoji emojilerini özel olarak
+> ele almaya gerek yok — sınıf adı `emoji` veya src'de `twemoji` geçen
+> img'ler otomatik olarak avatar adayı sayılmıyor.
+
+### 12B) Dev kancası: `?fresh=1`
+İlk-açılış akışını (splash + arayüz seçici) hızlıca test etmek için adapter'a
+küçük bir dev kancası eklendi. `sohbetoOO.html?fresh=1` ile açıldığında:
+- `sohbeto.oo.theme`, `sohbet_my_number_v1`, `sohbeto.oo.profile.number`
+  localStorage anahtarları temizlenir,
+- `GunesOSStore` üzerindeki `globalTheme()` değeri sıfırlanır,
+- Engine "zaten giriş yapmış" derse bile loggedIn kısa-devresi atlanır,
+  doğrudan **screen-themepicker** gösterilir.
+Parametre verilmediğinde hiçbir etkisi yok; ürünleşmiş akışı bozmuyor.
+
+### 12C) Doğrulama (browser screenshot)
+`?fresh=1` ile yapılan testte sıra şöyle çalışıyor:
+1. `screenSplash` (So ikonlu) ~600ms görünür ve fade-out olur,
+2. `screen-themepicker` açılır: büyük "So" ikonu + "Sohbeto ile birçok
+   arayüz seni bekliyor" başlığı + **OO arayüzü** kartı + "Yakında daha
+   fazla arayüz" placeholder'ı.
+3. OO seçilince `sohbeto.oo.theme=OO` yazılır ve `screen-phone`'a düşer.
+
+Yeni kullanıcılar için akış doğru. (Mevcut kullanıcılar, daha önce kayıt
+oldukları için zaten doğrudan `screen-sohbetler`'e gidiyor.)
+
+---
+
+## Adım 13 — Sohbetler başlığı: Gelen Kutusu / Aramalar / Notlar
+
+Sohbetler ekranı başlığındaki tek "kalem" ikonu kaldırıldı; yerine 3 ikon geldi
+(soldan sağa):
+
+1. **Gelen Kutusu** (`fa-envelope`) — rehberde olmayanlardan gelen mesaj ve
+   arama istekleri. Tam ekran açılır.
+2. **Aramalar** (`fa-phone`) — çevrimdışıyken seni arayanların listesi (adapter
+   içindeki `oo_offline_call_queue_v1__*` kuyruğundan beslenir). Tam ekran.
+3. **Not Defteri** (`fa-pen-to-square`) — kişisel notlar, tarih/saat damgalı,
+   `GunesOSStore` ile **IndexedDB** içinde `.gunesos/sohbeto/<+90...>/notes/`
+   yolunda kalıcı. Tam ekran liste + tam ekran editör.
+
+İkonların üzerinde **kırmızı rozet** (1, 2, ... 9+) okunmamış sayısını gösterir.
+Rozet 5 saniyede bir tazelenir; ekran açıldığında ilgili sayaç sıfırlanır.
+
+### Tam-ekran overlay sözleşmesi
+
+Tüm 3 ekran `.fs-screen` sınıfını taşır ve `transform: translateX(100%)` ile
+sağdan kayarak girer. Geri tuşu (`[data-fs-close="screen-..."]`) overlay'i
+kapatır. Ayrıca **alt nav'a basılınca** `fluid-tabs.js` içindeki
+`closeSettingsSubscreens()` (SUBSCREEN_IDS dizisine 3 yeni id eklendi) bu
+ekranları otomatik kapatır — yani Sohbetler içindeyken Notlar'ı açıp alt nav'dan
+"Kişiler"e basınca direkt Kişiler'e gider.
+
+### Not defteri kalıcılığı
+
+- Index: `.gunesos/sohbeto/<num>/notes/__index__` → `{ ids:[], byId:{ id:{title,snip,createdAt,updatedAt} } }`
+- Her not: `.gunesos/sohbeto/<num>/notes/<id>` → `{ id, title, body, createdAt, updatedAt }`
+- Liste, **son güncellemeye göre** sıralanır; her kart başlık, snippet, tarih,
+  silme ikonu gösterir.
+- Editör'de "Kaydet" veya geri tuşu kaydı tetikler. Hem başlık hem gövde boşsa
+  kaydetmez (gereksiz kayıt oluşmaz).
+
+### Aramalar & Gelen Kutusu
+
+- **Aramalar** mevcut adapter'in `oo_offline_call_queue_v1__*` kuyruğunu okur;
+  gelecekte `.gunesos/sohbeto/<num>/calls` altına ek kayıtlar da düşülebilir
+  (zaten desteklidir). "Temizle" ikonu kuyruğu boşaltır.
+- **Gelen Kutusu** `.gunesos/sohbeto/<num>/inbox` yolundan okur. Rehberde
+  olmayan kişilerden gelen mesajlar/arama istekleri buraya
+  `SohbetoExtras.appendInbox({ name, number, kind:'msg'|'call', text })` ile
+  düşürülmek üzere hazır. (Engine entegrasyonu bir sonraki adımda.)
+
+### "Çevrimdışıydın" mesajının küçültülmesi
+
+`sohbeto-adapter.js` içinde çevrimdışı kullanıcı online olunca gönderilen
+otomatik bilgilendirme mesajı **başında 📞 emojisi olmadan**, sade ve normal
+boyutta yazılmış bir cümleye çevrildi:
+
+> _Saat HH:MM civarında seni sesli arama ile aradım ama çevrimdışıydın._
+
+Tek başına emoji, twemoji + balon font-size kombinasyonunda büyük görünebildiği
+için kaldırıldı. Yeni metin tek satır, kibar ve stabil.
+
+### Yeni kural — başlık (header) yapısı
+
+`#screen-sohbetler .main-header` artık tek bir `header-icon` kullanmaz.
+`extras` dosyası header'a `<div class="hdr-icons">` enjekte eder ve içine
+`hdr-inbox` / `hdr-calls` / `hdr-notes` koyar. **Header'a yeni ikon eklemek
+isteyenler `injectHeaderIcons` fonksiyonuna eklemeli**, doğrudan HTML'i
+düzenlememeli (aksi halde mutation observer yeniden enjekte edip tekrar yazar).
+
+---
+
+## Adım 14 — Kişi Kartı: 3 boyut + 3 animasyon (Ayarlar > Tema)
+
+### Yeni dosya: `sohbeto-card-anim.js`
+Çekirdek motor/adapter'a dokunmadan `#contactCardOverlay`'e iki sınıf
+ailesi ekleyen küçük bir modül:
+
+| Aile     | Değerler                              | Varsayılan   | localStorage anahtarı  |
+|----------|---------------------------------------|--------------|------------------------|
+| Boyut    | `size-lg`, `size-md`, `size-sm`       | `size-lg`    | `sohbeto.oo.cardSize` (`lg`/`md`/`sm`) |
+| Animasyon| `anim-default`, `anim-spin`, `anim-flip` | `anim-default` | `sohbeto.oo.cardAnim` (`default`/`spin`/`flip`) |
+
+- **size-lg** → mevcut büyük kart (340px) — varsayılan, geri uyum garanti.
+- **size-md** → 280px, küçük avatar (78px), kompakt aksiyonlar.
+- **size-sm** → 230px, minimal kart (60px avatar).
+- **anim-default** → mevcut "tıklanan noktadan büyüyerek aç, küçülerek geri dön" davranışı (`--tx/--ty` origin ile).
+- **anim-spin** → kart `-540deg → 0deg` ile dönerek büyür, kapanırken ters yöne dönerek küçülür.
+- **anim-flip** → 3B perspective ile `rotateY(115deg)` flip-in, kapanışta `-115deg` flip-out (sürpriz).
+
+### Ayarlar UI
+`screen-tema` içine "Profil Fotoğrafı Kartı — Boyut" ve "— Animasyon" başlıklı
+iki yeni `settings-section` eklendi. Her biri 3 sütunlu `.pick-grid > .pick-tile`
+grid'i. Aktif tercih `.pick-tile.active` ile vurgulanır.
+
+### Davranış garantisi
+- Modül boot anında `MutationObserver` ile `#contactCardOverlay`'in `class`
+  attribute'unu izler; sınıflar her şekilde tekrar uygulanır (motor `open`/`closing`
+  toggle'larken bile size/anim sınıfları korunur).
+- Ayarlar > Tema ekranı dinamik açıldığında `.pick-tile` butonları DOM observer
+  ile yeniden bağlanır — duplicate event listener oluşmaz (`__bound` flag).
+
+### Yeni animasyon eklemek isteyenler
+1. `sohbetoOO.html` içine `#contactCardOverlay.anim-X .contact-card { ... }` +
+   `.open` ve `.closing` durumlarını ekleyin.
+2. `sohbeto-card-anim.js` içindeki `ANIMS` dizisine `'X'` ekleyin.
+3. `screen-tema` `cardAnimPicker` grid'ine `data-anim="X"` butonu ekleyin.
+
+### Yeni boyut eklemek isteyenler
+Aynı pattern: CSS varyantı + `SIZES` dizisi + `cardSizePicker` butonu.

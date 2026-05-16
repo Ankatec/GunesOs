@@ -169,11 +169,26 @@
   }
 
   // ---------- app.navigate köprüsü ----------
+  // Ayarlar > Tema / Hesap / Gizlilik açıkken alt nav'a tıklanınca bu overlay'ler
+  // .active kalıp ana sekmenin üstünü kaplıyordu. Tab geçişinden ÖNCE her zaman
+  // bu sub-screen overlay'lerini kapatıyoruz ki Sohbetler/Kişiler/Gruplar/Ayarlar'a
+  // tıklamak her durumda doğrudan o sekmeye götürsün.
+  var SUBSCREEN_IDS = ['screen-tema', 'screen-hesap', 'screen-gizlilik', 'screen-notes', 'screen-calls', 'screen-inbox'];
+  function closeSettingsSubscreens() {
+    SUBSCREEN_IDS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) { el.classList.add('hidden-screen'); el.classList.remove('active'); }
+    });
+  }
   function patchNavigate() {
     var orig = (window.app && window.app.navigate) ? window.app.navigate : null;
     window.app = window.app || {};
     window.app.navigate = function (target) {
       var idx = TABS.indexOf(target);
+      if (idx !== -1) {
+        // Ana sekmeye geçiş — açık alt sayfa varsa kapat
+        closeSettingsSubscreens();
+      }
       if (idx === -1) {
         leaveFluidMode();
         if (typeof orig === 'function') return orig.apply(this, arguments);
