@@ -1,30 +1,35 @@
 /* ============================================================
-   SOHBETO FLUID TABS  v2 — Adım 5 (Ultra-Smooth Telegram Deneyimi)
-   Performans Odaklı: requestAnimationFrame, translate3d (GPU),
-   DOM Caching ve gelişmiş Spring-Easing ile sıfır gecikme.
+   SOHBETO FLUID TABS  v2 — Telegram benzeri akışkan sekme geçişi
+   4 ana sekme: sohbetler / kisiler / gruplar / ayarlar
+   - Yatay parmak swipe + alt nav tıkla
+   - Aktif olmayan sekmeye hafif scale+opacity ("dinamik" his)
+   - touch-action + pointer capture + rAF batch ile takılmasız hareket
+   Motoru / adapter'ı / engine.js'i kirletmez. SADECE bu dosya.
+   YÜKLEME: sohbeto-engine.js'TEN SONRA.
    ============================================================ */
 (function () {
   'use strict';
 
   var TABS = ['sohbetler', 'kisiler', 'gruplar', 'ayarlar'];
   var SCREEN_IDS = TABS.map(function (t) { return 'screen-' + t; });
-  
-  // Telegram benzeri süper akıcı animasyon ayarları
-  var DURATION_MS = 600; 
-  // Agresif kalkış, ipek gibi iniş (Ease Out Expo türevi)
-  var EASING = 'cubic-bezier(0.19, 1, 0.22, 1)'; 
-  var SWIPE_DISTANCE_RATIO = 0.15;   // %15'i geçince sekme değişsin (daha hassas)
-  var SWIPE_VELOCITY = 0.35;         // px/ms — çok hafif bir flick (fiske) yeterli
-  var DRAG_RUBBER = 0.3;             // Uçlarda daha sert, tok bir yaylanma hissi
-  var TAP_HORIZ_THRESHOLD = 5;       // Titremeleri önlemek için hassasiyet düşürüldü
-  var DECIDE_RATIO = 1.2;            // Çapraz kaydırmalarda yatayı daha kolay yakala
+
+  // Akışkanlık parametreleri
+  var DURATION_MS = 280;
+  var EASING = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
+  var SWIPE_DISTANCE_RATIO = 0.14;   // %14 yeterli (eskiden 0.18 → çok geç tetikleniyordu)
+  var SWIPE_VELOCITY = 0.35;          // px/ms — flick eşiği daha düşük
+  var DRAG_RUBBER = 0.32;             // uçlarda elastik direnç
+  var TAP_HORIZ_THRESHOLD = 6;        // karar vermeden önce minimum hareket
+  var DECIDE_RATIO = 1.05;            // |dx| > |dy|*1.05 → yatay (eskiden 1.4 → çok katı)
+  var INACTIVE_SCALE = 0.96;          // pasif sekmenin küçülme oranı (canlı his)
+  var INACTIVE_OPACITY = 0.55;        // pasif sekme şeffaflığı
 
   function ready(fn) {
     function start() {
       var tries = 0;
       (function wait() {
         if (window.app && typeof window.app.navigate === 'function') return fn();
-        if (++tries > 60) return fn(); 
+        if (++tries > 60) return fn();
         setTimeout(wait, 50);
       })();
     }
@@ -34,17 +39,22 @@
 
   function injectStyles() {
     if (document.getElementById('__fluid_tabs_css__')) return;
+    var ids = SCREEN_IDS.map(function (id) { return '#' + id; }).join(',');
     var css = [
-      // touch-action: pan-y; ile tarayıcıya yatay kaydırmayı bizim yöneteceğimizi, 
-      // dikey kaydırmayı ise kendisinin yapmasını söylüyoruz. (Devasa performans artışı)
-      '.app-container { overflow: hidden; touch-action: pan-y; }',
-      SCREEN_IDS.map(function (id) { return '#' + id; }).join(',') +
-        '{ transition: transform ' + DURATION_MS + 'ms ' + EASING + '; will-change: transform; backface-visibility: hidden; transform-style: preserve-3d; }',
-      '.app-container.fluid-dragging ' + SCREEN_IDS.map(function (id) { return '#' + id; }).join(', .app-container.fluid-dragging ') +
-        '{ transition: none !important; }',
-      '.app-container.fluid-mode ' + SCREEN_IDS.map(function (id) { return '#' + id + '.hidden-screen'; }).join(', .app-container.fluid-mode ') +
-        '{ opacity: 1; pointer-events: auto; }',
-      '.app-container.fluid-mode .fluid-inactive { pointer-events: none; }',
+      // Konteyner: yatay swipe için browser scroll'unu kapat, dikey kalsın
+      '.app-container.fluid-mode{overflow:hidden;touch-action:pan-y;}',
+      // 4 ana sekme: yumuşak geçiş + GPU hızlandırma
+      ids + '{transition:transform ' + DURATION_MS + 'ms ' + EASING +
+            ',opacity ' + DURATION_MS + 'ms ' + EASING + ';' +
+            'will-change:transform,opacity;backface-visibility:hidden;}',
+      // Drag esnasında transition kapalı (1:1 takip)
+      '.app-container.fluid-dragging ' + ids.split(',').join(',.app-container.fluid-dragging ') +
+        '{transition:none !important;}',
+      // Fluid mode'da tüm tab'lar görünür kalır; konum transform ile yönetilir
+      '.app-container.fluid-mode ' + SCREEN_IDS.map(function (id) { return '#' + id + '.hidden-screen'; }).join(',.app-container.fluid-mode ') +
+        '{opacity:1;pointer-events:auto;transform:none;}',
+      // Aktif olmayan sekmeler input almasın
+      '.app-container.fluid-mode .fluid-inactive{pointer-events:none;}',
     ].join('\n');
     var style = document.createElement('style');
     style.id = '__fluid_tabs_css__';
@@ -52,53 +62,80 @@
     document.head.appendChild(style);
   }
 
-  // DOM okumasını minimize etmek için
   function getTabScreens() {
     return SCREEN_IDS.map(function (id) { return document.getElementById(id); });
   }
 
+  // ---------- State ----------
   var activeIndex = 0;
   var dragging = false;
-  var dragStartX = 0;
-  var dragStartY = 0;
-  var dragLastX = 0;
-  var dragLastT = 0;
-  var dragVelocity = 0;
-  var horizontalLocked = null; 
+  var pointerId = null;
+  var dragStartX = 0, dragStartY = 0;
+  var dragLastX = 0, dragLastT = 0, dragVelocity = 0;
+  var horizontalLocked = null;   // null=karar verilmedi, true=yatay, false=dikey
   var containerWidth = 0;
   var appContainer = null;
-  
-  // Performans için değişkenler
-  var cachedScreens = [];
-  var rafPending = false;
+  var rafId = 0;
+  var pendingDx = 0;
+
+  // Sekmeleri yerleştir: aktif=0 ofset, diğerleri ±width.
+  // dx=0 ise statik snap; aksi halde drag esnasında.
+  function paintTransform(dx) {
+    var screens = getTabScreens();
+    var w = containerWidth || appContainer.clientWidth || window.innerWidth;
+    for (var i = 0; i < screens.length; i++) {
+      var el = screens[i];
+      if (!el) continue;
+      var base = (i - activeIndex) * w;
+      var x = base + dx;
+      // Pasif sekmeye scale + opacity (mesafeye göre yumuşak)
+      var dist = Math.min(1, Math.abs(x) / w);
+      var scale = 1 - (1 - INACTIVE_SCALE) * dist;
+      var opacity = 1 - (1 - INACTIVE_OPACITY) * dist;
+      el.style.transform = 'translate3d(' + x + 'px,0,0) scale(' + scale.toFixed(4) + ')';
+      el.style.opacity = opacity.toFixed(3);
+    }
+  }
+
+  function scheduleDraw(dx) {
+    pendingDx = dx;
+    if (rafId) return;
+    rafId = requestAnimationFrame(function () {
+      rafId = 0;
+      paintTransform(pendingDx);
+    });
+  }
 
   function setActiveByIndex(idx, animate) {
     idx = Math.max(0, Math.min(TABS.length - 1, idx));
+    var changed = idx !== activeIndex;
     activeIndex = idx;
-    var screens = getTabScreens();
     appContainer.classList.add('fluid-mode');
-    
+    var screens = getTabScreens();
     screens.forEach(function (el, i) {
       if (!el) return;
       el.classList.remove('hidden-screen');
-      el.classList.add('active'); 
+      el.classList.add('active');
       if (i === idx) el.classList.remove('fluid-inactive');
       else el.classList.add('fluid-inactive');
-      // GPU'yu zorla: translate3d
-      el.style.transform = 'translate3d(' + ((i - idx) * 100) + '%, 0, 0)';
     });
+    containerWidth = appContainer.clientWidth || window.innerWidth;
+    paintTransform(0);
 
+    // Alt nav state
     try {
       document.querySelectorAll('.nav-item').forEach(function (n) { n.classList.remove('active'); });
       var navEl = document.getElementById('nav-' + TABS[idx]);
       if (navEl) navEl.classList.add('active');
     } catch (e) {}
 
-    var name = TABS[idx];
-    try {
-      if (name === 'kisiler' && typeof window.renderContacts === 'function') window.renderContacts();
-      if (name === 'sohbetler' && typeof window.renderConvList === 'function') window.renderConvList();
-    } catch (e) {}
+    if (changed) {
+      var name = TABS[idx];
+      try {
+        if (name === 'kisiler' && typeof window.renderContacts === 'function') window.renderContacts();
+        if (name === 'sohbetler' && typeof window.renderConvList === 'function') window.renderConvList();
+      } catch (e) {}
+    }
   }
 
   function leaveFluidMode() {
@@ -109,11 +146,13 @@
     screens.forEach(function (el, i) {
       if (!el) return;
       el.style.transform = '';
+      el.style.opacity = '';
       el.classList.remove('fluid-inactive');
       if (i !== activeIndex) el.classList.add('hidden-screen');
     });
   }
 
+  // ---------- app.navigate köprüsü ----------
   function patchNavigate() {
     var orig = (window.app && window.app.navigate) ? window.app.navigate : null;
     window.app = window.app || {};
@@ -133,15 +172,19 @@
     };
   }
 
+  // ---------- Pointer / touch ----------
   function shouldIgnoreTarget(target) {
     if (!target) return false;
     var tag = (target.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'textarea' || tag === 'select' || tag === 'button') return true;
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
     if (target.isContentEditable) return true;
+    // Yatay scroll edebilen iç element üstündeysek bırak (örn. story carousel)
     var el = target;
-    while (el && el !== document.body) {
-      var ov = getComputedStyle(el).overflowX;
-      if ((ov === 'auto' || ov === 'scroll') && el.scrollWidth > el.clientWidth) return true;
+    while (el && el !== appContainer) {
+      try {
+        var ov = getComputedStyle(el).overflowX;
+        if ((ov === 'auto' || ov === 'scroll') && el.scrollWidth > el.clientWidth + 1) return true;
+      } catch (e) {}
       el = el.parentElement;
     }
     return false;
@@ -151,32 +194,28 @@
     return appContainer && appContainer.classList.contains('fluid-mode');
   }
 
-  function getEventX(e) { return e.touches ? e.touches[0].clientX : e.clientX; }
-  function getEventY(e) { return e.touches ? e.touches[0].clientY : e.clientY; }
+  function getX(e) { return e.touches ? e.touches[0].clientX : e.clientX; }
+  function getY(e) { return e.touches ? e.touches[0].clientY : e.clientY; }
 
   function onStart(e) {
     if (!isFluidMode()) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (e.touches && e.touches.length > 1) return;
     if (shouldIgnoreTarget(e.target)) return;
-    
-    dragStartX = dragLastX = getEventX(e);
-    dragStartY = getEventY(e);
+    dragStartX = dragLastX = getX(e);
+    dragStartY = getY(e);
     dragLastT = performance.now();
     dragVelocity = 0;
     horizontalLocked = null;
     dragging = true;
+    pointerId = e.pointerId != null ? e.pointerId : null;
     containerWidth = appContainer.clientWidth || window.innerWidth;
-    
-    // Kaydırma sırasında sürekli DOM aranmasın diye ekranları önbelleğe al
-    cachedScreens = getTabScreens();
   }
 
   function onMove(e) {
     if (!dragging) return;
-    var x = getEventX(e);
-    var y = getEventY(e);
-    var dx = x - dragStartX;
-    var dy = y - dragStartY;
+    var x = getX(e), y = getY(e);
+    var dx = x - dragStartX, dy = y - dragStartY;
 
     if (horizontalLocked === null) {
       var ax = Math.abs(dx), ay = Math.abs(dy);
@@ -184,15 +223,25 @@
       if (ax > ay * DECIDE_RATIO) {
         horizontalLocked = true;
         appContainer.classList.add('fluid-dragging');
+        // Parmak konteyner dışına çıksa bile event'leri burada toplamaya devam et
+        if (pointerId != null && appContainer.setPointerCapture) {
+          try { appContainer.setPointerCapture(pointerId); } catch (err) {}
+        }
       } else {
         horizontalLocked = false;
-        dragging = false; 
+        dragging = false;
         return;
       }
     }
-    
     if (!horizontalLocked) return;
     if (e.cancelable) e.preventDefault();
+
+    // Kenarlarda elastik direnç
+    var atLeft = activeIndex === 0 && dx > 0;
+    var atRight = activeIndex === TABS.length - 1 && dx < 0;
+    var effectiveDx = (atLeft || atRight) ? dx * DRAG_RUBBER : dx;
+
+    scheduleDraw(effectiveDx);
 
     // Hız ölçümü
     var now = performance.now();
@@ -200,46 +249,30 @@
     if (dt > 0) dragVelocity = (x - dragLastX) / dt;
     dragLastX = x;
     dragLastT = now;
-
-    // Tarayıcıyı boğmamak için UI güncellemelerini rAF (requestAnimationFrame) ile kuyruğa al
-    if (!rafPending) {
-      rafPending = true;
-      requestAnimationFrame(function () {
-        var atLeft = activeIndex === 0 && dx > 0;
-        var atRight = activeIndex === TABS.length - 1 && dx < 0;
-        var effectiveDx = (atLeft || atRight) ? dx * DRAG_RUBBER : dx;
-
-        cachedScreens.forEach(function (el, i) {
-          if (!el) return;
-          var base = (i - activeIndex) * containerWidth;
-          // CPU yerine GPU'ya gönder
-          el.style.transform = 'translate3d(' + (base + effectiveDx) + 'px, 0, 0)';
-        });
-        rafPending = false;
-      });
-    }
   }
 
-  function onEnd() {
+  function onEnd(e) {
     if (!dragging) { horizontalLocked = null; return; }
     var wasHoriz = horizontalLocked === true;
     dragging = false;
     horizontalLocked = null;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
     appContainer.classList.remove('fluid-dragging');
-    
+    if (pointerId != null && appContainer.releasePointerCapture) {
+      try { appContainer.releasePointerCapture(pointerId); } catch (err) {}
+    }
+    pointerId = null;
     if (!wasHoriz) return;
-    
+
     var dx = dragLastX - dragStartX;
     var absDx = Math.abs(dx);
-    var ratio = absDx / containerWidth;
-    var fastFlick = Math.abs(dragVelocity) > SWIPE_VELOCITY && absDx > 12;
+    var ratio = absDx / (containerWidth || 1);
+    var fastFlick = Math.abs(dragVelocity) > SWIPE_VELOCITY && absDx > 10;
     var nextIdx = activeIndex;
-    
-    if ((ratio > SWIPE_DISTANCE_RATIO || fastFlick)) {
+    if (ratio > SWIPE_DISTANCE_RATIO || fastFlick) {
       if (dx < 0 && activeIndex < TABS.length - 1) nextIdx = activeIndex + 1;
       else if (dx > 0 && activeIndex > 0) nextIdx = activeIndex - 1;
     }
-    
     setActiveByIndex(nextIdx, true);
   }
 
@@ -256,8 +289,15 @@
       appContainer.addEventListener('touchend', onEnd, { passive: true });
       appContainer.addEventListener('touchcancel', onEnd, { passive: true });
     }
+    // Yeniden boyutlanmada snap'i koru
+    window.addEventListener('resize', function () {
+      if (!isFluidMode()) return;
+      containerWidth = appContainer.clientWidth || window.innerWidth;
+      paintTransform(0);
+    });
   }
 
+  // Bottom-nav görünür olduğunda fluid mode'u devreye al
   function watchNavReady() {
     var nav = document.getElementById('bottom-nav');
     if (!nav) return;
@@ -273,6 +313,7 @@
           return el && !el.classList.contains('hidden-screen');
         });
         if (visibleTab !== -1) setActiveByIndex(visibleTab, false);
+        else setActiveByIndex(current, false);
       }
     };
     var obs = new MutationObserver(tryEnable);
@@ -282,7 +323,10 @@
 
   ready(function () {
     appContainer = document.querySelector('.app-container');
-    if (!appContainer) return;
+    if (!appContainer) {
+      console.warn('[fluid-tabs] .app-container bulunamadı, devre dışı.');
+      return;
+    }
     injectStyles();
     patchNavigate();
     bindGestures();

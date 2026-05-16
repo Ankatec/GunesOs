@@ -1105,3 +1105,57 @@ Kazakistan → Kırgızistan → Özbekistan → KKTC → İslam ülkeleri
 ### Motor değişikliği
 - **Yok.** Engine `escapeHtml(text)` kullanmaya devam ediyor; tüm
   görselleştirme adapter katmanında yapılıyor. Engine'e dokunmadık.
+
+---
+
+## J) Fluid Tabs — Sekmeler arası akışkan geçiş (`sohbeto-fluid-tabs.js` v2)
+
+**Amaç:** 4 ana sekme (`sohbetler` / `kisiler` / `gruplar` / `ayarlar`)
+arasında Telegram benzeri akışkan parmak swipe + alt nav tıkla geçişi.
+Motoru ve adapter'ı **kirletmez**; tamamen UI katmanında çalışır.
+
+### Yükleme sırası
+```html
+<script src="./sohbeto-adapter.js"></script>
+<script src="./sohbeto-engine.js"></script>
+<script src="./sohbeto-fluid-tabs.js"></script>   <!-- en son -->
+```
+
+### v2'de neyi neden değiştirdik (önceki "duvara tosluyor" sorununun kökü)
+
+| Sorun (v1)                                                               | Çözüm (v2)                                                                                       |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `touch-action` yok → tarayıcı parmağı önce kendi scroll'una alıyor       | `.app-container.fluid-mode { touch-action: pan-y }` — yatay kontrolü biz alırız, dikey kalır     |
+| Pointer capture yok → parmak konteyner dışına çıkınca event'ler düşüyor  | Yatay kilitlenince `setPointerCapture(pointerId)` — parmak nereye giderse gitsin takip ederiz   |
+| `DECIDE_RATIO = 1.4` çok katı → küçük dikey titremede yatay açılmıyor    | `1.05` — yatay niyet daha hızlı algılanıyor                                                      |
+| `SWIPE_DISTANCE_RATIO = 0.18` ve `VELOCITY = 0.45` → flick'ler yutuluyor | `0.14` ve `0.35` — daha hassas flick                                                             |
+| Drag `px`, snap `%` → birim değişimi sıçrama hissi veriyor               | Hep `px` cinsinden `translate3d` — tutarlı                                                        |
+| `requestAnimationFrame` yok → her pointermove'da style yazımı (jank)     | Tek bir `rAF` batch — 60/120fps'de düzgün                                                         |
+| Pasif sekme statik → "dinamik" his yok                                   | Pasif sekmeye uzaklığa göre `scale(0.96)` + `opacity(0.55)` interpolasyonu — Telegram tadı       |
+| `transition` ID seçicisi vs `.screen` class çatışması                    | ID seçicilerle `transition` tanımlandı, `.fluid-dragging` sırasında `transition:none !important` |
+
+### Davranış kuralları
+- **Yatay swipe** sadece 4 ana sekme arasında. Tam ekran katmanlara
+  (`screen-chat`, `screen-ooCall`, `screen-ooIncoming`, vb.) geçişte
+  `leaveFluidMode()` çağrılır → orijinal `app.navigate` davranışına döner.
+- **Input/textarea/select/contenteditable** üstünde swipe **başlamaz**
+  (yazı yazarken kazara sekme değişmesin).
+- **İçinde yatay scroll edebilen** bir alt element üstündeysek (örn.
+  story carousel) swipe başlamaz — onun scroll'una müdahale etmeyiz.
+- **Kenar elastik direnç** (`DRAG_RUBBER = 0.32`): ilk/son sekmede dışa
+  doğru sürüklerken hareket sönümlenir, snap geri toparlar.
+- **Flick algılama** (`SWIPE_VELOCITY = 0.35` px/ms): kısa hızlı parmak
+  hareketi mesafe eşiğini geçmese de sekme atlar.
+
+### Yeni tema eklerken yapılacaklar
+1. 4 ana sekme `.app-container > .screen#screen-{tab}` olarak var olsun.
+2. Alt nav `#bottom-nav` içinde `.nav-item#nav-{tab}` ID'leri olsun;
+   adapter `data-enabled="1"` set ettiğinde fluid mode otomatik devreye girer.
+3. `.app-container` `position:relative; overflow:hidden` kalsın
+   (zaten OO'da öyle).
+4. Sekme içindeki **yatay scroll** alanlarına dokunma — fluid-tabs
+   onu otomatik algılar ve swipe'ı pas geçer.
+
+### Engine değişikliği
+- **Yok.** Tüm mantık fluid-tabs.js içinde; `app.navigate` köprüsü
+  monkey-patch ile sarmalanır, orijinal davranış korunur.
