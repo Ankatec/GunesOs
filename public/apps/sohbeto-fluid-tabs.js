@@ -13,16 +13,16 @@
   var TABS = ['sohbetler', 'kisiler', 'gruplar', 'ayarlar'];
   var SCREEN_IDS = TABS.map(function (t) { return 'screen-' + t; });
 
-  // Akışkanlık parametreleri
-  var DURATION_MS = 280;
-  var EASING = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
-  var SWIPE_DISTANCE_RATIO = 0.14;   // %14 yeterli (eskiden 0.18 → çok geç tetikleniyordu)
-  var SWIPE_VELOCITY = 0.35;          // px/ms — flick eşiği daha düşük
-  var DRAG_RUBBER = 0.32;             // uçlarda elastik direnç
-  var TAP_HORIZ_THRESHOLD = 6;        // karar vermeden önce minimum hareket
-  var DECIDE_RATIO = 1.05;            // |dx| > |dy|*1.05 → yatay (eskiden 1.4 → çok katı)
-  var INACTIVE_SCALE = 0.96;          // pasif sekmenin küçülme oranı (canlı his)
-  var INACTIVE_OPACITY = 0.55;        // pasif sekme şeffaflığı
+  // Akışkanlık parametreleri — Telegram benzeri
+  var DURATION_MS = 220;              // snap süresi (Telegram ~200-240ms)
+  var EASING = 'cubic-bezier(0.33, 1, 0.68, 1)'; // easeOutCubic — doğal yavaşlama
+  var SWIPE_DISTANCE_RATIO = 0.30;    // %30 geçince snap (Telegram ~%30) — orta yol
+  var SWIPE_VELOCITY = 0.30;          // px/ms — flick eşiği (yumuşak)
+  var DRAG_RUBBER = 0.50;             // uçlarda yarı yarıya direnç (zorlanmış değil)
+  var TAP_HORIZ_THRESHOLD = 4;        // çok düşük: parmak hareketini hemen yakala
+  var DECIDE_RATIO = 1.0;             // |dx| ≥ |dy| → yatay (Telegram'da 1:1)
+  var INACTIVE_SCALE = 1.0;           // ölçek değişimi YOK — Telegram gibi düz kayma
+  var INACTIVE_OPACITY = 1.0;         // opaklık değişimi YOK — saf yatay kayma
 
   function ready(fn) {
     function start() {
