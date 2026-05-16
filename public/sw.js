@@ -4,10 +4,11 @@
  * - Static assets (JS/CSS): StaleWhileRevalidate
  * - Images/fonts: CacheFirst (60 gün)
  *
- * Lovable preview iframe'inde main.tsx içindeki guard sayesinde
- * SW kayıt edilmez; bu dosya yalnızca production'da çalışır.
+ * Önemli: WebAPK üretiminin sağlam olması için bu SW, kayıt edildiği
+ * scope ile uyumlu bir path'ten servis edilmelidir.
+ * Örn: /gunesos/sw.js  → register('/gunesos/sw.js', { scope: '/gunesos/' })
  */
-const VERSION = "v1.0.3";
+const VERSION = "v1.0.4";
 const PRECACHE = `gunesos-precache-${VERSION}`;
 const RUNTIME_HTML = `gunesos-html-${VERSION}`;
 const RUNTIME_ASSETS = `gunesos-assets-${VERSION}`;
@@ -15,11 +16,30 @@ const RUNTIME_IMG = `gunesos-img-${VERSION}`;
 
 // Scope-aware: SW served from /<base>/sw.js, registration.scope is /<base>/
 const SCOPE = new URL(self.registration.scope).pathname; // ör. "/gunesos/" veya "/"
+
+// CRITICAL: offline.html ve manifest.json'ın bu yollarda gerçekten yayında
+// olduğundan emin ol. Yoksa addAll() patlar, SW install fail eder ve
+// Chrome WebAPK üretmez → uygulama "ana ekrana kısayol" olarak düşer.
 const PRECACHE_URLS = [SCOPE, `${SCOPE}offline.html`, `${SCOPE}manifest.json`];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(PRECACHE).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting()),
+    (async () => {
+      const cache = await caches.open(PRECACHE);
+      // addAll yerine tek tek ekle: bir dosya 404 dönerse SW yine de
+      // aktive olabilsin (install kriterini koruruz).
+      await Promise.all(
+        PRECACHE_URLS.map(async (url) => {
+          try {
+            const res = await fetch(url, { cache: "no-cache" });
+            if (res && res.ok) await cache.put(url, res.clone());
+          } catch (e) {
+            // Sessizce geç — install fail etmesin
+          }
+        }),
+      );
+      await self.skipWaiting();
+    })(),
   );
 });
 
