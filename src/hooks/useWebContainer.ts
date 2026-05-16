@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+// @ts-ignore - optional runtime dependency
 import { WebContainer } from "@webcontainer/api";
 import type { FileNode } from "@/components/apps/yapayakil/FileTree";
 import type { FileStore } from "@/components/apps/yapayakil/YapayakilIndex";

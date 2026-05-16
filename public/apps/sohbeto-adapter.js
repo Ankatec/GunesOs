@@ -69,9 +69,9 @@
     'screen-chat': true,
     'screen-ooCall': true,
     'screen-ooIncoming': true,
-    'screen-ayarlar': true,
-    'screen-hesap': true,
-    'screen-tema': true,
+    // Adım 7: Ayarlar / Tema / Hesap artık alt nav'ı GİZLEMİYOR.
+    // Eskiden bu üç ekran tam-ekran sayılıyordu ve nav kayboluyordu;
+    // bu yüzden Tema/Hesap'a girince Sohbetler/Kişiler/Gruplar'a dönmek imkansızdı.
     'screen-phone': true,
     'screen-auth': true
   };
@@ -324,7 +324,11 @@
         var nameEl = child.querySelector('.conv-name');
         var rawName = nameEl ? (nameEl.textContent || '') : '';
         var display = resolveDisplayName(connId, rawName);
-        var key = display.toLowerCase();
+        // Adım 7: dedup ARTIK telefon numarası bazlı.
+        // Aynı numaradan gelen mesajlar — karşı taraf adını/profilini değiştirmiş olsa bile —
+        // tek bir thread'de birikir. Numara çıkmazsa connId, o da yoksa son çare olarak isim.
+        var phoneKey = (phoneForConn(connId) || '').replace(/[^\d+]/g, '');
+        var key = phoneKey || ('cid:' + (connId || display.toLowerCase()));
         if (seen[key]) return; // Aynı kişi için yeni kutu açma
         seen[key] = true;
         var clone = child.cloneNode(true);
@@ -1979,15 +1983,61 @@
       closeOOCallScreen();
     };
 
-    // ---------- 2G) İlk ekranı göster ----------
-    // Motor splash kullanıyor olabilir; OO'nun kendi splash'ı varsa onu da kapat
+    // ---------- 2G) İlk ekranı göster (Adım 7 + Adım 10 tema seçici) ----------
+    // Akış:
+    //  - Splash 600ms görünür
+    //  - Eğer KULLANICI ZATEN GİRİŞ YAPMIŞSA → doğrudan enterMain (sohbetler)
+    //  - Aksi halde: TEMA henüz seçilmediyse → screen-themepicker
+    //                                  seçildiyse → screen-phone
     setTimeout(function () {
       var splash = document.getElementById('screenSplash');
       if (splash) splash.classList.add('fade-out');
-      // Eğer motor zaten kullanıcı login'liyse renderConvList çağrılıp enterMain devreye girecek
-      // Aksi halde phone ekranı gösterilsin
-      if (!enteredMain) showScreen('screen-phone');
+      if (enteredMain) return;
+      var loggedIn = false;
+      try { if (typeof myNumber !== 'undefined' && myNumber) loggedIn = true; } catch (e) {}
+      try {
+        if (!loggedIn) {
+          var ls = localStorage.getItem('sohbet_my_number_v1') ||
+                   localStorage.getItem('sohbeto.oo.profile.number') || '';
+          if (ls && ls.trim()) loggedIn = true;
+        }
+      } catch (e) {}
+      try {
+        if (!loggedIn) {
+          var st = getEngineState();
+          if (st && (st.myNumber || st.identity || (st.users && st.users.size))) loggedIn = true;
+        }
+      } catch (e) {}
+
+      if (loggedIn) { enterMain(); return; }
+
+      // Tema seçimi kontrolü (localStorage + IDB fallback)
+      var themeChosenLS = false;
+      try { themeChosenLS = !!localStorage.getItem('sohbeto.oo.theme'); } catch (e) {}
+      if (themeChosenLS) { showScreen('screen-phone'); return; }
+
+      if (window.GunesOSStore) {
+        window.GunesOSStore.get(window.GunesOSStore.path.globalTheme()).then(function (v) {
+          if (v) {
+            try { localStorage.setItem('sohbeto.oo.theme', v); } catch (e) {}
+            showScreen('screen-phone');
+          } else {
+            showScreen('screen-themepicker');
+          }
+        });
+      } else {
+        showScreen('screen-themepicker');
+      }
     }, 600);
+
+    // Tema seçici buton handler'ı
+    window.__chooseTheme = function (theme) {
+      try { localStorage.setItem('sohbeto.oo.theme', theme); } catch (e) {}
+      if (window.GunesOSStore) {
+        try { window.GunesOSStore.set(window.GunesOSStore.path.globalTheme(), theme); } catch (e) {}
+      }
+      showScreen('screen-phone');
+    };
 
     // ---------- Twemoji: tüm sohbet balonlarındaki emojileri (özellikle bayrakları) gerçek görüntüye çevir ----------
     (function bindTwemoji() {
@@ -2164,6 +2214,126 @@
       window.app.openAccount = function () { showScreen('screen-hesap'); };
       window.app.closeAccount = function () { showScreen('screen-ayarlar'); };
 
+      // ---------- Adım 8: GİZLİLİK ----------
+      // Anahtar hesap-bazlı: kayıtlı kullanıcı her hangi olursa olsun kendi tercihi yüklenir.
+      function privacyKey() {
+        var num = '';
+        try {
+          if (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.virtualNo) num = CONFIG.virtualNo;
+          if (!num) num = localStorage.getItem('sohbeto.oo.profile.number') || '';
+          if (!num) num = localStorage.getItem('sohbet_my_number_v1') || '';
+        } catch (e) {}
+        var norm = (window.__normalizePhone ? window.__normalizePhone(num) : num).trim();
+        return 'sohbeto.oo.privacy.showName.' + (norm || 'anon');
+      }
+      window.__privacyShowName = function () {
+        try { return localStorage.getItem(privacyKey()) === '1'; } catch (e) { return false; }
+      };
+      function setPrivacyShowName(v) {
+        try { localStorage.setItem(privacyKey(), v ? '1' : '0'); } catch (e) {}
+        updatePrivacySubtitle();
+        // Tercih değişince mevcut tüm peer'lara güncel profili (ya da boş ad) yeniden yayınla
+        try { if (typeof window.scheduleProfileBroadcast === 'function') window.scheduleProfileBroadcast(50); } catch (e) {}
+      }
+      function updatePrivacySubtitle() {
+        var sub = document.getElementById('privacy-subtitle');
+        if (!sub) return;
+        sub.textContent = window.__privacyShowName()
+          ? 'Adın herkese görünür · Şifreleme aktif'
+          : 'Sadece kişilerin adını görür · Şifreleme aktif';
+      }
+      window.app.openPrivacy = function () {
+        showScreen('screen-gizlilik');
+        var t = document.getElementById('privacyShowNameToggle');
+        if (t) {
+          t.checked = window.__privacyShowName();
+          // Listener'ı tek sefer bağla
+          if (!t.dataset.bound) {
+            t.dataset.bound = '1';
+            t.addEventListener('change', function () { setPrivacyShowName(t.checked); });
+          }
+        }
+        updatePrivacySubtitle();
+      };
+      window.app.closePrivacy = function () { showScreen('screen-ayarlar'); };
+
+      // Veri saklama bilgi modali
+      window.app.openDataInfo = function () {
+        var m = document.getElementById('dataInfoModal');
+        if (!m) return;
+        var numEl = document.getElementById('dataInfoMyNum');
+        if (numEl) {
+          var n = (window.myNumber) ||
+            localStorage.getItem('sohbeto.oo.profile.number') ||
+            localStorage.getItem('sohbet_my_number_v1') || '<+90...>';
+          numEl.textContent = n;
+        }
+        m.classList.remove('hidden-screen');
+        m.style.display = 'flex';
+      };
+      window.app.closeDataInfo = function () {
+        var m = document.getElementById('dataInfoModal');
+        if (!m) return;
+        m.classList.add('hidden-screen');
+        m.style.display = 'none';
+      };
+
+      // İlk açılışta subtitle'ı doğru bas
+      setTimeout(updatePrivacySubtitle, 800);
+
+      // Profil paketi yayınını gizliliğe göre filtrele.
+      // Kapalıysa: alıcı bizim kişimiz değilse, profil paketinde 'name' alanını boş yolla
+      // (engine cleanProfileName 'Kullanıcı' lekesini zaten boş kabul eder; alıcının
+      // resolveDisplayName fonksiyonu numara/rehber adına düşer → "+90… seni arıyor").
+      try {
+        var _origSendProfileUpdate = window.sendProfileUpdate;
+        if (typeof _origSendProfileUpdate === 'function') {
+          window.sendProfileUpdate = function (targetConnId) {
+            try {
+              if (window.__privacyShowName()) return _origSendProfileUpdate.apply(this, arguments);
+              if (!targetConnId || targetConnId === 'HERKES') return _origSendProfileUpdate.apply(this, arguments);
+              // Alıcının numarasını bul; rehberde varsa tam profil yolla
+              var num = '';
+              try { num = phoneForConn(targetConnId) || ''; } catch (e) {}
+              var normalized = num ? (window.__normalizePhone ? window.__normalizePhone(num).trim() : num.trim()) : '';
+              var inContacts = false;
+              try {
+                if (normalized && typeof contactsState !== 'undefined' && contactsState && contactsState.byNumber) {
+                  // contactsState.byNumber numarayı normalize formatla (boşluksuz?) tutuyor olabilir.
+                  // İki varyantı da dene.
+                  var stripped = normalized.replace(/\s+/g, '');
+                  inContacts = !!(contactsState.byNumber.get(normalized) || contactsState.byNumber.get(stripped));
+                }
+              } catch (e) {}
+              if (inContacts) return _origSendProfileUpdate.apply(this, arguments);
+
+              // Gizli mod: ad alanını geçici olarak boşalt, paketi üret, eski hâle döndür.
+              var hadNick = (typeof state !== 'undefined' && state) ? state.nick : undefined;
+              try { if (typeof state !== 'undefined') state.nick = ''; } catch (e) {}
+              var packet = '';
+              try {
+                if (typeof window.createProfileUpdatePacket === 'function') packet = window.createProfileUpdatePacket(true);
+                else if (typeof createProfileUpdatePacket === 'function') packet = createProfileUpdatePacket(true);
+              } catch (e) {}
+              try { if (typeof state !== 'undefined' && hadNick !== undefined) state.nick = hadNick; } catch (e) {}
+              if (!packet) return _origSendProfileUpdate.apply(this, arguments);
+              try {
+                if (typeof window.sendWhenP2PReady === 'function') {
+                  return window.sendWhenP2PReady(targetConnId, packet, 'Profil (gizli ad) gönderildi');
+                }
+                if (typeof sendWhenP2PReady === 'function') {
+                  return sendWhenP2PReady(targetConnId, packet, 'Profil (gizli ad) gönderildi');
+                }
+              } catch (e) {}
+              return _origSendProfileUpdate.apply(this, arguments);
+            } catch (e) {
+              return _origSendProfileUpdate.apply(this, arguments);
+            }
+          };
+        }
+      } catch (e) { console.warn('[adapter] privacy patch hata:', e); }
+
+
       renderPalette('primary-colors', PRIMARY_ORDER, 'primary');
       renderPalette('bg-colors', BG_ORDER, 'bg');
       try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'forest'); } catch (e) { applyTheme('forest'); }
@@ -2311,6 +2481,97 @@
         }
       });
       mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    })();
+
+    // ---------- ADIM 9: Hesap-bazlı kalıcı veri (GunesOSStore köprüsü) ----------
+    // contactsState'i `.gunesos/sohbeto/<+90...>/contacts` yoluna aynalar.
+    // Boot'ta okuyup engine'in contactsState'ine merge eder (tab id sıfırlansa
+    // bile veriler korunur).
+    (function bindGunesosStore() {
+      if (!window.GunesOSStore) {
+        console.warn('[adapter] GunesOSStore yok, kalıcı katman atlandı.');
+        return;
+      }
+      var Store = window.GunesOSStore;
+
+      function currentNumber() {
+        try { if (typeof myNumber !== 'undefined' && myNumber) return myNumber; } catch (e) {}
+        try {
+          return localStorage.getItem('sohbet_my_number_v1') ||
+                 localStorage.getItem('sohbeto.oo.profile.number') || '';
+        } catch (e) { return ''; }
+      }
+
+      function snapshotContacts() {
+        if (typeof contactsState === 'undefined' || !contactsState || !contactsState.byNumber) return [];
+        var out = [];
+        contactsState.byNumber.forEach(function (c) {
+          if (!c || !c.number) return;
+          // Sadece serileştirilebilir alanları yaz
+          out.push({
+            number:  c.number,
+            name:    c.name || '',
+            connId:  c.connId || '',
+            status:  c.status || '',
+            avatar:  c.avatar || '',
+            picture: c.picture || ''
+          });
+        });
+        return out;
+      }
+
+      var flushContacts = Store.debounce(function () {
+        var num = currentNumber();
+        if (!num) return;
+        var snap = snapshotContacts();
+        Store.set(Store.path.contacts(num), snap);
+      }, 600);
+
+      // Boot restore: engine ContactState'ini doldurduktan sonra üstüne merge et.
+      // 1.5sn sonra çalışır (engine kendi DB'sini yüklemiş olur), eksik kayıtları
+      // ekler. Var olanlara dokunmaz (engine'in daha güncel verisi varsa korunur).
+      setTimeout(function bootRestore() {
+        var num = currentNumber();
+        if (!num) { setTimeout(bootRestore, 1500); return; }
+        Store.get(Store.path.contacts(num)).then(function (list) {
+          if (!Array.isArray(list) || !list.length) return;
+          if (typeof contactsState === 'undefined' || !contactsState || !contactsState.byNumber) return;
+          var added = 0;
+          list.forEach(function (c) {
+            if (!c || !c.number) return;
+            if (!contactsState.byNumber.has(c.number)) {
+              contactsState.byNumber.set(c.number, c);
+              added++;
+            }
+          });
+          if (added > 0) {
+            try { if (typeof window.renderContacts === 'function') window.renderContacts(); } catch (e) {}
+            try { if (typeof window.renderConvList === 'function') window.renderConvList(); } catch (e) {}
+            console.info('[adapter] GunesOSStore: ' + added + ' kişi geri yüklendi.');
+          }
+        });
+      }, 1500);
+
+      // Her renderContacts/saveContact sonrası flush
+      var _origRenderContacts = typeof window.renderContacts === 'function' ? window.renderContacts : null;
+      if (_origRenderContacts) {
+        window.renderContacts = function () {
+          var r = _origRenderContacts.apply(this, arguments);
+          flushContacts();
+          return r;
+        };
+      }
+      // Periyodik güvence flush (her 5 sn) — kaçırılan değişiklikleri yakalar
+      setInterval(flushContacts, 5000);
+      // Sayfa kapanırken son bir senkron flush dene
+      window.addEventListener('beforeunload', function () {
+        try {
+          var num = currentNumber();
+          if (num) Store.set(Store.path.contacts(num), snapshotContacts());
+        } catch (e) {}
+      });
+
+      console.info('[adapter] GunesOSStore köprüsü aktif (hesap-bazlı kalıcılık).');
     })();
 
     console.info('[sohbeto-adapter] hazır — Adım 1 (login + sohbet listesi + chat) bağlandı.');

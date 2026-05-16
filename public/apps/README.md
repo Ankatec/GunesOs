@@ -1415,3 +1415,228 @@ ve `engine.js` `CALL_REJECT` sinyalini P2P üzerinden karşıya iletir.
 - Overlay sadece `sohbeto:incoming-call` ile açılır, asla başka koddan tetiklenmez.
 - Sohbeto iframe asla unmount olmaz (bkz. 8.1) — `acceptCall` çağrılabilir.
 - Overlay `translate="no"` taşır (otomatik çeviri kilidi, bkz. Adım 7).
+
+---
+
+## Adım 7 — Açılış Akışı, Sohbet Tekilliği ve Ayarlar Geri-Nav (yeni temalar için sözleşme)
+
+> **Bu adım engine.js'e dokunmaz.** Tüm değişiklikler `sohbeto-adapter.js` ve
+> `sohbetoOO.html` ile React tarafındaki `src/components/apps/Sohbeto.tsx`
+> içindedir. Yeni bir tema yazarken aşağıdaki sözleşmeyi koru.
+
+### 7.1) Sohbet Listesi Tekilliği — Telefon Bazlı Anahtar (ZORUNLU)
+
+Eskiden adapter, sohbet listesindeki dedup'u **görünen isim** (`display.toLowerCase()`)
+üzerinden yapıyordu. Bu yüzden karşı taraf adını/profil etiketini değiştirdiğinde
+**aynı numara için ikinci bir conv-item satırı** açılıyordu.
+
+Yeni kural — `renderConvList` monkey-patch'inde:
+
+```js
+var phoneKey = (phoneForConn(connId) || '').replace(/[^\d+]/g, '');
+var key = phoneKey || ('cid:' + (connId || display.toLowerCase()));
+if (seen[key]) return;
+seen[key] = true;
+```
+
+Yeni temalar için: tema kendi başına liste çizmiyor; adapter `oo.innerHTML`'i
+yazıyor. Bu yüzden ek bir kod yazmana gerek yok — telefon bazlı tekillik
+otomatik olarak gelir. Sadece liste container'ının
+`#screen-sohbetler .content-area` (veya benzeri tek hedef) olduğundan emin ol.
+
+**İsim/avatar değişimi** sadece mevcut satırın başlığını/avatarını günceller,
+asla yeni satır yaratmaz. Aynı numara → aynı sohbet kutusu, kalıcı olarak.
+
+### 7.2) Açılış Akışı — Önce İkon, Sonra Sohbetler
+
+İki katmanlı bir splash var:
+
+1. **React tarafı (`src/components/apps/Sohbeto.tsx`)** — iframe yüklenene
+   kadar `<SohbetoIcon />` "So" ikonunu radial bir backdrop üstünde gösterir.
+   - iframe `onLoad` + 350ms → splash fade-out (220ms).
+   - 4 saniye güvence timeout'u: bir şey takılırsa yine kapanır.
+   - iframe başlangıçta `opacity: 0`; ikon görünene kadar HTML arayüzü flash
+     etmez.
+2. **Adapter tarafı (`sohbeto-adapter.js`)** — splash kapanışından sonra
+   ekran kararı:
+
+   ```js
+   if (loggedIn) enterMain();    // → screen-sohbetler
+   else        showScreen('screen-phone');
+   ```
+
+   `loggedIn` algılaması (sırasıyla): `myNumber` global → `localStorage`
+   anahtarları (`sohbet_my_number_v1`, `sohbeto.oo.profile.number`) →
+   `getEngineState()` üzerinden `state.myNumber / state.identity / state.users`.
+
+> **Yeni tema için:** Tema HTML'i kayıtlı kullanıcıyı **kendi başına** phone
+> ekranına yönlendirmemeli. Adapter karar verir. Eğer temaya özel bir
+> "tema seçici" ön ekran eklemek istersen, `enterMain` çağrısından önce
+> kendi ekranını aç ve seçim sonrası `enterMain()` veya
+> `showScreen('screen-phone')` çağır.
+
+### 7.3) Ayarlar / Tema / Hesap'ta Alt Nav Görünür Kalır
+
+Eskiden `screen-ayarlar`, `screen-tema`, `screen-hesap` `FULLSCREEN_OVERLAYS`
+listesindeydi → `applyNavVisibility` bottom-nav'ı `display:none` yapıyordu.
+Sonuç: Tema/Hesap alt sayfasına girince Sohbetler/Kişiler/Gruplar'a dönmek
+**imkansızlaşıyordu** (sadece geri butonu kalıyordu, o da bir önceki ekrana
+gidiyordu).
+
+Yeni `FULLSCREEN_OVERLAYS` (sadece gerçek tam-ekran modal'lar):
+
+```js
+var FULLSCREEN_OVERLAYS = {
+  'screen-chat': true,
+  'screen-ooCall': true,
+  'screen-ooIncoming': true,
+  'screen-phone': true,
+  'screen-auth': true
+};
+```
+
+> **Yeni tema için:** Ayarlar veya alt sayfaları (`screen-ayarlar/-tema/-hesap/-gizlilik` vb.)
+> için **alt nav'ın görünür kalması beklenir**. Eğer tema kendi alt
+> sayfalarını overlay olarak çiziyorsa ve nav'ı gizlemek isterse, kendi
+> tema-özel adapter'ında bu listeye ekleyebilir; ana adapter genel davranış
+> olarak nav'ı gizli tutmaz.
+
+### 7.4) İleri için — Henüz Yapılmadı (Adım 8 adayları)
+
+Bu adımda **kapsam dışı tutulanlar**, bilinçli olarak ertelendi:
+
+| # | Konu | Durum |
+| - | ---- | ----- |
+| a | Gizlilik bölümü (Ayarlar > Gizlilik): "Adımı kişilerimde olmayanlara göster" toggle. Açık → karşı tarafa "Abc seni arıyor", kapalı → sadece numara. | ⏳ |
+| b | Kişiler kalıcılığı: hesap-bazlı (`contacts:<+90...>`) IndexedDB store; tab id sıfırlansa bile geri yüklensin. | ⏳ |
+| c | Sohbet geçmişi kalıcılığı: `thread:<+90...>` anahtarı ile mesaj-bazlı IDB store + boot seed. | ⏳ |
+| d | Tema seçici ön ekranı (`screen-themepicker`): kayıt öncesi 5–6 tema arasında seçim. | ⏳ |
+
+Bu maddeler tek tek geldiğinde her biri için bu README'ye ek alt başlık
+açılacak; sözleşme genişlemeleri (yeni DOM ID'leri, yeni adapter köprüleri)
+yine burada belgelenecek.
+
+---
+
+## Adım 8 — Gizlilik Toggle'ı (Ayarlar > Gizlilik & Güvenlik)
+
+> Engine'e dokunulmadı. Tüm değişiklik HTML + adapter.
+
+### 8.1) UI
+
+`#screen-gizlilik` ekranı + Ayarlar listesindeki "Gizlilik & Güvenlik" satırı
+artık `app.openPrivacy()` ile bu ekranı açar. Tek toggle:
+
+| ID | Görev |
+| -- | ----- |
+| `#privacyShowNameToggle` | "Adımı kişilerimde olmayanlara göster" |
+| `#privacy-subtitle` | Ayarlar listesinde anlık özet metin |
+
+### 8.2) Saklama
+
+`localStorage` anahtarı **hesap-bazlı**:
+
+```
+sohbeto.oo.privacy.showName.<+90...>     // '1' = açık, '0'/yok = kapalı (varsayılan)
+```
+
+Numara kaynağı: `CONFIG.virtualNo` → `sohbeto.oo.profile.number` → `sohbet_my_number_v1`.
+
+### 8.3) Davranış (engine'e dokunmadan)
+
+Adapter `window.sendProfileUpdate`'i monkey-patch eder. Kapalıyken:
+
+1. Hedef `HERKES` veya alıcı bizim **rehberimizde varsa** → orijinal akış (tam ad).
+2. Aksi halde `state.nick` geçici olarak boşaltılıp `createProfileUpdatePacket()`
+   üretilir, eski nick geri yüklenir, paket `sendWhenP2PReady` ile yollanır.
+3. Karşı taraftaki `resolveDisplayName` boş ad → numaraya düşer; arama / mesaj
+   bildirimlerinde kullanıcı sadece "+90… seni arıyor" görür.
+
+Tercih değişince `scheduleProfileBroadcast(50)` çağrılarak tüm aktif peer'lara
+güncel durum yeniden iletilir.
+
+### 8.4) Yeni tema için sözleşme
+
+Tema kendi gizlilik ekranını çizebilir; ama **şunlar zorunlu**:
+
+- Toggle elementi `id="privacyShowNameToggle"` olmalı (input checkbox).
+- Açılış fonksiyonu `app.openPrivacy()`, kapanış `app.closePrivacy()`.
+- Adapter init sırasında toggle'ı `window.__privacyShowName()` ile senkronlar
+  ve `change` event'inde tercih güncellenir; tema başka bir mantık eklemek
+  zorunda değildir.
+- "Sadece kişilerin görür" kuralı **alıcının rehberindeki varlığa bakmaz**;
+  gönderici tarafta filtrelenir. Bu yüzden alıcının uygulaması güncel
+  olmasa bile kural geçerlidir.
+
+---
+
+## Adım 9 — Hesap-bazlı kalıcı veri (GunesOSStore)
+
+`public/apps/gunesos-store.js` → `window.GunesOSStore`
+
+Tek paylaşımlı IndexedDB veritabanı `GunesOS` (tek store: `kv`). Anahtarlar
+sanal klasör yolu gibi yazılır:
+
+```
+.gunesos/sohbeto/<+90...>/contacts
+.gunesos/sohbeto/<+90...>/threads/<+90...>     (planlı — Adım 9.2)
+.gunesos/sohbeto/<+90...>/profile              (planlı)
+.gunesos/sohbeto/<+90...>/settings/privacy     (planlı)
+.gunesos/sohbeto/_global/theme
+```
+
+**Neden:** Engine'in kendi `EgaNetwork_<tabId>` deposu tab id'sine bağlı;
+yeni tab id ile veriler kaybolur. `GunesOS` paylaşımlı olduğu için telefon
+numarası klasörü aynı kalır → kullanıcı verisi sekme reset'lerini atlatır.
+
+**API:**
+```js
+GunesOSStore.get(key)                 // → value | null
+GunesOSStore.set(key, value)
+GunesOSStore.del(key)
+GunesOSStore.listByPrefix(prefix)     // → [{key, value}, ...]
+GunesOSStore.path.contacts(number)
+GunesOSStore.path.thread(number, peerNumber)
+GunesOSStore.path.profile(number)
+GunesOSStore.path.privacy(number)
+GunesOSStore.path.globalTheme()
+GunesOSStore.debounce(fn, ms)
+```
+
+**Adapter köprüsü (kişiler):**
+1. Boot + 1.5sn sonra `contacts/<+90...>` okunur, engine'in `contactsState`'ine
+   eksik kayıtlar MERGE edilir (var olanlara dokunulmaz).
+2. `window.renderContacts` monkey-patch'i her çağrıda 600ms debounced flush.
+3. Ayrıca her 5 saniyede ve `beforeunload`'da güvence flush.
+
+**Yeni tema sözleşmesi:**
+- Temada kişiler eklendiğinde `renderContacts()` çağrılmalı (yoksa adapter
+  yine 5sn'lik flush'ı yakalar ama anlık olmaz).
+- Tema kendi storage'ını kullanırsa adapter yine ayna yapar; tema bir şey
+  yapmak zorunda değildir.
+
+---
+
+## Adım 10 — Tema seçici ön ekranı (themepicker)
+
+DOM: `#screen-themepicker` — splash kapandıktan sonra **ilk kez** açıyorsa
+ve kullanıcı henüz giriş yapmamışsa gösterilir.
+
+Akış:
+```
+Splash (So ikonu, 600ms)
+   ├── loggedIn? → enterMain (sohbetler)
+   └── değilse:
+         ├── tema seçilmiş mi? → screen-phone
+         └── seçilmemiş → screen-themepicker
+                            └── kullanıcı seçer → screen-phone
+```
+
+Tema kaydı: `localStorage.sohbeto.oo.theme` + `.gunesos/sohbeto/_global/theme`
+(iki yere de yazılır, ilki hızlı okuma için).
+
+API: `window.__chooseTheme('OO')` — yeni tema eklemek için themepicker
+listesine bir buton koy ve `window.__chooseTheme('YENI_TEMA_ADI')` çağır.
+Adapter geri kalanını halleder.
+
+Şu anda tek seçenek **OO**; ilerleyen sürümlerde 5–6 farklı tema buraya eklenecek.

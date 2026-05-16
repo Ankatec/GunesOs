@@ -814,6 +814,46 @@
         <div class="splash-tag">güvenli sohbet</div>
     </div>
 
+    <!-- Adım 10: TEMA SEÇİCİ — ilk açılışta (tema henüz seçilmediyse) gösterilir -->
+    <div id="screen-themepicker" class="screen hidden-screen" style="z-index:9000;background:radial-gradient(ellipse at 30% 20%,#1e1b4b 0%,#0e1621 60%,#0a0e1a 100%);color:#e5e7eb;padding:32px 24px;align-items:center;justify-content:center;text-align:center;">
+        <div style="max-width:360px;width:100%;display:flex;flex-direction:column;align-items:center;gap:18px;animation:fadeIn .5s ease;">
+            <svg viewBox="0 0 64 64" width="92" height="92" style="filter:drop-shadow(0 14px 28px rgba(99,102,241,.55));" aria-hidden="true">
+                <defs>
+                    <linearGradient id="tpBody" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#22d3ee"/>
+                        <stop offset="55%" stop-color="#6366f1"/>
+                        <stop offset="100%" stop-color="#a855f7"/>
+                    </linearGradient>
+                </defs>
+                <rect x="2" y="2" width="60" height="60" rx="16" ry="16" fill="url(#tpBody)"/>
+                <path d="M16 22c0-3.3 2.7-6 6-6h20c3.3 0 6 2.7 6 6v14c0 3.3-2.7 6-6 6H30l-7 6v-6h-1c-3.3 0-6-2.7-6-6V22z" fill="rgba(255,255,255,0.96)"/>
+                <text x="32" y="36" text-anchor="middle" font-family="system-ui" font-size="14" font-weight="800" fill="#6366f1">So</text>
+            </svg>
+            <h2 style="margin:0;font-size:22px;font-weight:800;background:linear-gradient(135deg,#22d3ee,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Sohbeto ile birçok arayüz seni bekliyor</h2>
+            <p style="margin:0;color:#9aa6bd;font-size:13px;line-height:1.55;">İstediğin arayüzü seç. İlerleyen sürümlerde farklı temalar açıldıkça burada görünecek.</p>
+            <div id="themePickerList" style="width:100%;display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+                <button type="button" onclick="window.__chooseTheme && window.__chooseTheme('OO')"
+                    style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(168,85,247,.18));border:1px solid rgba(124,92,255,.45);color:#e5e7eb;cursor:pointer;text-align:left;transition:transform .15s ease,box-shadow .15s ease;"
+                    onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 10px 24px -10px rgba(124,92,255,.6)';"
+                    onmouseout="this.style.transform='';this.style.boxShadow='';">
+                    <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#22d3ee,#a855f7);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;">OO</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:14px;">OO arayüzü</div>
+                        <div style="font-size:11px;color:#9aa6bd;">Klasik, modern ve hızlı — varsayılan deneyim.</div>
+                    </div>
+                    <i class="fa-solid fa-arrow-right" style="color:#a5b4fc;"></i>
+                </button>
+                <div style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.12);color:#6b7691;text-align:left;">
+                    <div style="width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-weight:800;">?</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:13px;color:#9aa6bd;">Yakında daha fazla arayüz</div>
+                        <div style="font-size:11px;">5–6 farklı tema üzerinde çalışıyoruz.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="app-container">
 
         <!-- 0. NUMARA EKRANI (Mesajlara kod gönder) -->
@@ -1153,11 +1193,11 @@
                         </div>
                     </div>
 
-                    <div class="settings-item">
+                    <div class="settings-item" onclick="app.openPrivacy()">
                         <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-lock" style="font-size: 1rem; font-weight:300;"></i></div>
                         <div class="settings-text">
-                            <span class="settings-item-title">Gizlilik & Güvenlik</span>
-                            <span class="settings-item-subtitle">Uçtan uca şifreleme · Aktif</span>
+                            <span class="settings-item-title">Gizlilik &amp; Güvenlik</span>
+                            <span class="settings-item-subtitle" id="privacy-subtitle">Uçtan uca şifreleme · Aktif</span>
                         </div>
                         <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
                     </div>
@@ -1232,6 +1272,108 @@
             </div>
         </div>
 
+        <!-- 8. GİZLİLİK (Adım 8 — Ayarlar > Gizlilik & Güvenlik'ten açılır) -->
+        <div id="screen-gizlilik" class="screen hidden-screen" style="z-index: 15;">
+            <div class="theme-header">
+                <i class="fa-solid fa-arrow-left" onclick="app.closePrivacy()"></i>
+                <div class="main-title" style="font-size: 1.2rem;">Gizlilik &amp; Güvenlik</div>
+            </div>
+
+            <div class="content-area">
+                <div class="settings-section">
+                    <h3>Adım Görünürlüğü</h3>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-item">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-id-badge"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Adımı kişilerimde olmayanlara göster</span>
+                            <span class="settings-item-subtitle">Kapalıyken; kişilerinde kayıtlı olmayanlar seni aradığında/yazıştığında sadece numaranı görür. Açıkken, profil adın görünür.</span>
+                        </div>
+                        <div class="settings-action">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="privacyShowNameToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section" style="margin-top:32px;">
+                    <h3>Şifreleme</h3>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-item" style="cursor:default;">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Uçtan Uca Şifreleme</span>
+                            <span class="settings-item-subtitle">AES-256-GCM · P2P kanal · Her zaman açık</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section" style="margin-top:32px;">
+                    <h3>Verilerim</h3>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-item" onclick="app.openDataInfo()">
+                        <div class="settings-icon-wrapper icon-dynamic"><i class="fa-solid fa-database"></i></div>
+                        <div class="settings-text">
+                            <span class="settings-item-title">Saklanan veriler hakkında</span>
+                            <span class="settings-item-subtitle">Kişilerin ve sohbet geçmişin nerede tutuluyor?</span>
+                        </div>
+                        <div class="settings-action"><i class="fa-solid fa-chevron-right" style="opacity:.45;"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Veri Saklama Bilgi Modali -->
+        <div id="dataInfoModal" class="hidden-screen" style="position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); display:flex; align-items:flex-end; justify-content:center;" onclick="if(event.target===this)app.closeDataInfo()">
+            <div style="width:100%; max-width:480px; background:var(--bg-2, #16181d); color:var(--text-1,#fff); border-radius:24px 24px 0 0; padding:24px 22px 28px; box-shadow:0 -20px 60px rgba(0,0,0,.5); animation:dataInfoSlide .28s cubic-bezier(.2,.9,.3,1);">
+                <div style="width:42px; height:4px; background:rgba(255,255,255,.18); border-radius:4px; margin:0 auto 18px;"></div>
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+                    <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg,#3b82f6,#8b5cf6); display:flex; align-items:center; justify-content:center;">
+                        <i class="fa-solid fa-database" style="color:#fff; font-size:18px;"></i>
+                    </div>
+                    <div>
+                        <div style="font-size:1.05rem; font-weight:600;">Verilerin nerede?</div>
+                        <div style="font-size:.78rem; opacity:.6;">Hesap-bazlı, cihazında saklanır</div>
+                    </div>
+                </div>
+
+                <div style="font-size:.88rem; line-height:1.55; opacity:.88; margin-bottom:14px;">
+                    Kişilerin ve sohbet geçmişin, telefon numaran kök kabul edilerek bu cihazın tarayıcısındaki <b>kalıcı veri kasasında</b> (IndexedDB) tutulur:
+                </div>
+
+                <div style="background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:12px 14px; font-family:ui-monospace,Menlo,monospace; font-size:.78rem; line-height:1.7; margin-bottom:16px;">
+                    <div style="opacity:.55;">.gunesos/</div>
+                    <div style="opacity:.7; padding-left:14px;">sohbeto/</div>
+                    <div style="padding-left:28px;"><span id="dataInfoMyNum" style="color:#7dd3fc;">&lt;+90...&gt;</span>/</div>
+                    <div style="padding-left:42px; opacity:.85;">contacts</div>
+                    <div style="padding-left:42px; opacity:.85;">threads/&lt;+90...&gt;</div>
+                    <div style="padding-left:42px; opacity:.85;">profile · settings</div>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.25); border-radius:12px; margin-bottom:10px;">
+                    <i class="fa-solid fa-triangle-exclamation" style="color:#f87171; margin-top:2px;"></i>
+                    <div style="font-size:.82rem; line-height:1.5;">
+                        <b style="color:#fca5a5;">Dikkat:</b> Tarayıcıdan <b>"site verilerini sil"</b> dersen ya da uygulamayı temizlersen <b>kişilerin ve tüm sohbet geçmişin silinir</b>. Bu işlem geri alınamaz. Çerez/sekme sıfırlansa veri durur, ama site verisi temizlenirse gider.
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:rgba(34,197,94,.06); border:1px solid rgba(34,197,94,.2); border-radius:12px; margin-bottom:18px;">
+                    <i class="fa-solid fa-lock" style="color:#4ade80; margin-top:2px;"></i>
+                    <div style="font-size:.82rem; line-height:1.5; opacity:.9;">
+                        Veriler <b>yalnızca bu cihazda</b> tutulur, sunucuya yüklenmez. Başka bir cihazda otomatik görünmez.
+                    </div>
+                </div>
+
+                <button onclick="app.closeDataInfo()" style="width:100%; padding:14px; border:none; border-radius:14px; background:linear-gradient(135deg,#3b82f6,#6366f1); color:#fff; font-size:.95rem; font-weight:600; cursor:pointer;">Anladım</button>
+            </div>
+        </div>
+        <style>@keyframes dataInfoSlide{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}</style>
+
         <div id="bottom-nav" class="bottom-nav" style="display: none;">
             <div class="nav-item active" id="nav-sohbetler" onclick="app.navigate('sohbetler')">
                 <i class="fa-solid fa-comment"></i>
@@ -1255,6 +1397,7 @@
 
     <!-- Twemoji: tüm OS'lerde (özellikle Windows) emoji ve bayrakları gerçek görüntüyle render eder -->
     <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
+    <script src="./gunesos-store.js"></script>
     <script src="./sohbeto-adapter.js"></script>
     <script src="./sohbeto-engine.js"></script>
     <!-- Adım 5: Telegram benzeri akışkan tab geçişleri + parmak swipe (motora dokunmaz) -->
