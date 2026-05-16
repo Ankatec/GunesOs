@@ -1,8 +1,8 @@
 /* ============================================================
-   SOHBETO FLUID TABS  v2 — Telegram benzeri akışkan sekme geçişi
+   SOHBETO FLUID TABS  v3 — parmak 1:1 takip eden pager mantığı
    4 ana sekme: sohbetler / kisiler / gruplar / ayarlar
    - Yatay parmak swipe + alt nav tıkla
-   - Aktif olmayan sekmeye hafif scale+opacity ("dinamik" his)
+   - Çok küçük yatay harekette bile sayfa parmağın altına gelir
    - touch-action + pointer capture + rAF batch ile takılmasız hareket
    Motoru / adapter'ı / engine.js'i kirletmez. SADECE bu dosya.
    YÜKLEME: sohbeto-engine.js'TEN SONRA.
@@ -13,16 +13,16 @@
   var TABS = ['sohbetler', 'kisiler', 'gruplar', 'ayarlar'];
   var SCREEN_IDS = TABS.map(function (t) { return 'screen-' + t; });
 
-  // Akışkanlık parametreleri — Telegram benzeri
-  var DURATION_MS = 220;              // snap süresi (Telegram ~200-240ms)
+  // Akışkanlık parametreleri — native pager / Telegram benzeri
+  var DURATION_MS = 240;              // bırakınca toparlama; takip hızını değil snap'i etkiler
   var EASING = 'cubic-bezier(0.33, 1, 0.68, 1)'; // easeOutCubic — doğal yavaşlama
-  var SWIPE_DISTANCE_RATIO = 0.30;    // %30 geçince snap (Telegram ~%30) — orta yol
-  var SWIPE_VELOCITY = 0.30;          // px/ms — flick eşiği (yumuşak)
-  var DRAG_RUBBER = 0.50;             // uçlarda yarı yarıya direnç (zorlanmış değil)
-  var TAP_HORIZ_THRESHOLD = 4;        // çok düşük: parmak hareketini hemen yakala
-  var DECIDE_RATIO = 1.0;             // |dx| ≥ |dy| → yatay (Telegram'da 1:1)
-  var INACTIVE_SCALE = 1.0;           // ölçek değişimi YOK — Telegram gibi düz kayma
-  var INACTIVE_OPACITY = 1.0;         // opaklık değişimi YOK — saf yatay kayma
+  var SWIPE_DISTANCE_RATIO = 0.24;    // %24 geçince snap; hafif çekiş takip eder ama kazara geçmez
+  var SWIPE_VELOCITY = 0.22;          // px/ms — kısa flick'i kaçırmamak için yumuşak
+  var DRAG_RUBBER = 0.42;             // sadece ilk/son sekmede elastik direnç
+  var LOCK_START_PX = 2;              // parmak 2px yatay niyet verince takip başlar
+  var VERTICAL_LOCK_PX = 10;          // dikey scroll'a karar vermeden önce acele etme
+  var HORIZONTAL_BIAS = 0.72;         // küçük dikey titremeyi affet: dx >= dy*0.72 ise yatay
+  var VERTICAL_BIAS = 1.25;           // ancak dikey açık ara baskınsa scroll'a bırak
 
   function ready(fn) {
     function start() {
@@ -42,19 +42,19 @@
     var ids = SCREEN_IDS.map(function (id) { return '#' + id; }).join(',');
     var css = [
       // Konteyner: yatay swipe için browser scroll'unu kapat, dikey kalsın
-      '.app-container.fluid-mode{overflow:hidden;touch-action:pan-y;}',
+      '.app-container.fluid-mode{overflow:hidden;touch-action:pan-y;overscroll-behavior-x:none;}',
+      '.app-container.fluid-mode .screen,.app-container.fluid-mode .content-area{touch-action:pan-y;overscroll-behavior-x:contain;}',
       // 4 ana sekme: yumuşak geçiş + GPU hızlandırma
       ids + '{transition:transform ' + DURATION_MS + 'ms ' + EASING +
-            ',opacity ' + DURATION_MS + 'ms ' + EASING + ';' +
-            'will-change:transform,opacity;backface-visibility:hidden;}',
+            ';will-change:transform;backface-visibility:hidden;}',
       // Drag esnasında transition kapalı (1:1 takip)
       '.app-container.fluid-dragging ' + ids.split(',').join(',.app-container.fluid-dragging ') +
         '{transition:none !important;}',
-      // Fluid mode'da tüm tab'lar görünür kalır; konum transform ile yönetilir
+      // Fluid mode'da inactive tab'lar hidden-screen sözleşmesini korur ama görünür çizilir
       '.app-container.fluid-mode ' + SCREEN_IDS.map(function (id) { return '#' + id + '.hidden-screen'; }).join(',.app-container.fluid-mode ') +
-        '{opacity:1;pointer-events:auto;transform:none;}',
+        '{opacity:1;transform:none;}',
       // Aktif olmayan sekmeler input almasın
-      '.app-container.fluid-mode .fluid-inactive{pointer-events:none;}',
+      '.app-container.fluid-mode .fluid-inactive{pointer-events:none !important;}',
     ].join('\n');
     var style = document.createElement('style');
     style.id = '__fluid_tabs_css__';
@@ -72,6 +72,7 @@
   var pointerId = null;
   var dragStartX = 0, dragStartY = 0;
   var dragLastX = 0, dragLastT = 0, dragVelocity = 0;
+  var dragDx = 0;
   var horizontalLocked = null;   // null=karar verilmedi, true=yatay, false=dikey
   var containerWidth = 0;
   var appContainer = null;
@@ -88,12 +89,8 @@
       if (!el) continue;
       var base = (i - activeIndex) * w;
       var x = base + dx;
-      // Pasif sekmeye scale + opacity (mesafeye göre yumuşak)
-      var dist = Math.min(1, Math.abs(x) / w);
-      var scale = 1 - (1 - INACTIVE_SCALE) * dist;
-      var opacity = 1 - (1 - INACTIVE_OPACITY) * dist;
-      el.style.transform = 'translate3d(' + x + 'px,0,0) scale(' + scale.toFixed(4) + ')';
-      el.style.opacity = opacity.toFixed(3);
+      el.style.transform = 'translate3d(' + x + 'px,0,0)';
+      el.style.opacity = '1';
     }
   }
 
@@ -114,10 +111,14 @@
     var screens = getTabScreens();
     screens.forEach(function (el, i) {
       if (!el) return;
-      el.classList.remove('hidden-screen');
-      el.classList.add('active');
-      if (i === idx) el.classList.remove('fluid-inactive');
-      else el.classList.add('fluid-inactive');
+      el.classList.add('hidden-screen');
+      el.classList.remove('active');
+      if (i === idx) {
+        el.classList.remove('hidden-screen', 'fluid-inactive');
+        el.classList.add('active');
+      } else {
+        el.classList.add('fluid-inactive');
+      }
     });
     containerWidth = appContainer.clientWidth || window.innerWidth;
     paintTransform(0);
@@ -206,6 +207,7 @@
     dragStartY = getY(e);
     dragLastT = performance.now();
     dragVelocity = 0;
+    dragDx = 0;
     horizontalLocked = null;
     dragging = true;
     pointerId = e.pointerId != null ? e.pointerId : null;
@@ -219,8 +221,13 @@
 
     if (horizontalLocked === null) {
       var ax = Math.abs(dx), ay = Math.abs(dy);
-      if (ax < TAP_HORIZ_THRESHOLD && ay < TAP_HORIZ_THRESHOLD) return;
-      if (ax > ay * DECIDE_RATIO) {
+      if (ax < LOCK_START_PX && ay < VERTICAL_LOCK_PX) return;
+      if (ay > VERTICAL_LOCK_PX && ay > ax * VERTICAL_BIAS) {
+        horizontalLocked = false;
+        dragging = false;
+        return;
+      }
+      if (ax >= LOCK_START_PX && ax >= ay * HORIZONTAL_BIAS) {
         horizontalLocked = true;
         appContainer.classList.add('fluid-dragging');
         // Parmak konteyner dışına çıksa bile event'leri burada toplamaya devam et
@@ -240,6 +247,7 @@
     var atLeft = activeIndex === 0 && dx > 0;
     var atRight = activeIndex === TABS.length - 1 && dx < 0;
     var effectiveDx = (atLeft || atRight) ? dx * DRAG_RUBBER : dx;
+    dragDx = effectiveDx;
 
     scheduleDraw(effectiveDx);
 
@@ -256,7 +264,11 @@
     var wasHoriz = horizontalLocked === true;
     dragging = false;
     horizontalLocked = null;
-    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+      paintTransform(dragDx);
+    }
     appContainer.classList.remove('fluid-dragging');
     if (pointerId != null && appContainer.releasePointerCapture) {
       try { appContainer.releasePointerCapture(pointerId); } catch (err) {}
@@ -264,14 +276,15 @@
     pointerId = null;
     if (!wasHoriz) return;
 
-    var dx = dragLastX - dragStartX;
+    var dx = dragDx || (dragLastX - dragStartX);
+    var rawDx = dragLastX - dragStartX;
     var absDx = Math.abs(dx);
     var ratio = absDx / (containerWidth || 1);
-    var fastFlick = Math.abs(dragVelocity) > SWIPE_VELOCITY && absDx > 10;
+    var fastFlick = Math.abs(dragVelocity) > SWIPE_VELOCITY && Math.abs(rawDx) > 8;
     var nextIdx = activeIndex;
     if (ratio > SWIPE_DISTANCE_RATIO || fastFlick) {
-      if (dx < 0 && activeIndex < TABS.length - 1) nextIdx = activeIndex + 1;
-      else if (dx > 0 && activeIndex > 0) nextIdx = activeIndex - 1;
+      if (rawDx < 0 && activeIndex < TABS.length - 1) nextIdx = activeIndex + 1;
+      else if (rawDx > 0 && activeIndex > 0) nextIdx = activeIndex - 1;
     }
     setActiveByIndex(nextIdx, true);
   }

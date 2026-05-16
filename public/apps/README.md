@@ -301,10 +301,18 @@ Adapter (`bridgeVideoToOO`) çalışma mantığı:
 
 ### H4) Çevrimiçi/Çevrimdışı Yansıması
 
-Adapter her saniye `getEngineState().users` haritasını ve `peers[connId].dc.readyState`
-durumunu kontrol eder; aktif sohbetin chat header'ındaki `.chat-h-status` text'ini
-**"çevrimiçi" / "çevrimdışı"** olarak günceller. Tema sadece `#screen-chat .chat-h-status`
-elementini bulundurmalıdır.
+Adapter hem `getEngineState().users` haritasını hem de `peers[connId].dc.readyState`
+durumunu kontrol eder. Artık sadece chat header değil, **sohbet listesi avatar noktaları**
+ve **kişiler listesi çevrimiçi/çevrimdışı satırı** da aynı kaynaktan güncellenir.
+
+Önemli mantık: Arama başlatırken DB'de saklı eski `connId`ye güvenilmez. P2P data channel
+açıksa mevcut id kullanılır; açık değilse adapter numarayla **taze LOOKUP** ister ve yeni
+`LOOKUP_REPLY` gelmeden aramayı kesin başlatmaz. Böylece uygulamadan çıkıp tekrar giren
+kişinin bayatlayan bağlantı id'si yüzünden "çalıyor görünüyor ama karşıya ulaşmıyor" hatası
+engellenir.
+
+Tema tarafında ek zorunlu kod yoktur; `#screen-chat .chat-h-status`, sohbet listesi `.conv-avatar`
+ve kişiler listesi `#contactsList` adapter tarafından işlenir.
 
 ### H5) Uygulama Kapanışı — Çevrimdışı Bildirimi
 
@@ -313,9 +321,11 @@ elementini bulundurmalıdır.
 > ve `beforeunload` olaylarında:
 >
 > 1. Aktif aramayı `endActiveCall()` ile sonlandırır (CALL_END P2P sinyali yollar).
-> 2. Tüm `peers[*]` data channel'larını ve peer connection'larını **düzgünce kapatır**.
->    → Karşı tarafta `pc.onconnectionstatechange` + `dc.onclose` tetiklenir →
->    `engine.updateUI()` o kullanıcıyı **anında** çevrimdışı olarak yeniden çizer.
+> 2. Her açık P2P data channel'a önce `PRESENCE_OFFLINE###timestamp` gönderir.
+> 3. Tüm `peers[*]` data channel'larını ve peer connection'larını **düzgünce kapatır**.
+>    → Karşı tarafta adapter bu presence paketini veya `dc.onclose` olayını yakalar,
+>    ilgili `connId`yi `state.users` içinden siler ve kişiler/sohbet listelerini
+>    **anında çevrimdışı** olarak yeniden çizer.
 > 3. WebSocket'i kapatır.
 >
 > Tema tarafında ek bir kod gerekmiyor — hangi tema yüklenirse yüklensin bu
@@ -1108,7 +1118,7 @@ Kazakistan → Kırgızistan → Özbekistan → KKTC → İslam ülkeleri
 
 ---
 
-## J) Fluid Tabs — Sekmeler arası akışkan geçiş (`sohbeto-fluid-tabs.js` v2)
+## J) Fluid Tabs — Sekmeler arası akışkan geçiş (`sohbeto-fluid-tabs.js` v3)
 
 **Amaç:** 4 ana sekme (`sohbetler` / `kisiler` / `gruplar` / `ayarlar`)
 arasında Telegram benzeri akışkan parmak swipe + alt nav tıkla geçişi.
@@ -1159,3 +1169,50 @@ Motoru ve adapter'ı **kirletmez**; tamamen UI katmanında çalışır.
 ### Engine değişikliği
 - **Yok.** Tüm mantık fluid-tabs.js içinde; `app.navigate` köprüsü
   monkey-patch ile sarmalanır, orijinal davranış korunur.
+
+### v2.1 — Telegram benzeri "doğal" his ayarı
+Önceki sürüm parmağı çok agresif takip ediyor, scale+opacity efektleriyle
+sayfayı "zorla değiştirmeye çalışıyor" gibi hissettiriyordu. Yeni değerler
+Telegram'ın varsayılanlarına yakın orta yol:
+
+| Param | Eski | Yeni | Neden |
+|---|---|---|---|
+| `DURATION_MS` | 280 | **220** | Snap kısa & keskin (Telegram ~200-240ms) |
+| `EASING` | quart-out | **easeOutCubic** `(0.33,1,0.68,1)` | Daha doğal yavaşlama |
+| `SWIPE_DISTANCE_RATIO` | 0.14 | **0.30** | %30 — kazara geçişi engeller |
+| `DECIDE_RATIO` | 1.05 | **1.0** | Yatay/dikey kararı simetrik (Telegram gibi) |
+| `TAP_HORIZ_THRESHOLD` | 6 | **4** | Parmak hareketini daha erken yakala |
+| `DRAG_RUBBER` | 0.32 | **0.50** | Uçlarda yarım direnç — duvar hissi yok |
+| `INACTIVE_SCALE` | 0.96 | **1.0** | Ölçek değişimi kaldırıldı |
+| `INACTIVE_OPACITY` | 0.55 | **1.0** | Opaklık değişimi kaldırıldı |
+
+Sonuç: parmak 1:1 sayfayı taşır, %30'u geçince veya hızlı flick'te snap olur,
+aksi halde geri toparlanır. Hiçbir scale/opacity efekti yok — saf yatay kayma.
+
+### v3 — Mantık düzeltmesi: gerçek pager, eşik tabanlı eski swipe değil
+
+Şikâyetin kökü süre (`220ms`) değilmiş; asıl sorun iki farklı swipe sisteminin
+aynı anda devrede olmasıydı:
+
+1. `sohbeto-fluid-tabs.js` parmakla ekranı taşımaya çalışıyordu.
+2. `sohbeto-adapter.js` içindeki eski fallback ise sadece `touchend` anında
+   `60px` geçti mi diye bakıp sekmeyi **sonradan** değiştiriyordu.
+
+Bu iki mantık beraber çalışınca kullanıcı hafif çektiğinde ekran parmağa hemen
+gelmiyor, bırakınca “zorla sekme değiştiriyor” gibi hissediyordu.
+
+v3'te yapılanlar:
+
+| Alan | Yeni davranış | Neden |
+|---|---|---|
+| Parmak takibi | `LOCK_START_PX = 2` | 2px yatay niyette sayfa hemen parmağın altına gelir |
+| Dikey tolerans | `HORIZONTAL_BIAS = 0.72`, `VERTICAL_BIAS = 1.25` | Parmağın doğal dikey titremesini affeder, ama gerçek dikey scroll'u bozmaz |
+| Snap eşiği | `SWIPE_DISTANCE_RATIO = 0.24` | Hafif çekiş takip eder; yaklaşık %24 üstü sekme değiştirir |
+| Flick | `SWIPE_VELOCITY = 0.22` | Kısa hızlı hareketleri kaçırmaz |
+| Animasyon | `DURATION_MS = 240` | Sadece bırakınca toparlamayı etkiler; parmak takibi anlık/1:1'dir |
+| Pasif ekranlar | `hidden-screen` sınıfı korunur, CSS ile fluid içinde görünür çizilir | Adapter'ın görünür ekran tespit sözleşmesi bozulmaz |
+| Eski adapter swipe | Fluid mode açıksa adapter fallback swipe çalışmaz | İki swipe sistemi kavga etmez |
+
+**Önemli:** `engine.js` yine değişmedi. `adapter.js` içinde sadece eski fallback
+swipe'ın fluid mode aktifken devre dışı kalması sağlandı; çünkü bu fallback,
+akışkan pager'ın yerini almamalı, sadece fluid dosyası yoksa yedek kalmalı.

@@ -334,6 +334,7 @@
         // Avatara tıklayınca: kişi kartı (motorun showContactCard'ı). Sohbet kutusuna tıklayınca: openChat.
         var avEl = clone.querySelector('.conv-avatar');
         if (avEl && connId) {
+          paintAvatarPresence(avEl, isConnOnline(connId));
           avEl.style.cursor = 'pointer';
           avEl.addEventListener('click', function (ev) {
             ev.stopPropagation();
@@ -913,13 +914,15 @@
 
       listEl.innerHTML = engineItems.map(function (item, idx) {
         var name = (item.querySelector('.contact-name') || {}).textContent || '—';
-        var status = (item.querySelector('.contact-status') || {}).textContent || '';
         var avatarHtml = (item.querySelector('.contact-avatar') || {}).innerHTML || escapeHtml(getInitials(name, ''));
         // Aynı isimle eşleşeni bulmaya çalış; bulunamazsa boş bırak (Adım 4'te
         // ccOpenChat connId üzerinden de gidebilecek, şimdilik number yeterli).
         var match = stateValues.find(function (c) { return (c.name || '') === name; });
         var number = match ? (match.number || '') : '';
         var connId = match && match.connId ? match.connId : '';
+        var online = match ? isContactOnline(match) : isConnOnline(connId);
+        var status = online ? 'Çevrimiçi' : 'Çevrimdışı';
+        var dotColor = online ? 'var(--primary-green)' : '#a8b3c7';
         return '<div class="contact-row" data-engine-index="' + idx + '"'
           +   ' data-name="' + escapeHtml(name) + '"'
           +   ' data-number="' + escapeHtml(number) + '"'
@@ -929,7 +932,8 @@
           +   '</div>'
           +   '<div style="flex:1;min-width:0;margin-left:12px">'
           +     '<div style="font-weight:600;font-size:.98rem;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(name) + '</div>'
-          +     '<div style="font-size:.82rem;color:var(--text-secondary);margin-top:2px">' + escapeHtml(status) + '</div>'
+          +     '<div class="oo-contact-status" data-online="' + (online ? '1' : '0') + '" style="font-size:.82rem;color:var(--text-secondary);margin-top:2px;display:flex;align-items:center;gap:6px">'
+          +       '<span style="width:7px;height:7px;border-radius:50%;background:' + dotColor + ';display:inline-block;box-shadow:0 0 0 2px rgba(10,124,74,.08)"></span>' + escapeHtml(status) + '</div>'
           +   '</div>'
           + '</div>';
       }).join('');
@@ -942,6 +946,7 @@
         if (typeof _origUpdateContactList === 'function') _origUpdateContactList(filter);
       } catch (e) { console.error('[adapter] updateContactList hata:', e); }
       renderContactsFromEngineDom();
+      warmKnownContactPeers();
     };
 
     // Arama input'u zaten oninput="renderContacts()" çağırıyor — ek listener'a gerek yok.
@@ -1102,6 +1107,81 @@
       catch (e) { return false; }
     }
 
+    function getPeersRef() {
+      try { return (typeof peers !== 'undefined') ? peers : (window.peers || null); }
+      catch (e) { return null; }
+    }
+
+    function hasOpenP2P(id) {
+      var pr = getPeersRef();
+      try { return !!(id && pr && pr[id] && pr[id].dc && pr[id].dc.readyState === 'open'); }
+      catch (e) { return false; }
+    }
+
+    function isConnOnline(id) {
+      return !!(id && (isLiveConnId(id) || hasOpenP2P(id)));
+    }
+
+    function isContactOnline(contact) {
+      if (!contact) return false;
+      var live = findLiveConnIdByNumber(contact.number);
+      if (live) {
+        contact.connId = live;
+        contact.lastSeen = Date.now();
+        try { if (typeof dbSaveContact === 'function') dbSaveContact(contact); } catch (e) {}
+        return true;
+      }
+      return isConnOnline(contact.connId);
+    }
+
+    function markConnOffline(connId, reason) {
+      if (!connId) return;
+      try {
+        var st = getEngineState();
+        if (st && st.users && st.users.has(connId)) st.users.delete(connId);
+      } catch (e) {}
+      try {
+        if (typeof contactsState !== 'undefined' && contactsState.byNumber) {
+          contactsState.byNumber.forEach(function (c) {
+            if (c && c.connId === connId) {
+              c.lastSeen = Date.now();
+              try { if (typeof dbSaveContact === 'function') dbSaveContact(c); } catch (e) {}
+            }
+          });
+        }
+      } catch (e) {}
+      try { if (typeof window.renderContacts === 'function') window.renderContacts(); } catch (e) {}
+      try { if (typeof window.renderConvList === 'function') window.renderConvList(); } catch (e) {}
+      try { console.info('[adapter] peer offline:', connId, reason || ''); } catch (e) {}
+    }
+
+    function paintAvatarPresence(el, online) {
+      if (!el) return;
+      el.style.position = el.style.position || 'relative';
+      var dot = el.querySelector(':scope > .oo-presence-dot');
+      if (!dot) {
+        dot = document.createElement('span');
+        dot.className = 'oo-presence-dot';
+        dot.style.cssText = 'position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border-radius:50%;border:2px solid var(--bg-white);background:#a8b3c7;box-shadow:0 2px 6px rgba(0,0,0,.18);';
+        el.appendChild(dot);
+      }
+      dot.style.background = online ? 'var(--primary-green)' : '#a8b3c7';
+    }
+
+    function warmKnownContactPeers() {
+      try {
+        if (typeof initP2P !== 'function' || typeof contactsState === 'undefined' || !contactsState.byNumber) return;
+        var warmed = 0;
+        contactsState.byNumber.forEach(function (c) {
+          if (warmed >= 6 || !c) return;
+          var connId = findLiveConnIdByNumber(c.number) || c.connId;
+          if (!connId || !isLiveConnId(connId) || hasOpenP2P(connId)) return;
+          warmed += 1;
+          try { initP2P(connId); } catch (e) {}
+        });
+      } catch (e) {}
+    }
+
     // Motor state.users değerini "Ad [number]" formatında tutar; numaradan canlı connId bul.
     function findLiveConnIdByNumber(number) {
       var st = getEngineState();
@@ -1112,25 +1192,115 @@
       try {
         st.users.forEach(function (label, connId) {
           var labelNumber = normalizePhoneForAdapter(String(label || '').match(/\[(.*?)\]/)?.[1] || '');
-          if (!found && labelNumber && labelNumber === normalized) found = connId;
-          else if (!found && typeof label === 'string' && label.indexOf(needle) !== -1) found = connId;
+          if (labelNumber && labelNumber === normalized) found = connId;
+          else if (typeof label === 'string' && label.indexOf(needle) !== -1) found = connId;
         });
       } catch (e) {}
       return found;
     }
 
+    function findAllConnIdsByNumber(number) {
+      var st = getEngineState();
+      var ids = [];
+      if (!number || !st || !st.users) return ids;
+      var normalized = normalizePhoneForAdapter(number);
+      var needle = '[' + normalized + ']';
+      try {
+        st.users.forEach(function (label, connId) {
+          var labelNumber = normalizePhoneForAdapter(String(label || '').match(/\[(.*?)\]/)?.[1] || '');
+          if ((labelNumber && labelNumber === normalized) || (typeof label === 'string' && label.indexOf(needle) !== -1)) ids.push(connId);
+        });
+      } catch (e) {}
+      return ids;
+    }
+
+    var lookupReplyCache = new Map();
+    function rememberLookupReply(number, connId) {
+      var normalized = normalizePhoneForAdapter(number);
+      if (!normalized || !connId) return;
+      lookupReplyCache.set(normalized, { connId: connId, ts: Date.now() });
+      try {
+        var st = getEngineState();
+        if (st && st.users) {
+          st.users.forEach(function (label, id) {
+            if (id !== connId && String(label || '').indexOf('[' + normalized + ']') !== -1) st.users.delete(id);
+          });
+        }
+      } catch (e) {}
+      try {
+        if (typeof contactsState !== 'undefined' && contactsState.byNumber) {
+          var c = contactsState.byNumber.get(normalized);
+          if (c) { c.connId = connId; c.lastSeen = Date.now(); if (typeof dbSaveContact === 'function') dbSaveContact(c); }
+        }
+      } catch (e) {}
+    }
+
+    var origLookupReply = null;
+    try { origLookupReply = (typeof handleLookupReply === 'function') ? handleLookupReply : window.handleLookupReply; } catch (e) {}
+    if (typeof origLookupReply === 'function' && !origLookupReply.__ooFreshWrapped) {
+      var wrappedLookupReply = function (number, connId) {
+        rememberLookupReply(number, connId);
+        return origLookupReply.apply(this, arguments);
+      };
+      wrappedLookupReply.__ooFreshWrapped = true;
+      try { handleLookupReply = wrappedLookupReply; } catch (e) {}
+      try { window.handleLookupReply = wrappedLookupReply; } catch (e) {}
+    }
+
+    var origP2PMsg = null;
+    try { origP2PMsg = (typeof handleP2PMsg === 'function') ? handleP2PMsg : window.handleP2PMsg; } catch (e) {}
+    if (typeof origP2PMsg === 'function' && !origP2PMsg.__ooPresenceWrapped) {
+      var wrappedP2PMsg = function (senderConnId, data) {
+        if (typeof data === 'string' && data.indexOf('PRESENCE_OFFLINE###') === 0) {
+          markConnOffline(senderConnId, 'presence-packet');
+          return;
+        }
+        return origP2PMsg.apply(this, arguments);
+      };
+      wrappedP2PMsg.__ooPresenceWrapped = true;
+      try { handleP2PMsg = wrappedP2PMsg; } catch (e) {}
+      try { window.handleP2PMsg = wrappedP2PMsg; } catch (e) {}
+    }
+
+    var origAttachDataChannel = null;
+    try { origAttachDataChannel = (typeof attachDataChannel === 'function') ? attachDataChannel : window.attachDataChannel; } catch (e) {}
+    if (typeof origAttachDataChannel === 'function' && !origAttachDataChannel.__ooPresenceWrapped) {
+      var wrappedAttachDataChannel = function (connId, channel, label) {
+        var result = origAttachDataChannel.apply(this, arguments);
+        try {
+          var prevClose = channel.onclose;
+          channel.onclose = function () {
+            if (typeof prevClose === 'function') { try { prevClose.apply(this, arguments); } catch (e) {} }
+            markConnOffline(connId, 'datachannel-close');
+          };
+        } catch (e) {}
+        return result;
+      };
+      wrappedAttachDataChannel.__ooPresenceWrapped = true;
+      try { attachDataChannel = wrappedAttachDataChannel; } catch (e) {}
+      try { window.attachDataChannel = wrappedAttachDataChannel; } catch (e) {}
+    }
+
     // LOOKUP atıp en fazla `timeoutMs` boyunca canlı connId'yi bekle
-    function lookupAndWait(number, timeoutMs) {
+    function lookupAndWait(number, timeoutMs, opts) {
       return new Promise(function (resolve) {
         if (!number) return resolve(null);
+        var options = opts || {};
+        var normalized = normalizePhoneForAdapter(number);
+        var startedAt = Date.now();
         var live = findLiveConnIdByNumber(number);
-        if (live) return resolve(live);
+        var baseline = new Set(findAllConnIdsByNumber(number));
+        if (!options.forceFresh && live) return resolve(live);
+        if (options.forceFresh && live && hasOpenP2P(live)) return resolve(live);
         try {
           if (typeof window.wsSend === 'function') window.wsSend('LOOKUP###' + number, 'HERKES');
         } catch (e) {}
         var elapsed = 0, step = 200;
         var t = setInterval(function () {
-          var id = findLiveConnIdByNumber(number);
+          var fresh = lookupReplyCache.get(normalized);
+          var newest = findLiveConnIdByNumber(number);
+          var changed = findAllConnIdsByNumber(number).find(function (id) { return !baseline.has(id); });
+          var id = fresh && fresh.ts >= startedAt - 50 ? fresh.connId : (options.forceFresh ? (changed || (newest && hasOpenP2P(newest) ? newest : null)) : newest);
           elapsed += step;
           if (id) { clearInterval(t); resolve(id); }
           else if (elapsed >= (timeoutMs || 3000)) { clearInterval(t); resolve(null); }
@@ -1139,17 +1309,15 @@
     }
 
     async function startCallFromCard(c, kind) {
-      // 1) Mevcut connId canlı mı?
-      var connId = isLiveConnId(c.connId) ? c.connId : null;
-      // 2) Değilse, numaradan state.users içinde tara
-      if (!connId) connId = findLiveConnIdByNumber(c.number);
-      // 3) Yine yoksa LOOKUP at ve cevabı bekle
+      // Aramada eski connId'ye güvenme: P2P açıksa kullan, değilse numaradan taze LOOKUP iste.
+      var connId = hasOpenP2P(c.connId) ? c.connId : null;
+      if (!connId && !c.number && isLiveConnId(c.connId)) connId = c.connId;
       if (!connId && c.number) {
-        // Kullanıcıya bekleme görünür olsun: arama ekranını "Aranıyor..." ile aç
         openOOCallScreen(c, kind);
         var st = document.getElementById('oocStatus'); if (st) st.textContent = 'Bağlanılıyor…';
-        connId = await lookupAndWait(c.number, 3500);
+        connId = await lookupAndWait(c.number, 3500, { forceFresh: true });
         if (!connId) {
+          if (c.connId) markConnOffline(c.connId, 'fresh-lookup-timeout-before-call');
           closeOOCallScreen();
           enqueueOfflineCall(c, kind);
           showCallToast('📵 ' + (c.name || c.number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.');
@@ -1172,7 +1340,7 @@
       } catch (e) { console.error('[adapter] arama başlatılamadı:', e); }
     }
 
-    function startCallForActiveChat(kind) {
+    async function startCallForActiveChat(kind) {
       var st = getEngineState() || {};
       if (!st.activeChat || st.activeChat === 'genel') { alert('Önce bir kişi sohbeti açın.'); return; }
       var connId = st.activeChat;
@@ -1185,6 +1353,27 @@
           contactsState.byNumber.forEach(function (rec) { if (rec.connId === connId) number = rec.number; });
         }
       } catch (e) {}
+      if (number && !hasOpenP2P(connId)) {
+        var freshForCall = await lookupAndWait(number, 3500, { forceFresh: true });
+        if (!freshForCall) {
+          markConnOffline(connId, 'active-chat-fresh-lookup-timeout');
+          enqueueOfflineCall({ name: name, number: number, connId: connId }, kind);
+          showCallToast('📵 ' + (name || number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.');
+          return;
+        }
+        connId = freshForCall;
+        try { await window.openChat(connId); } catch (e) {}
+      } else if (!isConnOnline(connId)) {
+        markConnOffline(connId, 'active-chat-stale-before-call');
+        var refreshed = number ? (findLiveConnIdByNumber(number) || await lookupAndWait(number, 3500)) : null;
+        if (!refreshed) {
+          enqueueOfflineCall({ name: name, number: number, connId: connId }, kind);
+          showCallToast('📵 ' + (name || number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.');
+          return;
+        }
+        connId = refreshed;
+        try { await window.openChat(connId); } catch (e) {}
+      }
       var c = { name: name, number: number, connId: connId, engineIndex: -1 };
       openOOCallScreen(c, kind);
       var st2 = document.getElementById('oocStatus'); if (st2) st2.textContent = 'Çalıyor…';
@@ -1637,11 +1826,11 @@
     function gracefulShutdown() {
       try {
         try { if (typeof window.endActiveCall === 'function') window.endActiveCall(); } catch (e) {}
-        var peersRef = null;
-        try { peersRef = (typeof peers !== 'undefined') ? peers : (window.peers || null); } catch (e) {}
+        var peersRef = getPeersRef();
         if (peersRef) {
           Object.keys(peersRef).forEach(function (cid) {
             var p = peersRef[cid];
+            try { if (p && p.dc && p.dc.readyState === 'open') p.dc.send('PRESENCE_OFFLINE###' + Date.now()); } catch (e) {}
             try { if (p && p.dc && p.dc.readyState === 'open') p.dc.close(); } catch (e) {}
             try { if (p && p.pc) p.pc.close(); } catch (e) {}
           });
@@ -1844,6 +2033,10 @@
       }
       var startX = 0, startY = 0, tracking = false, startedTab = null;
       var THRESHOLD = 60, MAX_OFF_AXIS = 50;
+      function fluidTabsActive() {
+        var container = document.querySelector('.app-container');
+        return !!(container && container.classList.contains('fluid-mode'));
+      }
       function isInChatOrCall() {
         var ids = ['screen-chat', 'screen-ooCall', 'screen-ooIncoming', 'screen-phone', 'screen-auth'];
         for (var i = 0; i < ids.length; i++) {
@@ -1853,6 +2046,7 @@
         return false;
       }
       function onStart(e) {
+        if (fluidTabsActive()) { tracking = false; return; }
         if (isInChatOrCall()) { tracking = false; return; }
         var t = e.touches ? e.touches[0] : e;
         // Yatay kaydırma içeren elementlerde (örn. ses ayarı şeritleri) iptal et
@@ -1863,6 +2057,7 @@
         tracking = !!startedTab;
       }
       function onEnd(e) {
+        if (fluidTabsActive()) { tracking = false; return; }
         if (!tracking) return;
         tracking = false;
         var t = (e.changedTouches && e.changedTouches[0]) || e;
