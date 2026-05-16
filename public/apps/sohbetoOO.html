@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" translate="no">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Otomatik çeviriyi engelle: Türkçe arayüz Türkçe kalsın (özellikle telefonda Chrome auto-translate isimleri bozuyor) -->
+    <meta name="google" content="notranslate">
+    <meta http-equiv="Content-Language" content="tr">
     <title>Sohbeto - Minimalist</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -1097,22 +1100,14 @@
                     <input type="file" id="profilePicInput" accept="image/*" style="display:none" onchange="handleProfilePic(event)">
                 </div>
 
-                <div class="profile-fields">
-                    <div class="profile-field">
-                        <label><span class="lbl-emoji">📌</span> Ad</label>
-                        <input type="text" id="profileName" placeholder="Adınız" maxlength="30" autocomplete="off">
-                    </div>
-                    <div class="profile-field">
-                        <label><span class="lbl-emoji">📝</span> Biyografi</label>
-                        <textarea id="profileBio" placeholder="Kendinizi tanıtın..." maxlength="200"></textarea>
-                    </div>
-                </div>
+                <!-- Ad ve Biyografi artık burada DEĞİL — Hesap > Profil ekranına taşındı (#screen-hesap). -->
+                <!-- Fotoğraf yükleme bölümü ayarlar girişinde kalmaya devam ediyor. -->
 
                 <div class="profile-divider"></div>
 
                 <div class="settings-list">
                     
-                    <div class="settings-item">
+                    <div class="settings-item" onclick="app.openAccount()">
                         <div class="settings-icon-wrapper icon-dynamic"><i class="fa-regular fa-user"></i></div>
                         <div class="settings-text">
                             <span class="settings-item-title">Hesap</span>
@@ -1212,6 +1207,27 @@
                 <div class="settings-section">
                     <h3>Arka Plan Rengi</h3>
                     <div class="palette-grid" id="bg-colors"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. HESAP > PROFİL (Ayarlar > Hesap'tan açılır; tam ekran overlay) -->
+        <div id="screen-hesap" class="screen hidden-screen" style="z-index: 15;">
+            <div class="theme-header">
+                <i class="fa-solid fa-arrow-left" onclick="app.closeAccount()"></i>
+                <div class="main-title" style="font-size: 1.2rem;">Hesap · Profil</div>
+            </div>
+
+            <div class="content-area">
+                <div class="profile-fields" style="padding-top: 18px;">
+                    <div class="profile-field">
+                        <label><span class="lbl-emoji">📌</span> Ad</label>
+                        <input type="text" id="profileName" placeholder="Adınız" maxlength="30" autocomplete="off">
+                    </div>
+                    <div class="profile-field">
+                        <label><span class="lbl-emoji">📝</span> Biyografi</label>
+                        <textarea id="profileBio" placeholder="Kendinizi tanıtın..." maxlength="200"></textarea>
+                    </div>
                 </div>
             </div>
         </div>

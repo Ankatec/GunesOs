@@ -33,6 +33,7 @@ interface WindowState {
   title: string;
   isMinimized: boolean;
   isMaximized: boolean;
+  isBackground?: boolean;
   x: number;
   y: number;
   width: number;
@@ -219,6 +220,20 @@ const GunesOSInner: React.FC = () => {
   const [trashedFiles, setTrashedFiles] = useLocalStorage<FileItem[]>("gunesOS-trash", []);
   const [startMenuOpen, setStartMenuOpen] = useState(false);
   const [recentsOpen, setRecentsOpen] = useState(false);
+  const [incomingCall, setIncomingCall] = useState<{ from: string; name: string; callType: "audio" | "video" } | null>(null);
+  const visibleWindows = windows.filter((w) => !w.isBackground);
+
+  // Sohbeto'nun açık ve odakta (minimize değil) olup olmadığını çapraz-okumalı
+  // bildirim köprüsü için ref'le takip ediyoruz. Sohbeto açıkken duplicate
+  // sistem bildirimi göstermiyoruz; başka uygulamadayken (Kuran, Oyunlar vb.)
+  // bildirim Mesajlar'a + toast olarak düşüyor.
+  const sohbetoFocusedRef = useRef(false);
+  useEffect(() => {
+    const sohbeto = windows.find((w) => w.appId === "sohbeto");
+    sohbetoFocusedRef.current = !!(
+      sohbeto && !sohbeto.isBackground && !sohbeto.isMinimized && activeWindowId === sohbeto.id
+    );
+  }, [windows, activeWindowId]);
 
   // İlk girişte: Mesajlar boş başlar — sadece GüneşOS Ekibi karşılama mesajı düşer.
   // Sohbeto'ya kayıt olduğunda doğrulama + 3 hoş geldin mesajı ayrı ayrı bildirim olarak gelir.
@@ -286,6 +301,39 @@ const GunesOSInner: React.FC = () => {
               });
             }, m.delay);
           });
+        } else if (data.type === "sohbeto:incoming-msg" && typeof data.text === "string") {
+          if (sohbetoFocusedRef.current) return;
+          const name = (typeof data.name === "string" && data.name) || "Sohbeto";
+          const from = String(data.from || "peer");
+          pushSystemMessage({
+            threadId: `sohbeto-peer-${from}`,
+            name: `💬 ${name}`,
+            avatar: "💬",
+            text: data.text,
+          });
+          toast(`💬 ${name}`, {
+            description: data.text.length > 80 ? data.text.slice(0, 80) + "…" : data.text,
+          });
+        } else if (data.type === "sohbeto:incoming-call") {
+          const name = (typeof data.name === "string" && data.name) || "Bilinmeyen";
+          const callType: "audio" | "video" = data.callType === "video" ? "video" : "audio";
+          const from = String(data.from || "peer");
+          // Tam ekran arama bildirimi — Sohbeto odakta olsa bile karşılayalım
+          // ki kullanıcı arka plandayken kaçırmasın.
+          setIncomingCall({ from, name, callType });
+          if (!sohbetoFocusedRef.current) {
+            const kind = callType === "video" ? "📹 Görüntülü arıyor" : "📞 Sesli arıyor";
+            pushSystemMessage({
+              threadId: `sohbeto-peer-${from}`,
+              name: `💬 ${name}`,
+              avatar: "💬",
+              text: `${kind} — Sohbeto'yu açıp cevapla.`,
+            });
+          }
+        } else if (data.type === "sohbeto:incoming-call-cancelled") {
+          setIncomingCall(null);
+        } else if (data.type === "sohbeto:call-accepted") {
+          setIncomingCall(null);
         }
       });
     };
@@ -299,6 +347,31 @@ const GunesOSInner: React.FC = () => {
   // PC = ne mobil ne tablet. Mobil/tablet'te asla PC izi (taskbar, üst bar, başlat çubuğu) gösterilmez.
   const isPC = !isMobile && !isTablet;
   const isTouchUI = isMobile || isTablet;
+  // Sohbeto bir telefon servisi gibi davranır: GüneşOS açılınca arka planda
+  // tek iframe olarak başlar ve pencere kapatılsa bile P2P ağı/çağrı beklemesi ölmez.
+  useEffect(() => {
+    if (!booted) return;
+    setWindows((prev) => {
+      if (prev.some((w) => w.appId === "sohbeto")) return prev;
+      const id = "sohbeto-background";
+      setWindowZMap((zMap) => ({ ...zMap, [id]: 1 }));
+      return [
+        ...prev,
+        {
+          id,
+          appId: "sohbeto",
+          title: appConfig.sohbeto.title,
+          isMinimized: true,
+          isMaximized: isTouchUI,
+          isBackground: true,
+          x: 0,
+          y: 0,
+          width: appConfig.sohbeto.width,
+          height: appConfig.sohbeto.height,
+        },
+      ];
+    });
+  }, [booted, isTouchUI]);
   // PWA standalone modunda telefonun kendi nav barı geri/home/recents'i bizim history hook'umuz
   // üzerinden zaten yönetiyor → bizim nav bar'ı gizle. Sadece tarayıcı sekmesinde göster.
   const [isStandalone, setIsStandalone] = useState(false);
@@ -376,7 +449,28 @@ const GunesOSInner: React.FC = () => {
           : { title: appId, width: 500, height: 400 });
       const config = appId === "mycomputer" ? { ...baseConfig, title: deviceTitle } : baseConfig;
       setWindows((prev) => {
-        const offset = (prev.length % 6) * 25;
+        const existingSohbeto = appId === "sohbeto" ? prev.find((w) => w.appId === "sohbeto") : null;
+        if (existingSohbeto) {
+          let width = config.width;
+          let height = config.height;
+          let x = existingSohbeto.x || 60;
+          let y = existingSohbeto.y || 30;
+          if (isTouchUI) {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            x = 0;
+            y = 0;
+          }
+          zCounter.current += 1;
+          setWindowZMap((zMap) => ({ ...zMap, [existingSohbeto.id]: zCounter.current }));
+          setActiveWindowId(existingSohbeto.id);
+          return prev.map((w) =>
+            w.id === existingSohbeto.id
+              ? { ...w, isMinimized: false, isBackground: false, isMaximized: isTouchUI, x, y, width, height }
+              : w,
+          );
+        }
+        const offset = (prev.filter((w) => !w.isBackground).length % 6) * 25;
         const id = `${appId}-${Date.now()}`;
 
         let width = config.width;
@@ -413,7 +507,15 @@ const GunesOSInner: React.FC = () => {
   );
 
   const closeWindow = useCallback((id: string) => {
-    setWindows((prev) => prev.filter((w) => w.id !== id));
+    setWindows((prev) =>
+      prev
+        .map((w) =>
+          w.id === id && w.appId === "sohbeto"
+            ? { ...w, isMinimized: true, isBackground: true }
+            : w,
+        )
+        .filter((w) => w.appId === "sohbeto" || w.id !== id),
+    );
     setActiveWindowId((prev) => (prev === id ? null : prev));
   }, []);
 
@@ -499,7 +601,7 @@ const GunesOSInner: React.FC = () => {
   const handleHomeClick = () => {
     // Mobil/tablet: ev = açık uygulamayı son uygulamalara gönder (küçült).
     if (isTouchUI) {
-      const topId = activeWindowId ?? windows[windows.length - 1]?.id;
+      const topId = activeWindowId ?? visibleWindows[visibleWindows.length - 1]?.id;
       if (topId) {
         minimizeWindow(topId);
         return;
@@ -514,12 +616,12 @@ const GunesOSInner: React.FC = () => {
       setRecentsOpen(false);
       return;
     }
-    const topId = activeWindowId ?? windows[windows.length - 1]?.id;
+    const topId = activeWindowId ?? visibleWindows[visibleWindows.length - 1]?.id;
     if (topId) closeWindow(topId);
   };
 
   // Tarayıcı / PWA geri tuşu entegrasyonu — açık katman sayısı kadar history entry tut.
-  const navDepth = (recentsOpen ? 1 : 0) + windows.length;
+  const navDepth = (recentsOpen ? 1 : 0) + visibleWindows.length;
   useHistoryNav({
     depth: navDepth,
     onBack: () => {
@@ -527,7 +629,7 @@ const GunesOSInner: React.FC = () => {
         setRecentsOpen(false);
         return;
       }
-      const topId = activeWindowId ?? windows[windows.length - 1]?.id;
+      const topId = activeWindowId ?? visibleWindows[visibleWindows.length - 1]?.id;
       if (topId) closeWindow(topId);
     },
   });
@@ -810,6 +912,7 @@ const GunesOSInner: React.FC = () => {
           onMaximize={() => maximizeWindow(win.id)}
           onFocus={() => focusWindow(win.id)}
           nostalgiaMode={isPC && settings.nostalgiaMode}
+          isBackground={win.isBackground}
         >
           {renderAppContent(win.appId)}
         </WindowFrame>
@@ -817,7 +920,7 @@ const GunesOSInner: React.FC = () => {
 
       {isPC && settings.nostalgiaMode && (
         <Taskbar
-          openWindows={windows.map((w) => ({
+          openWindows={visibleWindows.map((w) => ({
             id: w.id,
             appId: w.appId,
             title: w.title,
@@ -839,13 +942,13 @@ const GunesOSInner: React.FC = () => {
           onBack={handleBackClick}
           onHome={handleHomeClick}
           onRecents={() => setRecentsOpen(true)}
-          hasActive={windows.length > 0}
+          hasActive={visibleWindows.length > 0}
         />
       )}
 
       {recentsOpen && (
         <RecentsOverlay
-          items={windows.map((w) => ({ id: w.id, title: w.title, appId: w.appId }))}
+          items={visibleWindows.map((w) => ({ id: w.id, title: w.title, appId: w.appId }))}
           onPick={(id) => {
             setWindows((prev) => prev.map((w) => (w.id === id ? { ...w, isMinimized: false } : w)));
             focusWindow(id);
@@ -853,7 +956,13 @@ const GunesOSInner: React.FC = () => {
           }}
           onClose={(id) => closeWindow(id)}
           onClearAll={() => {
-            setWindows([]);
+            setWindows((prev) =>
+              prev
+                .map((w) =>
+                  w.appId === "sohbeto" ? { ...w, isMinimized: true, isBackground: true } : w,
+                )
+                .filter((w) => w.appId === "sohbeto"),
+            );
             setActiveWindowId(null);
             setRecentsOpen(false);
           }}
@@ -864,6 +973,103 @@ const GunesOSInner: React.FC = () => {
       {/* No PC trace when nostalgia is off — apps run fullscreen modal style */}
       <InstallSheet />
       <PermissionsOnboarding />
+
+      {incomingCall && (
+        <IncomingCallOverlay
+          name={incomingCall.name}
+          callType={incomingCall.callType}
+          onAccept={() => {
+            const sohbetoWin = windows.find((w) => w.appId === "sohbeto");
+            const sohbetoId = sohbetoWin?.id || "sohbeto-background";
+            if (sohbetoWin) {
+              setWindows((prev) =>
+                prev.map((w) =>
+                  w.appId === "sohbeto"
+                    ? { ...w, isMinimized: false, isBackground: false, isMaximized: isTouchUI }
+                    : w,
+                ),
+              );
+              focusWindow(sohbetoId);
+            } else {
+              openApp("sohbeto");
+            }
+            const sendAccept = () => {
+              try {
+                const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Sohbeto"]');
+                iframe?.contentWindow?.postMessage({ type: "sohbeto:remote-accept", from: incomingCall.from }, "*");
+              } catch {
+                /* ignore */
+              }
+            };
+            sendAccept();
+            window.setTimeout(sendAccept, 120);
+            window.setTimeout(sendAccept, 420);
+            setIncomingCall(null);
+          }}
+          onReject={() => {
+            try {
+              const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Sohbeto"]');
+              iframe?.contentWindow?.postMessage({ type: "sohbeto:remote-reject", from: incomingCall.from }, "*");
+            } catch {
+              /* ignore */
+            }
+            setIncomingCall(null);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+const IncomingCallOverlay: React.FC<{
+  name: string;
+  callType: "audio" | "video";
+  onAccept: () => void;
+  onReject: () => void;
+}> = ({ name, callType, onAccept, onReject }) => {
+  const kindLabel = callType === "video" ? "Görüntülü Arama" : "Sesli Arama";
+  const kindIcon = callType === "video" ? "📹" : "📞";
+  const initial = (name || "?").trim().charAt(0).toUpperCase() || "?";
+  return (
+    <div
+      className="fixed inset-0 z-[2147483600] flex flex-col items-center justify-between bg-gradient-to-b from-[#0e1621] via-[#0b1320] to-black text-white animate-in fade-in duration-200"
+      translate="no"
+    >
+      <div className="flex flex-col items-center gap-4 pt-24 px-6 text-center">
+        <div className="text-sm uppercase tracking-[0.35em] text-white/60">
+          Sohbeto • Gelen {kindLabel}
+        </div>
+        <div className="mt-4 h-32 w-32 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-5xl font-semibold shadow-2xl ring-4 ring-white/10 animate-pulse">
+          {initial}
+        </div>
+        <div className="mt-4 text-3xl font-semibold">{name}</div>
+        <div className="text-white/70 text-base">{kindIcon} {kindLabel.toLowerCase()}...</div>
+      </div>
+
+      <div className="w-full pb-16 px-10 flex items-center justify-between max-w-md mx-auto">
+        <button
+          type="button"
+          onClick={onReject}
+          className="flex flex-col items-center gap-2 group"
+          aria-label="Reddet"
+        >
+          <span className="h-16 w-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center text-3xl shadow-xl transition-transform group-active:scale-95">
+            ✕
+          </span>
+          <span className="text-xs text-white/70">Reddet</span>
+        </button>
+        <button
+          type="button"
+          onClick={onAccept}
+          className="flex flex-col items-center gap-2 group"
+          aria-label="Cevapla"
+        >
+          <span className="h-16 w-16 rounded-full bg-green-600 hover:bg-green-500 flex items-center justify-center text-3xl shadow-xl transition-transform group-active:scale-95 animate-pulse">
+            {callType === "video" ? "📹" : "📞"}
+          </span>
+          <span className="text-xs text-white/70">Cevapla</span>
+        </button>
+      </div>
     </div>
   );
 };

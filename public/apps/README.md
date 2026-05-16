@@ -365,6 +365,31 @@ Sayaç davranışı motor + adapter birlikte garanti eder:
 > ayrıca yönetmelidir. Artık süreyi "aranıyor / çalıyor" anında göstermiyoruz; iki taraf da
 > kabul anında aynı timestamp üzerinden başlar.
 
+### H7.1) GüneşOS Tam Ekran Bildirimi ↔ Sohbeto İç Arama Ekranı Senkronu
+
+Gelen çağrıda **iki ekran aynı çağrıyı temsil eder**:
+
+1. GüneşOS parent overlay'i (`IncomingCallOverlay`) — kullanıcı başka uygulamadayken görünür.
+2. Sohbeto tema içi gelen çağrı ekranı (`#screen-ooIncoming`) — uygulama açıldığında görünür.
+
+Kural: Parent overlay'de "Cevapla" basılınca Sohbeto iframe'i **unmount/display:none yapılmış
+olmamalı**. Pencere arka plan servisi olarak açık kalırken iframe 1×1 offscreen tutulur;
+böylece `postMessage({ type: 'sohbeto:remote-accept', from })` doğrudan canlı engine'e gider.
+
+Zorunlu protokol:
+
+| Yön | Mesaj | Görev |
+| --- | ----- | ----- |
+| engine → parent | `sohbeto:incoming-call` | OS tam ekran çağrı overlay'ini açar |
+| parent → engine | `sohbeto:remote-accept` | `acceptCall()` çağırır; gerekirse `from` ile yanlış çağrı engellenir |
+| parent → engine | `sohbeto:remote-reject` | `rejectCall()` çağırır |
+| engine → parent | `sohbeto:call-accepted` | OS overlay'ini kapatır; Sohbeto iç arama ekranı açık kalır |
+| engine → parent | `sohbeto:incoming-call-cancelled` | Arayan kapattı/reddedildi; OS overlay'i kapanır |
+
+Önemli: `WindowFrame` mobil modda background Sohbeto'yu `display:none` ile saklamaz;
+1×1 offscreen tutar. `display:none` kullanılırsa bazı tarayıcılarda iframe olay döngüsü
+askıya alınır, parent kabul mesajı gecikir/kaçabilir ve arayan tarafta "çalıyor" takılı kalır.
+
 ### H8) Aynı Tarayıcıda Çoklu Sekme — Tab ID Namespace
 
 Bu projede test ederken aynı tarayıcıda iki ayrı sekmede farklı numaralar açılabiliyor.
@@ -1216,3 +1241,177 @@ v3'te yapılanlar:
 **Önemli:** `engine.js` yine değişmedi. `adapter.js` içinde sadece eski fallback
 swipe'ın fluid mode aktifken devre dışı kalması sağlandı; çünkü bu fallback,
 akışkan pager'ın yerini almamalı, sadece fluid dosyası yoksa yedek kalmalı.
+
+---
+
+## 7) Adım 6 — Hesap Ekranı, Anında Tab Geçişi, Auto-Translate Kilidi (2026-05-16)
+
+Bu turda **arayüz/UX** odaklı 3 değişiklik yapıldı. Motor (`sohbeto-engine.js`) yine
+değişmedi. Yeni tema açarken bu sözleşmelere uy:
+
+### 7.1) Ayarlar > Hesap > Profil ayrımı
+
+Önceden Ayarlar ekranının başında bulunan **Ad** ve **Biyografi** alanları artık
+**Hesap > Profil** (overlay `#screen-hesap`) ekranına taşındı. **Fotoğraf seçimi
+(`.profile-block` + `#profilePicCircle` + `#profilePicInput`)** Ayarlar girişinde,
+hemen başta kalmaya devam ediyor (kullanıcı hızlı erişebilsin).
+
+| Eleman                       | Yer                  | Görev                                                         |
+| ---------------------------- | -------------------- | ------------------------------------------------------------- |
+| `.profile-block`             | `#screen-ayarlar`    | Avatar + "Değiştirmek için tıklayın" — değişmedi              |
+| `#screen-hesap`              | Yeni overlay (z:15)  | `theme-header` benzeri geri butonlu tam ekran                 |
+| `#profileName`               | `#screen-hesap` içi  | Ad input (ID korundu → adapter persistansı bozulmaz)          |
+| `#profileBio`                | `#screen-hesap` içi  | Biyografi textarea (ID korundu)                               |
+| `app.openAccount()`          | adapter              | `showScreen('screen-hesap')`                                  |
+| `app.closeAccount()`         | adapter              | `showScreen('screen-ayarlar')`                                |
+| `FULLSCREEN_OVERLAYS`        | adapter              | `screen-hesap` ve `screen-tema` eklendi → alt nav gizlenir    |
+
+> **Yeni tema eklerken:** Aynı yapıyı kur — fotoğraf ayarlar girişinde,
+> Ad/Biyografi alt overlay'de. `#profileName` ve `#profileBio` ID'lerini
+> **mutlaka koru**; adapter `localStorage.sohbeto.oo.profile` üzerinden
+> bunları senkronize ediyor, ID değişirse persistance kırılır.
+
+### 7.2) Alt nav tıklamasında anında (animasyonsuz) geçiş
+
+`sohbeto-fluid-tabs.js` artık `app.navigate(tab)` çağrıldığında `setActiveByIndex(idx, false)`
+ile **animasyonsuz snap** uygular: tek frame boyunca `.fluid-instant` sınıfı
+container'a eklenir, `transition:none` devreye girer, sonra geri kaldırılır.
+
+- **Tap (alt nav):** animasyon yok → sohbetlerden ayarlara basınca sayfa direkt yansır.
+- **Swipe (parmak):** eski akıcı 240ms `easeOutCubic` davranışı korundu.
+
+CSS hook'u: `.app-container.fluid-instant .screen-* { transition:none !important; }`.
+
+> **Yeni tema eklerken:** Ek bir şey yapmana gerek yok. Sadece sekme container'ı
+> `.app-container` ve sekme id'leri `screen-sohbetler/kisiler/gruplar/ayarlar`
+> olduğu sürece otomatik çalışır.
+
+### 7.3) Auto-translate kilidi (Türkçe arayüz Türkçe kalsın)
+
+Telefonlarda (özellikle Chrome / Samsung Internet) sayfa otomatik İngilizceye
+çevrilince "Mehmet" → "Mahmet" gibi isimler bozuluyordu. Çözüm: **çevirmen
+katmanını kapat**.
+
+Eklenenler:
+
+```html
+<html lang="tr" translate="no">
+<head>
+  <meta name="google" content="notranslate">
+  <meta http-equiv="Content-Language" content="tr">
+```
+
+Uygulananlar:
+- `index.html` (GüneşOS shell)
+- `public/apps/sohbetoOO.html`
+- `public/apps/kuran.html`
+
+> **Yeni tema/uygulama eklerken (public/apps/*.html):** Bu üç satırı **mutlaka**
+> head'in en başına koy. Aksi halde Chrome dil tespitiyle çevirir, isim/numara/UI
+> metinleri bozulur.
+
+
+---
+
+## 8) GünesOS ↔ Sohbeto Bildirim Köprüsü (P2P)
+
+Sohbeto iframe içinde çalışıyor; kullanıcı Kuran, Oyunlar gibi başka bir
+GünesOS uygulamasındayken Sohbeto'ya gelen mesaj/aramaları **kaçırmasın**
+diye motor iki yeni `postMessage` olayı yayınlar:
+
+```js
+// Yeni gelen mesaj (P2P veya WSS):
+window.parent.postMessage({
+  type: 'sohbeto:incoming-msg',
+  from: senderConnId,          // benzersiz peer id
+  name: 'Görünür İsim',        // [numara] kırpılmış
+  text: 'mesaj içeriği',       // max 240 char
+  isPrivate: true
+}, '*');
+
+// Gelen arama (sesli/görüntülü):
+window.parent.postMessage({
+  type: 'sohbeto:incoming-call',
+  from: senderConnId,
+  name: 'Görünür İsim',
+  callType: 'audio' | 'video'
+}, '*');
+```
+
+**Köprü konumu (motor):**
+- `sohbeto-engine.js → renderIncomingMsg()` sonunda mesaj köprüsü
+- `sohbeto-engine.js → showIncomingCall()` sonunda arama köprüsü
+
+**Parent tarafta (`src/components/GunesOS.tsx`):**
+- `sohbetoFocusedRef` ile Sohbeto penceresinin açık + aktif olup olmadığı
+  takip edilir.
+- Sohbeto **odaktayken** köprü mesajları **yutulur** (duplicate engellenir;
+  kullanıcı zaten in-app beep + balonu görüyor).
+- Aksi halde `pushSystemMessage` ile Mesajlar uygulamasına `sohbeto-peer-<connId>`
+  thread'ine düşer + sonner toast tetiklenir. Arama bildirimi 10 sn görünür.
+
+> **Önemli — engine.js'i değiştirirken bozma:** Profil avatarı sadece
+> `PROFILE_UPDATE` paketindeki `image` (data:image/...) veya `emoji` alanından
+> üretilir (`getAvatarContent` / `renderProfileAvatar`). Mesaj metnindeki emoji
+> **asla** avatara yazılmaz — `sanitizeProfileImage` data URL şartı koyar,
+> `applyPeerProfileUpdate` yalnız PROFILE_UPDATE handler'ından çağrılır.
+> Yeni özellik eklerken bu iki fonksiyona dokunma; aksi halde "gönderdiğim
+> emoji profil fotoğrafı oldu" tarzı regresyonlar olur.
+
+> **Tek sohbet kutusu garantisi:** Konuşma listesi `state.conversations` Map'i
+> (key = `connId`) üzerinden çizilir. Aynı kişiye gelen tüm mesajlar aynı
+> kutuda toplanır — peer reconnect olsa bile `connId` değişmez. Yeni mesaj
+> handler'larında bu Map anahtarını **connId dışında bir şeyle değiştirmeyin**.
+
+### 8.1) Sohbeto arka plan servisi — P2P kapanmasın
+
+GüneşOS içinde Sohbeto artık normal uygulama penceresi gibi tamamen öldürülmez.
+Sistem açılınca `src/components/GunesOS.tsx` görünmez bir `sohbeto-background`
+penceresi oluşturur; kullanıcı Sohbeto'yu kapatsa, masaüstüne dönse, Kuran/Oyunlar
+gibi başka uygulamaya geçse bile iframe canlı kalır. Böylece WebRTC data channel,
+LOOKUP cevapları, gelen mesaj ve gelen arama bekleme mantığı çalışmaya devam eder.
+
+Kurallar:
+- Sohbeto kapatılınca `windows` listesinden silinmez; `isBackground: true` +
+  `isMinimized: true` yapılır.
+- Arka plan Sohbeto görev çubuğunda, son uygulamalarda ve aktif pencere sayısında
+  görünmez; sadece servis gibi çalışır.
+- Sohbeto simgesine tekrar basılınca aynı iframe tekrar görünür yapılır. Yeni
+  iframe açılmaz; motor state'i, P2P bağlantıları ve çağrı bekleme hali korunur.
+- `WindowFrame` içindeki `isBackground` dalı çocukları unmount etmez; sadece 1×1
+  görünmez alanda tutar. Bunu `return null`, `display:none` veya windows filtresiyle
+  değiştirme; yoksa P2P yine ölür.
+
+### 8.2) Sabit Sohbeto kasası — tekrar gir/çıkta kimlik kaybolmasın
+
+Eski yapıda IndexedDB adı `sessionStorage` tab ID'sine bağlıydı
+(`EgaNetwork_<tabId>`). Tarayıcı/PWA tamamen kapanıp açılınca tab ID değiştiği
+için aynı kişi yeni/verisiz kasa ile başlıyordu; karşı taraf ilk etapta görse bile
+sonraki gir-çıklarda çevrimiçi algılama ve kişi eşleşmesi bozuluyordu.
+
+Yeni kural:
+- `SOHBETO_DB_NAME` daima sabit `EgaNetwork` olmalı.
+- `tabScopedKey()` outbox/offline queue gibi kritik P2P kuyruklarını sekmeye
+  bağlamaz; yeniden girişte aynı kuyruk okunur.
+- Profil/rehber/konuşma kayıtları sekme değil kullanıcı cihazı düzeyinde kalır.
+  Yeni tema veya yeni HTML eklerken bu DB adını tekrar tab bazlı yapma.
+
+## 8.3 — Tam Ekran Gelen Arama (GüneşOS Köprüsü)
+
+Sohbeto arka planda (background iframe) çalışırken kullanıcı Kuran, Oyunlar
+veya masaüstündeyken gelen arama görünmüyordu. Artık iki yönlü köprü var:
+
+- `engine.js` → parent: `sohbeto:incoming-call` (mevcut), iptal/red/bitiş için
+  yeni `sohbeto:incoming-call-cancelled` postMessage yollar.
+- parent → `engine.js`: `sohbeto:remote-accept` ve `sohbeto:remote-reject`
+  mesajları geldiğinde engine `acceptCall()` / `rejectCall()` çağırır.
+
+GüneşOS `IncomingCallOverlay` bileşeni z-index `2147483600` ile tam ekran
+açılır; Cevapla tıklanınca Sohbeto penceresi öne alınır + iframe'e
+`remote-accept` yollanır. Reddet tıklanınca iframe'e `remote-reject` yollanır
+ve `engine.js` `CALL_REJECT` sinyalini P2P üzerinden karşıya iletir.
+
+İnvaryantlar:
+- Overlay sadece `sohbeto:incoming-call` ile açılır, asla başka koddan tetiklenmez.
+- Sohbeto iframe asla unmount olmaz (bkz. 8.1) — `acceptCall` çağrılabilir.
+- Overlay `translate="no"` taşır (otomatik çeviri kilidi, bkz. Adım 7).

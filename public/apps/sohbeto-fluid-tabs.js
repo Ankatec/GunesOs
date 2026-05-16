@@ -50,6 +50,9 @@
       // Drag esnasında transition kapalı (1:1 takip)
       '.app-container.fluid-dragging ' + ids.split(',').join(',.app-container.fluid-dragging ') +
         '{transition:none !important;}',
+      // Alt nav tıklamasında anında geçiş (animasyon yok) — deneyim ayarlardan sohbete vb. geçerken hoş olsun
+      '.app-container.fluid-instant ' + ids.split(',').join(',.app-container.fluid-instant ') +
+        '{transition:none !important;}',
       // Fluid mode'da inactive tab'lar hidden-screen sözleşmesini korur ama görünür çizilir
       '.app-container.fluid-mode ' + SCREEN_IDS.map(function (id) { return '#' + id + '.hidden-screen'; }).join(',.app-container.fluid-mode ') +
         '{opacity:1;transform:none;}',
@@ -121,7 +124,19 @@
       }
     });
     containerWidth = appContainer.clientWidth || window.innerWidth;
-    paintTransform(0);
+    // Nav tap'inde animasyon istenmez (animate=false) — direkt snap. Sadece swipe sonrası akıcı olsun.
+    if (animate === false) {
+      appContainer.classList.add('fluid-instant');
+      paintTransform(0);
+      // 2 frame sonra transition'ı geri aç
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          appContainer.classList.remove('fluid-instant');
+        });
+      });
+    } else {
+      paintTransform(0);
+    }
 
     // Alt nav state
     try {
@@ -169,7 +184,8 @@
         if (t) { t.classList.remove('hidden-screen'); t.classList.add('active'); }
         return;
       }
-      setActiveByIndex(idx, true);
+      // Alt nav butonuna basıldığında animasyonsuz, anında geçiş.
+      setActiveByIndex(idx, false);
     };
   }
 

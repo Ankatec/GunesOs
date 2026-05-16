@@ -20,6 +20,7 @@ interface WindowFrameProps {
   zIndex: number;
   nostalgiaMode: boolean;
   appId?: string;
+  isBackground?: boolean;
 }
 
 const WindowFrame: React.FC<WindowFrameProps> = ({
@@ -40,6 +41,7 @@ const WindowFrame: React.FC<WindowFrameProps> = ({
   zIndex,
   nostalgiaMode,
   appId,
+  isBackground,
 }) => {
   const { theme } = useTheme();
   const [pos, setPos] = useState({ x: initialX, y: initialY });
@@ -194,18 +196,31 @@ const WindowFrame: React.FC<WindowFrameProps> = ({
         onClose={onClose}
         onMinimize={onMinimize}
         onFocus={onFocus}
-        hidden={isMinimized}
+        hidden={isBackground ? false : isMinimized}
+        backgroundHidden={isBackground}
       >
         {children}
       </MobileFullscreenWindow>
     );
   }
 
-  if (isMinimized) return null;
+  if (isMinimized && !isBackground) return null;
 
-  const frameStyle: React.CSSProperties = isMaximized
-    ? { position: "fixed", top: 0, left: 0, width: "100vw", height: "calc(100vh - 40px)", zIndex }
-    : { position: "absolute", top: pos.y, left: pos.x, width: size.w, height: size.h, zIndex };
+  const frameStyle: React.CSSProperties = isBackground
+    ? {
+        position: "fixed",
+        top: -10000,
+        left: -10000,
+        width: 1,
+        height: 1,
+        zIndex,
+        opacity: 0,
+        overflow: "hidden",
+        pointerEvents: "none",
+      }
+    : isMaximized
+      ? { position: "fixed", top: 0, left: 0, width: "100vw", height: "calc(100vh - 40px)", zIndex }
+      : { position: "absolute", top: pos.y, left: pos.x, width: size.w, height: size.h, zIndex };
 
   const activeTitleBg = `linear-gradient(to right, ${theme.titleBar}, ${theme.titleBarEnd})`;
   const inactiveTitleBg = "linear-gradient(to right, #808080, #b0b0b0)";
@@ -216,6 +231,7 @@ const WindowFrame: React.FC<WindowFrameProps> = ({
       style={frameStyle}
       className="flex flex-col shadow-[2px_2px_0_#000] select-none rounded-t-sm overflow-hidden"
       onMouseDown={onFocus}
+      aria-hidden={isBackground || undefined}
     >
       {/* Title Bar */}
       <div
@@ -310,7 +326,8 @@ const MobileFullscreenWindow: React.FC<{
   onFocus: () => void;
   children: React.ReactNode;
   hidden?: boolean;
-}> = ({ zIndex, onClose, onMinimize, onFocus, children, hidden }) => {
+  backgroundHidden?: boolean;
+}> = ({ zIndex, onClose, onMinimize, onFocus, children, hidden, backgroundHidden }) => {
   const start = useRef<{ x: number; y: number } | null>(null);
   const [drag, setDrag] = useState({ x: 0, y: 0 });
   const [closing, setClosing] = useState(false);
@@ -350,14 +367,17 @@ const MobileFullscreenWindow: React.FC<{
     <div
       style={{
         position: "fixed",
-        inset: 0,
+        ...(backgroundHidden ? { left: -10000, top: -10000, width: 1, height: 1 } : { inset: 0 }),
         zIndex,
         paddingBottom: "env(safe-area-inset-bottom)",
         display: hidden ? "none" : undefined,
+        opacity: backgroundHidden ? 0 : undefined,
+        overflow: backgroundHidden ? "hidden" : undefined,
+        pointerEvents: backgroundHidden ? "none" : undefined,
       }}
       className="flex flex-col bg-white animate-in fade-in zoom-in-95 duration-200 transition-transform"
       onMouseDown={onFocus}
-      aria-hidden={hidden || undefined}
+      aria-hidden={hidden || backgroundHidden || undefined}
     >
       <div
         className="flex-1 bg-white overflow-hidden relative transition-transform"

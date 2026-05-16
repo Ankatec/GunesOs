@@ -70,6 +70,8 @@
     'screen-ooCall': true,
     'screen-ooIncoming': true,
     'screen-ayarlar': true,
+    'screen-hesap': true,
+    'screen-tema': true,
     'screen-phone': true,
     'screen-auth': true
   };
@@ -2157,6 +2159,10 @@
         try { applyTheme(localStorage.getItem('sohbeto.oo.theme') || 'forest'); } catch (e) { applyTheme('forest'); }
       };
       window.app.closeThemeSettings = function () { showScreen('screen-ayarlar'); };
+
+      // Hesap > Profil overlay (Ad + Biyografi). Fotoğraf seçimi ayarlar girişinde kalır.
+      window.app.openAccount = function () { showScreen('screen-hesap'); };
+      window.app.closeAccount = function () { showScreen('screen-ayarlar'); };
 
       renderPalette('primary-colors', PRIMARY_ORDER, 'primary');
       renderPalette('bg-colors', BG_ORDER, 'bg');

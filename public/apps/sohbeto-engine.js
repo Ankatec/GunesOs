@@ -1,6 +1,6 @@
 // ===== CACHE BUST: Force reload if stale version detected =====
 (function(){
-    var VER = 'v2026_05_15_video_call_stability_1';
+    var VER = 'v2026_05_16_call_bridge_sync_1';
     try {
         var stored = sessionStorage.getItem('_sp_ver');
         if (stored && stored !== VER) {
@@ -40,8 +40,11 @@ const SOHBETO_TAB_ID = (() => {
         return 'shared';
     }
 })();
-const SOHBETO_DB_NAME = SOHBETO_TAB_ID === 'shared' ? 'EgaNetwork' : `EgaNetwork_${SOHBETO_TAB_ID}`;
-function tabScopedKey(key) { return `${key}__${SOHBETO_TAB_ID}`; }
+// Kimlik/rehber/mesaj verisi sekmeye bağlı olamaz. PWA veya tarayıcı tamamen
+// kapanıp açıldığında sessionStorage değişir; DB sekme adına bağlı kalırsa kişi
+// yeniden çevrimiçi algılanmaz. Bu yüzden ana Sohbeto kasası daima sabittir.
+const SOHBETO_DB_NAME = 'EgaNetwork';
+function tabScopedKey(key) { return key; }
 
 let wsChat = null, wsCount = null, ozelSayac = 0;
 const state = {
@@ -112,9 +115,9 @@ function copyLock() {
 }
 
 // ==================== IDENTITY (IndexedDB) ====================
-function openDB() {
+function openNamedDB(dbName) {
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open(SOHBETO_DB_NAME, 3);
+        const req = indexedDB.open(dbName, 3);
         req.onupgradeneeded = (e) => {
             const db = e.target.result;
             if (!db.objectStoreNames.contains("identity")) db.createObjectStore("identity");
@@ -134,6 +137,54 @@ function openDB() {
         req.onsuccess = (e) => resolve(e.target.result);
         req.onerror = (e) => reject(e);
     });
+}
+const LEGACY_SOHBETO_DB_NAME = SOHBETO_TAB_ID === 'shared' ? '' : `EgaNetwork_${SOHBETO_TAB_ID}`;
+let legacyMigrationPromise = null;
+async function migrateLegacyTabDB(stableDb) {
+    if (!LEGACY_SOHBETO_DB_NAME || LEGACY_SOHBETO_DB_NAME === SOHBETO_DB_NAME) return;
+    const migrationKey = 'sohbeto_legacy_db_migrated_v1__' + LEGACY_SOHBETO_DB_NAME;
+    try { if (localStorage.getItem(migrationKey)) return; } catch(e) {}
+    try {
+        const legacyDb = await openNamedDB(LEGACY_SOHBETO_DB_NAME);
+        const copyIdentity = () => new Promise(r => {
+            const tx = legacyDb.transaction('identity', 'readonly');
+            const src = tx.objectStore('identity');
+            const keysReq = src.getAllKeys(); const valsReq = src.getAll();
+            tx.oncomplete = () => {
+                const keys = keysReq.result || [], vals = valsReq.result || [];
+                if (!keys.length) return r();
+                const out = stableDb.transaction('identity', 'readwrite').objectStore('identity');
+                keys.forEach((key, i) => { try { out.put(vals[i], key); } catch(e) {} });
+                out.transaction.oncomplete = () => r();
+                out.transaction.onerror = () => r();
+            };
+            tx.onerror = () => r();
+        });
+        const copyKeyedStore = (storeName) => new Promise(r => {
+            if (!legacyDb.objectStoreNames.contains(storeName) || !stableDb.objectStoreNames.contains(storeName)) return r();
+            const tx = legacyDb.transaction(storeName, 'readonly');
+            const req = tx.objectStore(storeName).getAll();
+            req.onsuccess = () => {
+                const rows = req.result || [];
+                if (!rows.length) return r();
+                const out = stableDb.transaction(storeName, 'readwrite').objectStore(storeName);
+                rows.forEach(row => { try { out.put(row); } catch(e) {} });
+                out.transaction.oncomplete = () => r();
+                out.transaction.onerror = () => r();
+            };
+            req.onerror = () => r();
+        });
+        await copyIdentity();
+        await copyKeyedStore('contacts');
+        await copyKeyedStore('conversations');
+        try { localStorage.setItem(migrationKey, '1'); } catch(e) {}
+    } catch(e) {}
+}
+async function openDB() {
+    const db = await openNamedDB(SOHBETO_DB_NAME);
+    if (!legacyMigrationPromise) legacyMigrationPromise = migrateLegacyTabDB(db);
+    await legacyMigrationPromise;
+    return db;
 }
 async function dbGet(key) { const db = await openDB(); return new Promise(r => { const req = db.transaction("identity","readonly").objectStore("identity").get(key); req.onsuccess=()=>r(req.result||null); req.onerror=()=>r(null); }); }
 async function dbPut(key, val) { const db = await openDB(); return new Promise(r => { const tx = db.transaction("identity","readwrite"); tx.objectStore("identity").put(val,key); tx.oncomplete=()=>r(); }); }
@@ -655,6 +706,18 @@ function showIncomingCall(senderConnId, type = "audio") {
     renderProfileAvatar(document.getElementById('callAvatar'), senderConnId, 'call-avatar', nick);
     document.getElementById('callScreen').classList.remove('hidden');
     playBeep(true);
+    // GünesOS köprüsü: başka uygulamadayken de "arıyor" bildirimi düşsün.
+    try {
+        if (window.parent && window.parent !== window) {
+            const cleanName = nick.replace(/\[.*?\]/g, '').trim() || nick;
+            window.parent.postMessage({
+                type: 'sohbeto:incoming-call',
+                from: senderConnId,
+                name: cleanName,
+                callType: type
+            }, '*');
+        }
+    } catch (e) {}
     // Cevapsız çağrıyı otomatik kapatmıyoruz: özellikle görüntülü aramada P2P/izin
     // hazırlığı uzayabiliyor. Çağrı yalnızca arayan kapatırsa, alıcı reddederse veya
     // taraflardan biri gerçekten bağlantıyı sonlandırırsa düşmeli.
@@ -669,6 +732,7 @@ async function acceptCall() {
         if (callType === "video") await startVideoCall(callerConnId, true, connectedAt);
         else await startAudioCall(callerConnId, true, connectedAt);
         sendCallSignal(callerConnId, `CALL_ACCEPT###${connectedAt}`);
+        notifyParentCallState('sohbeto:call-accepted', { from: callerConnId, connectedAt });
     }
 }
 
@@ -689,6 +753,25 @@ async function quickReply(msg) {
     }
     document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio";
 }
+
+// GüneşOS köprüsü: parent overlay'den gelen kabul/red komutları
+try {
+    window.addEventListener('message', function(ev){
+        const d = ev && ev.data;
+        if (!d || typeof d !== 'object') return;
+        if (d.type === 'sohbeto:remote-accept') {
+            try {
+                if (d.from && state.incomingCallFrom && d.from !== state.incomingCallFrom) return;
+                if (typeof acceptCall === 'function') acceptCall();
+            } catch(e){}
+        } else if (d.type === 'sohbeto:remote-reject') {
+            try {
+                if (d.from && state.incomingCallFrom && d.from !== state.incomingCallFrom) return;
+                if (typeof rejectCall === 'function') rejectCall();
+            } catch(e){}
+        }
+    });
+} catch(e) {}
 
 // ==================== WEBRTC P2P ====================
 function setupAudioEl(connId, stream) {
@@ -830,6 +913,14 @@ function sendCallSignal(targetConnId, text) {
     return sendWhenP2PReady(targetConnId, text, text);
 }
 
+function notifyParentCallState(type, payload) {
+    try {
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage(Object.assign({ type }, payload || {}), '*');
+        }
+    } catch (e) {}
+}
+
 function handleCallSignal(senderConnId, text, viaP2P) {
     const sNick = getDisplayName(senderConnId);
     const via = viaP2P ? "P2P" : "WSS";
@@ -848,6 +939,7 @@ function handleCallSignal(senderConnId, text, viaP2P) {
         if (acsEl) acsEl.innerText = 'Bağlandı';
         // Köprülerin (themes) tutunabilmesi için global ipucu
         try { window.__SOHBETO_CALL_CONNECTED_AT = acceptedAt; } catch (e) {}
+        notifyParentCallState('sohbeto:call-accepted', { from: senderConnId, connectedAt: acceptedAt });
         if (!document.getElementById('activeCallScreen').classList.contains('hidden')) {
             startCallTimer(acceptedAt);
             if (localAudioStream && peers[senderConnId]?.pc) {
@@ -869,6 +961,7 @@ function handleCallSignal(senderConnId, text, viaP2P) {
         if (state.incomingCallFrom) {
             document.getElementById('callScreen').classList.add('hidden');
             state.incomingCallFrom = null; state.incomingCallType = "audio";
+            notifyParentCallState('sohbeto:incoming-call-cancelled', { from: senderConnId });
         }
         endActiveCall(true); endVideoCall(true);
         return;
@@ -879,6 +972,7 @@ function handleCallSignal(senderConnId, text, viaP2P) {
         if (state.incomingCallFrom) {
             document.getElementById('callScreen').classList.add('hidden');
             state.incomingCallFrom = null; state.incomingCallType = "audio";
+            notifyParentCallState('sohbeto:incoming-call-cancelled', { from: senderConnId });
         }
         endActiveCall(true); endVideoCall(true);
         return;
@@ -1129,6 +1223,18 @@ function renderIncomingMsg(senderConnId, targetConnId, text, isP2P, msgId) {
         const navBadge = document.getElementById('navBadgeSohbet'); navBadge.innerText = ozelSayac; navBadge.classList.remove('hidden');
     }
     updateConversation(senderConnId, text, false, isPrivate);
+    // GünesOS köprüsü: kullanıcı başka uygulamadayken (Kuran/Oyunlar vb.) bildirim alabilsin.
+    try {
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({
+                type: 'sohbeto:incoming-msg',
+                from: senderConnId,
+                name: displaySender.replace(/\[.*?\]/g, '').trim() || displaySender,
+                text: String(text || '').slice(0, 240),
+                isPrivate
+            }, '*');
+        }
+    } catch (e) {}
 }
 
 // ==================== CONVERSATIONS ====================
