@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import BootScreen from "./BootScreen";
+import LoginScreen from "./LoginScreen";
 import Desktop, { type AppId, type FileItem } from "./Desktop";
 import Taskbar from "./Taskbar";
 import WindowFrame from "./WindowFrame";
@@ -16,6 +17,7 @@ import YapayAkilApp from "./apps/YapayAkil";
 import Sohbeto from "./apps/Sohbeto";
 import Kuran from "./apps/Kuran";
 import Mesajlar from "./apps/Mesajlar";
+import Muzikler from "./apps/Muzikler";
 import { EXTRA_APP_MAP } from "@/lib/extraApps";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -58,7 +60,7 @@ const appConfig: Record<string, { title: string; width: number; height: number }
   terminal: { title: "Günter", width: 600, height: 400 },
   minesweeper: { title: "Mayın Tarlası", width: 320, height: 420 },
   paint: { title: "Paint", width: 600, height: 450 },
-  music: { title: "Müziklerim", width: 400, height: 300 },
+  music: { title: "Müziklerim", width: 760, height: 560 },
   files: { title: "Dosya Gezgini", width: 550, height: 400 },
   trash: { title: "Çöp Kutusu", width: 400, height: 300 },
   settings: { title: "Ayarlar", width: 640, height: 500 },
@@ -212,6 +214,7 @@ const PaintApp: React.FC = () => {
 const GunesOSInner: React.FC = () => {
   const { theme, settings } = useTheme();
   const [booted, setBooted] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
   const zCounter = useRef(100);
@@ -738,23 +741,7 @@ const GunesOSInner: React.FC = () => {
       case "paint":
         return <PaintApp />;
       case "music":
-        return (
-          <div className="p-4 flex flex-col items-center justify-center h-full bg-gradient-to-b from-purple-50 to-white">
-            <span className="text-5xl mb-4">🎵</span>
-            <h3 className="text-lg font-bold text-purple-800 mb-2">Müziklerim</h3>
-            <p className="text-sm text-gray-500">Henüz müzik dosyası yok.</p>
-            <div className="mt-4 flex gap-2">
-              {["⏮", "▶️", "⏭"].map((btn) => (
-                <button
-                  key={btn}
-                  className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-lg hover:bg-purple-200"
-                >
-                  {btn}
-                </button>
-              ))}
-            </div>
-          </div>
-        );
+        return <Muzikler />;
       case "files":
         return (
           <div className="p-3 overflow-auto h-full">
@@ -875,6 +862,10 @@ const GunesOSInner: React.FC = () => {
 
   if (!booted) {
     return <BootScreen onComplete={() => setBooted(true)} />;
+  }
+
+  if (!unlocked) {
+    return <LoginScreen onUnlock={() => setUnlocked(true)} />;
   }
 
   return (

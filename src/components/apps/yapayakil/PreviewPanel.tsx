@@ -174,10 +174,12 @@ export default function PreviewPanel({
       {/* Content area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Iframe */}
-        <div className={`flex-1 bg-[#0b1020] p-4 flex items-center justify-center overflow-auto ${showLogs ? "h-[60%]" : ""}`}>
+        <div className={`flex-1 bg-[#0b1020] p-2 sm:p-4 flex items-center justify-center overflow-auto ${showLogs ? "h-[60%]" : ""}`}>
           <div
             className={`bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ${
-              device === "mobile" ? "w-[375px] h-[667px]" : "w-full h-full"
+              device === "mobile"
+                ? "w-full max-w-[375px] h-full max-h-[667px] aspect-[375/667]"
+                : "w-full h-full"
             }`}
             style={{
               boxShadow:

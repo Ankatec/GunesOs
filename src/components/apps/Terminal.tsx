@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { HelpCircle } from "lucide-react";
 
 interface Line {
   type: "input" | "output" | "system";
@@ -9,12 +10,13 @@ interface TerminalProps {
   onSystemCommand?: (cmd: string, args: string) => void;
 }
 
+// GüneşOS / Günter ikon paleti
+const SUN_BG = "radial-gradient(circle at 30% 25%, #fff7ad 0%, #fbbf24 45%, #f97316 100%)";
+const SUN_INK = "#0f172a"; // Günter okunun koyu lacivert rengi
+const SUN_ACCENT = "#1e3a8a"; // Günter ikonundaki ikincil lacivert
+
 const Terminal: React.FC<TerminalProps> = ({ onSystemCommand }) => {
   const [lines, setLines] = useState<Line[]>([
-    { type: "system", text: "╔══════════════════════════════════════╗" },
-    { type: "system", text: "║       GüneşOS Terminal v1.0         ║" },
-    { type: "system", text: "║  Yardım için 'help' yazın           ║" },
-    { type: "system", text: "╚══════════════════════════════════════╝" },
     { type: "output", text: "" },
   ]);
   const [input, setInput] = useState("");
@@ -31,13 +33,15 @@ const Terminal: React.FC<TerminalProps> = ({ onSystemCommand }) => {
     setLines((prev) => [...prev, ...newLines]);
   };
 
+  const PROMPT = "Günter>]";
+
   const processCommand = (cmd: string) => {
     const trimmed = cmd.trim();
     const parts = trimmed.split(" ");
     const command = parts[0]?.toLowerCase() || "";
     const args = parts.slice(1).join(" ");
 
-    const inputLine: Line = { type: "input", text: `C:\\GüneşOS> ${trimmed}` };
+    const inputLine: Line = { type: "input", text: `${PROMPT} ${trimmed}` };
 
     switch (command) {
       case "help":
@@ -101,7 +105,7 @@ const Terminal: React.FC<TerminalProps> = ({ onSystemCommand }) => {
         addLines([
           inputLine,
           { type: "output", text: "" },
-          { type: "system", text: "GüneşOS [Sürüm 1.0.2026]" },
+          { type: "system", text: "GüneşOS Günter [Sürüm v571]" },
           { type: "output", text: "(c) 2026 GüneşOS. Tüm hakları saklıdır." },
           { type: "output", text: "" },
         ]);
@@ -110,7 +114,7 @@ const Terminal: React.FC<TerminalProps> = ({ onSystemCommand }) => {
       case "dir":
         addLines([
           inputLine,
-          { type: "output", text: " C:\\GüneşOS dizini" },
+          { type: "output", text: " Günter dizini" },
           { type: "output", text: "" },
           { type: "output", text: "28.04.2026  12:00    <DIR>          Belgelerim" },
           { type: "output", text: "28.04.2026  12:00    <DIR>          Masaüstü" },
@@ -167,7 +171,7 @@ const Terminal: React.FC<TerminalProps> = ({ onSystemCommand }) => {
           inputLine,
           { type: "output", text: "" },
           { type: "system", text: "GüneşOS Hakkında" },
-          { type: "output", text: "Sürüm: 1.0.2026" },
+          { type: "output", text: "Sürüm: Günter v571" },
           { type: "output", text: "Çekirdek: GüneşKernel 5.0" },
           { type: "output", text: "Bellek: 4 GB RAM" },
           { type: "output", text: "Disk: 120 GB SSD" },
@@ -201,7 +205,7 @@ const Terminal: React.FC<TerminalProps> = ({ onSystemCommand }) => {
           { type: "system", text: `☀️ ${isGunesOS ? "GüneşOS Belgesi" : "Belge"} kaydediliyor...` },
           { type: "output", text: `  Dosya: ${isGunesOS ? fileName : fileName + ".txt"}` },
           { type: "output", text: `  Boyut: ${content.length} bayt` },
-          { type: "output", text: `  Konum: C:\\GüneşOS\\Belgelerim\\${isGunesOS ? fileName : fileName + ".txt"}` },
+          { type: "output", text: `  Konum: Günter\\Belgelerim\\${isGunesOS ? fileName : fileName + ".txt"}` },
           { type: "system", text: "✅ Kayıt başarılı!" },
         ]);
         onSystemCommand?.("save", JSON.stringify({ name: isGunesOS ? fileName : fileName + ".txt", content, type: isGunesOS ? "gunesos" : "document" }));
@@ -224,7 +228,7 @@ const Terminal: React.FC<TerminalProps> = ({ onSystemCommand }) => {
           { type: "system", text: "     GüneşOS — Çocuklar için İşletim Sistemi" },
           { type: "system", text: "☀️ ══════════════════════════════════════ ☀️" },
           { type: "output", text: "" },
-          { type: "output", text: "  Sürüm:      1.0.2026" },
+          { type: "output", text: "  Sürüm:      Günter v571" },
           { type: "output", text: "  Çekirdek:   GüneşKernel 5.0" },
           { type: "output", text: "  Dil:        Türkçe / GüneşOS Script" },
           { type: "output", text: "  Hedef:      7-14 yaş çocuklar" },
@@ -317,39 +321,91 @@ const Terminal: React.FC<TerminalProps> = ({ onSystemCommand }) => {
     }
   };
 
+  const triggerHelp = () => {
+    processCommand("help");
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
   return (
     <div
-      className="w-full h-full bg-black font-mono text-[13px] p-2 overflow-y-auto cursor-text"
+      className="w-full h-full font-mono text-[13px] sm:text-[14px] overflow-y-auto cursor-text flex flex-col"
+      style={{ background: SUN_BG, color: SUN_INK }}
       onClick={() => inputRef.current?.focus()}
     >
-      {lines.map((line, i) => (
-        <div
-          key={i}
-          className={
-            line.type === "input"
-              ? "text-white"
-              : line.type === "system"
-                ? "text-[#00c0c0]"
-                : "text-[#c0c0c0]"
-          }
+      {/* Üst başlık */}
+      <div
+        className="sticky top-0 z-10 flex flex-col items-center gap-2 px-3 py-2 border-b backdrop-blur-sm"
+        style={{
+          borderColor: `${SUN_ACCENT}33`,
+          background: "linear-gradient(180deg, rgba(255,247,173,.55), rgba(251,191,36,.25))",
+        }}
+      >
+        <span className="font-bold tracking-wide text-[13px] sm:text-[15px]" style={{ color: SUN_INK }}>
+          ☀️ GüneşOS Günter v571
+        </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            triggerHelp();
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerHelp();
+          }}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold text-[12px] sm:text-[13px] active:scale-95 transition-transform select-none touch-manipulation"
+          style={{
+            color: SUN_INK,
+            background: "rgba(255,255,255,0.55)",
+            border: `1.5px solid ${SUN_INK}`,
+            minHeight: 36,
+          }}
+          aria-label="Yardım"
         >
-          {line.text || "\u00A0"}
-        </div>
-      ))}
-      <form onSubmit={handleSubmit} className="flex">
-        <span className="text-white whitespace-pre">{"C:\\GüneşOS> "}</span>
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="flex-1 bg-transparent text-white outline-none border-none font-mono text-[13px] caret-[#00c0c0]"
-          autoFocus
-          spellCheck={false}
-        />
-      </form>
-      <div ref={bottomRef} />
+          <HelpCircle className="w-4 h-4" />
+          Yardım
+        </button>
+      </div>
+
+      {/* Çıktı alanı */}
+      <div className="flex-1 px-3 py-2">
+        {lines.map((line, i) => (
+          <div
+            key={i}
+            className="whitespace-pre-wrap"
+            style={{
+              color: SUN_INK,
+              opacity: line.type === "system" ? 0.95 : line.type === "output" ? 0.88 : 1,
+              fontWeight: line.type === "input" ? 700 : 500,
+            }}
+          >
+            {line.text || "\u00A0"}
+          </div>
+        ))}
+
+        <form onSubmit={handleSubmit} className="flex items-center mt-1">
+          <span className="whitespace-pre font-bold" style={{ color: SUN_INK }}>
+            {PROMPT}&nbsp;
+          </span>
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="flex-1 bg-transparent outline-none border-none font-mono text-[13px] sm:text-[14px]"
+            style={{ color: SUN_INK, caretColor: SUN_INK }}
+            autoFocus
+            spellCheck={false}
+            autoCapitalize="none"
+            autoCorrect="off"
+            inputMode="text"
+            enterKeyHint="send"
+          />
+        </form>
+        <div ref={bottomRef} />
+      </div>
     </div>
   );
 };

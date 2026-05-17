@@ -1,11 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import TopBar from "./TopBar";
 import PreviewPanel from "./PreviewPanel";
 import CodeEditor from "./CodeEditor";
 import YapayakilChat from "./YapayakilChat";
 import FileTree, { FileNode } from "./FileTree";
 import SettingsModal from "./SettingsModal";
-import { ChevronRight, ChevronLeft } from "lucide-react";
+import { ChevronRight, ChevronLeft, Eye, Code2, MessageSquare, FolderTree } from "lucide-react";
 import { useWebContainer } from "@/hooks/useWebContainer";
 
 export type SortMode = "name-asc" | "name-desc" | "type" | "ext";
@@ -13,6 +13,8 @@ export type SortMode = "name-asc" | "name-desc" | "type" | "ext";
 export interface FileStore {
   [path: string]: string;
 }
+
+type MobileTab = "preview" | "code" | "chat";
 
 const DEFAULT_CODE = `<!DOCTYPE html>
 <html lang="tr">
@@ -136,6 +138,24 @@ function buildTreeFromFiles(
   }
 }
 
+// Custom breakpoint hook: returns 'mobile' (<768), 'tablet' (768-1023), 'desktop' (>=1024)
+function useLayoutMode(): "mobile" | "tablet" | "desktop" {
+  const [mode, setMode] = useState<"mobile" | "tablet" | "desktop">(() => {
+    if (typeof window === "undefined") return "desktop";
+    const w = window.innerWidth;
+    return w < 768 ? "mobile" : w < 1024 ? "tablet" : "desktop";
+  });
+  useEffect(() => {
+    function update() {
+      const w = window.innerWidth;
+      setMode(w < 768 ? "mobile" : w < 1024 ? "tablet" : "desktop");
+    }
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return mode;
+}
+
 export default function YapayakilIndex() {
   const [code, setCode] = useState<string>(DEFAULT_CODE);
   const [fileTreeOpen, setFileTreeOpen] = useState<boolean>(false);
@@ -145,6 +165,10 @@ export default function YapayakilIndex() {
   const [fileStore, setFileStore] = useState<FileStore>({ "index.html": DEFAULT_CODE });
   const [sortMode, setSortMode] = useState<SortMode>("name-asc");
   const [expanded, setExpanded] = useState<boolean>(false);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("preview");
+
+  const layoutMode = useLayoutMode();
+  const isCompact = layoutMode !== "desktop";
 
   const {
     isBooted: wcBooted,
@@ -189,6 +213,10 @@ export default function YapayakilIndex() {
     setActiveFile(name);
     const content = fileStore[filePath];
     if (content) setCode(content);
+    if (isCompact) {
+      setMobileTab("code");
+      setFileTreeOpen(false);
+    }
   }
 
   function handleCodeChange(newCode: string) {
@@ -208,6 +236,104 @@ export default function YapayakilIndex() {
 
   function handleStopProject() { wcStop(); }
 
+  // ============ Mobile / Tablet: tab-based stacked layout ============
+  if (isCompact) {
+    const tabs: { id: MobileTab; label: string; icon: typeof Eye }[] = [
+      { id: "preview", label: "Önizleme", icon: Eye },
+      { id: "code", label: "Kod", icon: Code2 },
+      { id: "chat", label: "Sohbet", icon: MessageSquare },
+    ];
+
+    return (
+      <div className="yapayakil-root w-full h-full flex flex-col bg-deep overflow-hidden text-foreground">
+        <TopBar
+          onSettingsOpen={() => setSettingsOpen(true)}
+          onFileUpload={handleFileUpload}
+          onFolderUpload={handleFolderUpload}
+        />
+
+        {/* Mobile tab bar */}
+        <div className="flex items-center gap-1 px-2 pt-2 pb-1 bg-panel/40 border-b border-border/40 overflow-x-auto">
+          {tabs.map((t) => {
+            const active = mobileTab === t.id;
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setMobileTab(t.id)}
+                className={`flex items-center gap-1.5 px-3 h-9 rounded-md text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+                  active
+                    ? "bg-primary/20 text-primary border border-primary/40 shadow-glow-violet"
+                    : "bg-secondary/40 text-muted-foreground border border-border/40 hover:bg-secondary/60 hover:text-foreground"
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {t.label}
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setFileTreeOpen(true)}
+            className="ml-auto flex items-center gap-1.5 px-3 h-9 rounded-md text-xs font-medium whitespace-nowrap bg-secondary/40 text-muted-foreground border border-border/40 hover:bg-secondary/60 hover:text-foreground shrink-0"
+            title="Dosyalar"
+          >
+            <FolderTree className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Dosyalar</span>
+            {uploadedFiles.length > 0 && (
+              <span className="ml-0.5 text-[9px] px-1 rounded-full bg-primary/20 text-primary">
+                {uploadedFiles.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Active panel */}
+        <div className="flex-1 min-h-0 p-2 overflow-hidden">
+          <div className={`h-full ${mobileTab === "preview" ? "block" : "hidden"}`}>
+            <PreviewPanel
+              code={code}
+              webContainerUrl={wcUrl}
+              isWebContainerRunning={wcRunning}
+              webContainerLogs={wcLogs}
+              webContainerError={wcError}
+              isWebContainerBooted={wcBooted}
+              onRunProject={handleRunProject}
+              onStopProject={handleStopProject}
+            />
+          </div>
+          <div className={`h-full ${mobileTab === "code" ? "block" : "hidden"}`}>
+            <CodeEditor code={code} onChange={handleCodeChange} filename={activeFile} />
+          </div>
+          <div className={`h-full ${mobileTab === "chat" ? "block" : "hidden"}`}>
+            <YapayakilChat onCodeSuggestion={(c) => { setCode(c); setMobileTab("preview"); }} />
+          </div>
+        </div>
+
+        {/* FileTree overlay (mobile) */}
+        {fileTreeOpen && (
+          <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex" onClick={() => setFileTreeOpen(false)}>
+            <div
+              className="ml-auto w-[85%] max-w-xs h-full bg-panel border-l border-border/60 shadow-panel-strong flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MobileFileTree
+                files={sortedFiles}
+                activeFile={activeFile}
+                onSelect={handleFileSelect}
+                onClose={() => setFileTreeOpen(false)}
+                sortMode={sortMode}
+                onSortChange={setSortMode}
+              />
+            </div>
+          </div>
+        )}
+
+        <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </div>
+    );
+  }
+
+  // ============ Desktop: original split layout ============
   return (
     <div className="yapayakil-root w-full h-full flex flex-col bg-deep overflow-hidden text-foreground">
       <TopBar
@@ -264,5 +390,123 @@ export default function YapayakilIndex() {
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
+  );
+}
+
+// ============ Mobile FileTree (simplified overlay version) ============
+function MobileFileTree({
+  files,
+  activeFile,
+  onSelect,
+  onClose,
+  sortMode,
+  onSortChange,
+}: {
+  files: FileNode[];
+  activeFile: string;
+  onSelect: (name: string, path?: string) => void;
+  onClose: () => void;
+  sortMode: SortMode;
+  onSortChange: (m: SortMode) => void;
+}) {
+  return (
+    <>
+      <div className="h-12 flex items-center justify-between px-3 border-b border-border/60">
+        <span className="text-sm font-semibold text-foreground/90">Dosyalar</span>
+        <button
+          onClick={onClose}
+          className="w-8 h-8 rounded-md hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
+          aria-label="Kapat"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="px-3 py-2 border-b border-border/40">
+        <select
+          value={sortMode}
+          onChange={(e) => onSortChange(e.target.value as SortMode)}
+          className="w-full h-8 px-2 rounded-md bg-secondary/40 border border-border/40 text-xs text-foreground/90 outline-none"
+        >
+          <option value="name-asc">İsim (A-Z)</option>
+          <option value="name-desc">İsim (Z-A)</option>
+          <option value="type">Tür</option>
+          <option value="ext">Uzantı</option>
+        </select>
+      </div>
+      <div className="flex-1 overflow-y-auto py-1">
+        {files.length === 0 ? (
+          <p className="px-3 py-8 text-center text-[11px] text-muted-foreground/60">
+            Henüz dosya yüklenmedi. Yukarıdaki "Dosya" / "Klasör" butonlarını kullanın.
+          </p>
+        ) : (
+          files.map((node) => (
+            <MobileTreeItem
+              key={node.name}
+              node={node}
+              depth={0}
+              activeFile={activeFile}
+              onSelect={onSelect}
+              parentPath=""
+            />
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
+function MobileTreeItem({
+  node,
+  depth,
+  activeFile,
+  onSelect,
+  parentPath,
+}: {
+  node: FileNode;
+  depth: number;
+  activeFile: string;
+  onSelect: (name: string, path?: string) => void;
+  parentPath: string;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const currentPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+
+  if (node.type === "folder") {
+    return (
+      <div>
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-foreground/90 hover:bg-secondary/40 active:bg-secondary/60"
+          style={{ paddingLeft: `${depth * 14 + 12}px` }}
+        >
+          <FolderTree className="w-4 h-4 text-primary/80 shrink-0" />
+          <span className="truncate">{node.name}</span>
+        </button>
+        {expanded && node.children?.map((child) => (
+          <MobileTreeItem
+            key={child.name}
+            node={child}
+            depth={depth + 1}
+            activeFile={activeFile}
+            onSelect={onSelect}
+            parentPath={currentPath}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  const isActive = activeFile === node.name;
+  return (
+    <button
+      onClick={() => onSelect(node.name, currentPath)}
+      className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+        isActive ? "bg-primary/20 text-primary" : "hover:bg-secondary/40 text-foreground/80"
+      }`}
+      style={{ paddingLeft: `${depth * 14 + 12}px` }}
+    >
+      <Code2 className="w-4 h-4 shrink-0 opacity-70" />
+      <span className="truncate">{node.name}</span>
+    </button>
   );
 }
