@@ -272,22 +272,23 @@ const GunesOSInner: React.FC = () => {
       if (!data || typeof data !== "object") return;
       import("@/lib/messaging").then(({ pushSystemMessage }) => {
         if (data.type === "sohbeto:code" && typeof data.code === "string") {
+          // Sadece Mesajlar'a kaydet — alttan toast YOK (üst bildirim iframe içinde).
           pushSystemMessage({
             threadId: "sohbeto-welcome",
             name: "Sohbeto",
             avatar: "💬",
             text: `🔐 Sohbeto Doğrulama Kodun: ${data.code}\n\nKodu kimseyle paylaşma. Bu kod 10 dakika geçerlidir.`,
           });
-          toast("💬 Sohbeto", { description: "Doğrulama kodun geldi." });
         } else if (data.type === "sohbeto:registered") {
+          // 3 hoş geldin mesajı — Mesajlar'a yaz, alttan toast YOK (iframe üst bildirimi gösterir).
           const followUps = [
-            { delay: 800, text: "👋 Merhaba ve hoş geldin!" },
+            { delay: 600, text: "👋 Merhaba ve hoş geldin!" },
             {
-              delay: 2400,
+              delay: 3100,
               text: "Sohbeto'ya başarıyla kaydoldun. Artık güvenli, hızlı ve uçtan uca şifreli mesajlaşmanın keyfini çıkarabilirsin.",
             },
             {
-              delay: 4200,
+              delay: 5600,
               text: "İpucu: Profil resmini ve adını Sohbeto > Ayarlar bölümünden güncelleyebilirsin. İyi sohbetler! ✨",
             },
           ];
@@ -298,9 +299,6 @@ const GunesOSInner: React.FC = () => {
                 name: "Sohbeto",
                 avatar: "💬",
                 text: m.text,
-              });
-              toast("💬 Sohbeto", {
-                description: m.text.length > 60 ? m.text.slice(0, 60) + "…" : m.text,
               });
             }, m.delay);
           });
@@ -321,8 +319,6 @@ const GunesOSInner: React.FC = () => {
           const name = (typeof data.name === "string" && data.name) || "Bilinmeyen";
           const callType: "audio" | "video" = data.callType === "video" ? "video" : "audio";
           const from = String(data.from || "peer");
-          // Tam ekran arama bildirimi — Sohbeto odakta olsa bile karşılayalım
-          // ki kullanıcı arka plandayken kaçırmasın.
           setIncomingCall({ from, name, callType });
           if (!sohbetoFocusedRef.current) {
             const kind = callType === "video" ? "📹 Görüntülü arıyor" : "📞 Sesli arıyor";

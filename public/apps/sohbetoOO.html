@@ -841,9 +841,202 @@
         .ooc-btn.danger .ooc-ico { background:#e63946; }
         .ooc-btn.danger:hover .ooc-ico { background:#d62836; }
 
+        /* ========== TOAST NOTIFICATIONS (Mesajlar tarzı) ========== */
+        #sohbetoNotifLayer {
+            position: fixed; top: 0; left: 0; right: 0;
+            z-index: 99999; pointer-events: none;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 8px; padding: max(10px, env(safe-area-inset-top)) 12px 0;
+        }
+        .sb-toast {
+            pointer-events: auto;
+            width: 100%; max-width: 380px;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(18px) saturate(180%);
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
+            border: 1px solid rgba(15,23,42,.06);
+            border-radius: 18px;
+            box-shadow: 0 18px 40px -16px rgba(15,23,42,.35), 0 4px 12px rgba(15,23,42,.08);
+            padding: 10px 12px;
+            display: flex; align-items: center; gap: 10px;
+            transform: translateY(-130%);
+            opacity: 0;
+            transition: transform .35s cubic-bezier(.2,.9,.25,1.15), opacity .25s ease;
+            touch-action: pan-y;
+            user-select: none;
+        }
+        .sb-toast.in { transform: translateY(0); opacity: 1; }
+        .sb-toast.out { transform: translateY(-130%); opacity: 0; }
+        .sb-toast.swipe-left  { transform: translateX(-120%); opacity: 0; transition: transform .25s ease, opacity .25s ease; }
+        .sb-toast.swipe-right { transform: translateX(120%);  opacity: 0; transition: transform .25s ease, opacity .25s ease; }
+        .sb-toast-ico {
+            width: 38px; height: 38px; border-radius: 11px; flex: 0 0 38px;
+            background: linear-gradient(135deg,#22d3ee,#6366f1 55%,#a855f7);
+            display: grid; place-items: center; color: #fff;
+            box-shadow: 0 6px 14px -6px rgba(99,102,241,.6);
+        }
+        .sb-toast-body { flex: 1; min-width: 0; }
+        .sb-toast-title { font-size: 13px; font-weight: 700; color: #0b1220; line-height: 1.2; }
+        .sb-toast-text { font-size: 12px; color: #475569; line-height: 1.35; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* OTP pulse glow (Telegram tarzı sıralı doldurma) */
+        @keyframes sbOtpPulse {
+            0%   { transform: scale(.7);  box-shadow: 0 0 0 0 rgba(10,124,74,.55); }
+            55%  { transform: scale(1.18); box-shadow: 0 0 0 10px rgba(10,124,74,0); }
+            100% { transform: scale(1);   box-shadow: 0 0 0 0 rgba(10,124,74,0); }
+        }
+        .code-input.sb-fill-pulse {
+            animation: sbOtpPulse .55s cubic-bezier(.2,.9,.25,1.15);
+            border-color: var(--primary-green) !important;
+        }
     </style>
 </head>
 <body>
+
+    <!-- Mesajlar tarzı bildirim katmanı -->
+    <div id="sohbetoNotifLayer" aria-live="polite"></div>
+
+    <script>
+    (function(){
+        var MES_ICO_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+        function nowLabel(){
+            try { return new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}); }
+            catch(e){ return ''; }
+        }
+        window.__sohbetoNotify = function(opts){
+            opts = opts || {};
+            var layer = document.getElementById('sohbetoNotifLayer');
+            if (!layer) return;
+            var title = opts.title || 'Mesajlar';
+            var text  = opts.text  || '';
+            var dur   = typeof opts.duration === 'number' ? opts.duration : 1400;
+            var el = document.createElement('div');
+            el.className = 'sb-toast';
+            el.innerHTML =
+                '<div class="sb-toast-ico">'+ MES_ICO_SVG +'</div>' +
+                '<div class="sb-toast-body">'+
+                    '<div class="sb-toast-title"></div>'+
+                    '<div class="sb-toast-text"></div>'+
+                '</div>'+
+                '<div class="sb-toast-time"></div>';
+            el.querySelector('.sb-toast-title').textContent = title;
+            el.querySelector('.sb-toast-text').textContent = text;
+            el.querySelector('.sb-toast-time').textContent = nowLabel();
+            layer.appendChild(el);
+            // animate in
+            requestAnimationFrame(function(){ el.classList.add('in'); });
+            // swipe to dismiss
+            var startX = null, dx = 0;
+            function onStart(e){
+                var p = (e.touches && e.touches[0]) || e;
+                startX = p.clientX; dx = 0;
+                el.style.transition = 'none';
+            }
+            function onMove(e){
+                if (startX === null) return;
+                var p = (e.touches && e.touches[0]) || e;
+                dx = p.clientX - startX;
+                el.style.transform = 'translate('+dx+'px,0)';
+                el.style.opacity = String(Math.max(0, 1 - Math.abs(dx)/180));
+            }
+            function onEnd(){
+                if (startX === null) return;
+                el.style.transition = '';
+                if (Math.abs(dx) > 80) {
+                    el.classList.add(dx < 0 ? 'swipe-left' : 'swipe-right');
+                    setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 260);
+                } else {
+                    el.style.transform = ''; el.style.opacity = '';
+                }
+                startX = null; dx = 0;
+            }
+            el.addEventListener('touchstart', onStart, {passive:true});
+            el.addEventListener('touchmove', onMove, {passive:true});
+            el.addEventListener('touchend', onEnd);
+            el.addEventListener('mousedown', onStart);
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onEnd);
+            // auto dismiss
+            setTimeout(function(){
+                if (!el.parentNode) return;
+                el.classList.remove('in');
+                el.classList.add('out');
+                setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 380);
+            }, dur);
+            return el;
+        };
+
+        // Engine parent'a 'sohbeto:code' postMessage'ı atıyor — yakalayıp
+        // hem üst bildirim olarak göster, hem de OTP kutularını sırayla doldur.
+        // Aynı zamanda A2 arayüzü açıksa A2 iframe'ine de ilet.
+        try {
+            var _origPostMessage = window.parent && window.parent.postMessage;
+            if (_origPostMessage) {
+                var _wrapped = function(msg, targetOrigin, transfer){
+                    try {
+                        if (msg && msg.type === 'sohbeto:code' && msg.code) {
+                            var code = String(msg.code);
+                            // 2 sn sonra üstten bildirim düş, 2 sn kalsın, sonra otomatik doldur
+                            setTimeout(function(){
+                                // OO içinde üst bildirim + OTP doldur
+                                window.__sohbetoNotify && window.__sohbetoNotify({
+                                    title: 'Mesajlar · Sohbeto',
+                                    text: 'Doğrulama kodun: ' + code,
+                                    duration: 2000
+                                });
+                                window.__sohbetoFillOtp && window.__sohbetoFillOtp(code);
+                                // A2 arayüzü görünürse oraya da yolla
+                                try {
+                                    var ov = document.getElementById('a2FrameOverlay');
+                                    var fr = document.getElementById('a2Frame');
+                                    if (ov && ov.style.display !== 'none' && fr && fr.contentWindow) {
+                                        fr.contentWindow.postMessage({ __sohbeto_a2_ack: true, action: 'code', code: code }, '*');
+                                    }
+                                } catch(e){}
+                            }, 2000);
+                        }
+                        if (msg && msg.type === 'sohbeto:registered') {
+                            // A2 açıksa 3 hoş geldin bildirimini A2 içinde tetikle
+                            try {
+                                var ov2 = document.getElementById('a2FrameOverlay');
+                                var fr2 = document.getElementById('a2Frame');
+                                if (ov2 && ov2.style.display !== 'none' && fr2 && fr2.contentWindow) {
+                                    fr2.contentWindow.postMessage({ __sohbeto_a2_ack: true, action: 'welcomeBurst' }, '*');
+                                }
+                            } catch(e){}
+                        }
+                    } catch(e){}
+                    return _origPostMessage.call(window.parent, msg, targetOrigin, transfer);
+                };
+                window.parent.postMessage = _wrapped;
+            }
+        } catch(e){}
+
+        // Telegram tarzı sıralı OTP doldurma + nabız glow
+        window.__sohbetoFillOtp = function(code){
+            code = String(code || '').replace(/\D/g,'').slice(0,6);
+            if (code.length !== 6) return;
+            var inputs = document.querySelectorAll('#codeInputs .code-input');
+            if (!inputs.length) return;
+            inputs.forEach(function(i){ i.value=''; i.classList.remove('sb-fill-pulse'); });
+            var i = 0;
+            (function step(){
+                if (i >= 6) return;
+                var inp = inputs[i];
+                if (inp){
+                    inp.value = code[i];
+                    inp.classList.remove('sb-fill-pulse');
+                    void inp.offsetWidth;
+                    inp.classList.add('sb-fill-pulse');
+                    try { inp.dispatchEvent(new Event('input', {bubbles:true})); } catch(e){}
+                }
+                i++;
+                setTimeout(step, 180);
+            })();
+        };
+    })();
+    </script>
+
 
     <!-- ========== SPLASH (Sohbeto · güvenli sohbet) ========== -->
     <div id="screenSplash">
@@ -895,26 +1088,41 @@
             <p style="margin:0;color:#9aa6bd;font-size:13px;line-height:1.55;">İstediğin arayüzü seç. İlerleyen sürümlerde farklı temalar açıldıkça burada görünecek.</p>
             <div id="themePickerList" style="width:100%;display:flex;flex-direction:column;gap:10px;margin-top:8px;">
                 <button type="button" onclick="window.__chooseTheme && window.__chooseTheme('OO')"
-                    style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(168,85,247,.18));border:1px solid rgba(124,92,255,.45);color:#e5e7eb;cursor:pointer;text-align:left;transition:transform .15s ease,box-shadow .15s ease;"
-                    onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 10px 24px -10px rgba(124,92,255,.6)';"
+                    style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:linear-gradient(180deg,#e8ecf2,#d4d9e2);border:1px solid rgba(11,58,85,.12);color:#1a2733;cursor:pointer;text-align:left;transition:transform .15s ease,box-shadow .15s ease;"
+                    onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 10px 24px -10px rgba(42,166,200,.5)';"
                     onmouseout="this.style.transform='';this.style.boxShadow='';">
-                    <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#22d3ee,#a855f7);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;">OO</div>
+                    <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#2aa6c8,#1e7c98);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;letter-spacing:.5px;box-shadow:0 8px 16px -8px rgba(42,166,200,.7);font-family:'Inter',sans-serif;">So</div>
                     <div style="flex:1;">
-                        <div style="font-weight:700;font-size:14px;">OO arayüzü</div>
-                        <div style="font-size:11px;color:#9aa6bd;">Klasik, modern ve hızlı — varsayılan deneyim.</div>
+                        <div style="font-weight:700;font-size:14px;color:#0b3a55;">So — Genel</div>
+                        <div style="font-size:11px;color:#5b7a8c;">Klasik, modern ve hızlı — varsayılan deneyim.</div>
                     </div>
-                    <i class="fa-solid fa-arrow-right" style="color:#a5b4fc;"></i>
+                    <i class="fa-solid fa-arrow-right" style="color:#2aa6c8;"></i>
                 </button>
                 <button type="button" onclick="window.__chooseTheme && window.__chooseTheme('A2')"
-                    style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(42,166,200,.18),rgba(103,214,196,.18));border:1px solid rgba(103,214,196,.45);color:#e5e7eb;cursor:pointer;text-align:left;transition:transform .15s ease,box-shadow .15s ease;"
+                    style="position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:linear-gradient(180deg,#dff3fb 0%,#bfe3f1 60%,#9ecfe2 100%);border:1px solid rgba(103,214,196,.45);color:#0b3a55;cursor:pointer;text-align:left;transition:transform .15s ease,box-shadow .15s ease;"
                     onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 10px 24px -10px rgba(103,214,196,.6)';"
                     onmouseout="this.style.transform='';this.style.boxShadow='';">
-                    <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#2aa6c8,#67d6c4);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;">A2</div>
-                    <div style="flex:1;">
-                        <div style="font-weight:700;font-size:14px;">A2 — Akvaryum</div>
-                        <div style="font-size:11px;color:#9aa6bd;">Sakin, su altı esintili alternatif arayüz.</div>
+                    <!-- akvaryum: kum şeridi -->
+                    <span aria-hidden="true" style="position:absolute;left:0;right:0;bottom:0;height:10px;background:linear-gradient(180deg,#e9d8b0,#d2bb86);opacity:.9;"></span>
+                    <!-- yüzen küçük balık -->
+                    <svg aria-hidden="true" viewBox="0 0 60 30" width="36" height="18" style="position:absolute;right:46px;bottom:14px;opacity:.85;">
+                        <ellipse cx="22" cy="15" rx="14" ry="7" fill="#f5a623"/>
+                        <polygon points="36,15 48,8 48,22" fill="#67d6c4"/>
+                        <circle cx="14" cy="13" r="1.6" fill="#1a2733"/>
+                    </svg>
+                    <svg aria-hidden="true" viewBox="0 0 60 30" width="22" height="12" style="position:absolute;right:100px;bottom:6px;opacity:.7;">
+                        <ellipse cx="22" cy="15" rx="10" ry="5" fill="#b07cff"/>
+                        <polygon points="32,15 42,10 42,20" fill="#b07cff"/>
+                    </svg>
+                    <!-- baloncuklar -->
+                    <span aria-hidden="true" style="position:absolute;left:80px;top:8px;width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.85);"></span>
+                    <span aria-hidden="true" style="position:absolute;left:110px;top:18px;width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,.7);"></span>
+                    <div style="position:relative;z-index:1;width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#2aa6c8,#67d6c4);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;letter-spacing:.5px;box-shadow:0 8px 16px -8px rgba(42,166,200,.7);">A2</div>
+                    <div style="position:relative;z-index:1;flex:1;">
+                        <div style="font-weight:700;font-size:14px;color:#0b3a55;">A2 — Akvaryum</div>
+                        <div style="font-size:11px;color:#3d5a6b;">Sakin, su altı esintili alternatif arayüz.</div>
                     </div>
-                    <i class="fa-solid fa-arrow-right" style="color:#7ee8d6;"></i>
+                    <i class="fa-solid fa-arrow-right" style="position:relative;z-index:1;color:#0b3a55;"></i>
                 </button>
                 <div style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.12);color:#6b7691;text-align:left;">
                     <div style="width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-weight:800;">?</div>
@@ -927,6 +1135,24 @@
         </div>
     </div>
 
+    <!-- OO KARŞILAMA / BAŞLA EKRANI -->
+    <div id="screen-oo-welcome" class="screen hidden-screen" style="z-index:8500;background:#ffffff;color:#0b3a55;padding:24px;align-items:stretch;justify-content:flex-start;">
+        <div style="display:flex;align-items:center;height:40px;">
+            <button type="button" onclick="window.__sohbetoBackToThemes && window.__sohbetoBackToThemes()" aria-label="Geri" style="background:transparent;border:0;color:#0b3a55;font-size:20px;cursor:pointer;padding:6px 10px;border-radius:10px;">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;max-width:360px;width:100%;margin:0 auto;animation:fadeIn .5s ease;">
+            <div style="width:128px;height:128px;border-radius:34px;background:linear-gradient(135deg,#2aa6c8,#1e7c98);display:grid;place-items:center;box-shadow:0 18px 36px -14px rgba(42,166,200,.55);position:relative;">
+                <span style="font-family:'Inter',sans-serif;font-size:52px;font-weight:800;color:#fff;letter-spacing:-1px;">So</span>
+            </div>
+            <h1 style="margin:0;font-size:42px;font-weight:800;letter-spacing:.5px;background:linear-gradient(135deg,#2aa6c8,#1e7c98);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Sohbeto</h1>
+            <p style="margin:0;color:#5b7a8c;font-size:14px;line-height:1.55;max-width:280px;">Dünyanın en özgür sohbet uygulamasına hoş geldin. Başlamak için aşağıdaki butona dokun.</p>
+            <button type="button" onclick="window.__sohbetoOoStart && window.__sohbetoOoStart()" style="margin-top:8px;background:linear-gradient(135deg,#2aa6c8,#1e7c98);color:#fff;border:0;padding:14px 38px;border-radius:999px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 14px 28px -14px rgba(42,166,200,.7);">Başla</button>
+            <div style="margin-top:6px;font-size:11px;color:#9aa6bd;letter-spacing:1.5px;font-weight:600;">SOHBETO · So</div>
+        </div>
+    </div>
+
     <div class="app-container">
 
         <!-- 0. NUMARA EKRANI (Mesajlara kod gönder) -->
@@ -936,7 +1162,7 @@
         <div id="screen-phone" class="screen hidden-screen">
             <div class="auth-header">
                 <div>
-                    <i class="fa-solid fa-arrow-left back-btn"></i>
+                    <i class="fa-solid fa-arrow-left back-btn" onclick="window.__sohbetoBackToThemes && window.__sohbetoBackToThemes()"></i>
                     <div class="brand-text">Sohbeto</div>
                     <h1 class="auth-title">Numaraya<br>Mesaj Gönder</h1>
                     <p class="auth-subtitle">Devam etmek için telefon numaranızı girin.<br>Mesajlar uygulamanıza 6 haneli doğrulama kodu göndereceğiz.</p>
@@ -1548,7 +1774,12 @@
         var tp = document.getElementById('screen-themepicker');
         if (tp) tp.classList.add('hidden-screen');
       }
+      function hideA2(){
+        var ov = document.getElementById('a2FrameOverlay');
+        if (ov) ov.style.display = 'none';
+      }
       window.__showSohbetoA2 = showA2;
+      window.__hideSohbetoA2 = hideA2;
 
       // ---------- A2 ↔ OO köprüsü ----------
       function a2Win(){
@@ -1662,21 +1893,64 @@
               } else { Promise.all(names.map(delIDB)).then(finish, finish); }
             } catch(e){ finish(); }
           } else {
-            // Geçici çıkış: engine logout butonunu tetikle, A2 iframe'de auth ekranını göster
+            // Geçici çıkış: engine logout butonunu tetikle, seçili arayüze göre auth ekranına dön
             try {
               var btn = document.getElementById('menuLogout');
               if (btn && typeof btn.click === 'function') btn.click();
             } catch(e){}
-            a2Reply('loggedOut');
+            try { hideA2(); } catch(e){}
+            try {
+              var chosen = localStorage.getItem('sohbeto.oo.interface') || 'OO';
+              if (String(chosen).toUpperCase() === 'A2') {
+                showA2();
+                a2Reply('loggedOut');
+              } else if (typeof window.__sohbetoHandleLocalLogout === 'function') {
+                window.__sohbetoHandleLocalLogout();
+              }
+            } catch(e) {
+              if (typeof window.__sohbetoHandleLocalLogout === 'function') window.__sohbetoHandleLocalLogout();
+            }
           }
+          return;
+        }
+        if (d.action === 'backToTheme'){
+          try { if (window.__sohbetoBackToThemes) window.__sohbetoBackToThemes(); } catch(e){}
           return;
         }
       });
 
-      // __chooseTheme'i sar: A2 seçilirse iframe aç
+      // OO welcome → screen-phone
+      window.__sohbetoOoStart = function(){
+        var w = document.getElementById('screen-oo-welcome');
+        var p = document.getElementById('screen-phone');
+        if (w) { w.classList.add('hidden-screen'); w.classList.remove('active'); }
+        if (p) { p.classList.remove('hidden-screen'); p.classList.add('active'); }
+      };
+
+      // Her iki arayüzden tema seçiciye geri dön
+      window.__sohbetoBackToThemes = function(){
+        try { hideA2(); } catch(e){}
+        try { localStorage.removeItem('sohbeto.oo.interface'); } catch(e){}
+        try { localStorage.removeItem('sohbeto.oo.theme'); } catch(e){}
+        if (window.GunesOSStore) {
+          try { window.GunesOSStore.set(window.GunesOSStore.path.globalTheme(), ''); } catch(e){}
+        }
+        // Tüm ekranları gizle, themepicker'ı göster
+        try {
+          var screens = document.querySelectorAll('.screen');
+          screens.forEach(function(s){ s.classList.add('hidden-screen'); s.classList.remove('active'); });
+        } catch(e){}
+        var tp = document.getElementById('screen-themepicker');
+        if (tp) { tp.classList.remove('hidden-screen'); tp.classList.add('active'); }
+      };
+
+      // __chooseTheme'i sar: A2 seçilirse iframe aç, OO seçilirse adapter akışı çalışsın.
+      // Önemli: A2 seçildiğinde adapter'ın INTERFACE_KEY'ini de A2'ye yaz, aksi halde
+      // sonraki açılışlarda adapter themepicker'a düşer ve bootCheckA2 kaldırılınca A2'ye dönülemez.
       var prevChoose = window.__chooseTheme;
       window.__chooseTheme = function(theme){
         try { localStorage.setItem('sohbeto.oo.theme', theme); } catch(e){}
+        try { localStorage.setItem('sohbeto.oo.interface', theme); } catch(e){}
         if (window.GunesOSStore) {
           try { window.GunesOSStore.set(window.GunesOSStore.path.globalTheme(), theme); } catch(e){}
         }
@@ -1684,20 +1958,11 @@
         if (typeof prevChoose === 'function') return prevChoose(theme);
       };
 
-      // İlk açılışta tema A2 ise direkt iframe'i göster (login/picker akışını atla)
-      function bootCheckA2(){
-        var t = null;
-        try { t = localStorage.getItem('sohbeto.oo.theme'); } catch(e){}
-        if (t === 'A2') {
-          // Adapter'ın splash zamanlayıcısından önce davranmak için biraz bekle
-          setTimeout(showA2, 50);
-        }
-      }
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', bootCheckA2);
-      } else {
-        bootCheckA2();
-      }
+      // Not: Eskiden burada `bootCheckA2` ile localStorage'daki 'sohbeto.oo.theme' === 'A2'
+      // kontrolü yapılıp doğrudan showA2 çağrılıyordu. Bu, OO seçimini imkânsız hale
+      // getiriyordu (her açılışta A2 zorla devreye giriyordu). Artık tek otorite
+      // adapter'ın INTERFACE_KEY mantığı: openChosenInterface kendisi A2 ise iframe'i
+      // açar, OO ise enterMain/screen-phone'a düşer.
 
       // Çıkış Yap diyaloğu
       window.__sohbetoLogoutDialog = function(){
@@ -1722,6 +1987,9 @@
           wrap.remove();
           var btn = document.getElementById('menuLogout');
           if (btn) { try { btn.click(); } catch(e){} }
+          if (typeof window.__sohbetoHandleLocalLogout === 'function') {
+            setTimeout(window.__sohbetoHandleLocalLogout, 20);
+          }
         };
         document.getElementById('sbLogoutWipe').onclick = function(){
           wrap.remove();

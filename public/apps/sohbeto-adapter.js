@@ -84,14 +84,21 @@
     if (FULLSCREEN_OVERLAYS[screenId]) nav.style.display = 'none';
     else nav.style.display = '';
   }
+  function setThemePickerVisible(visible) {
+    var picker = document.getElementById('screen-themepicker');
+    if (!picker) return;
+    picker.classList.toggle('hidden-screen', !visible);
+    picker.classList.toggle('active', !!visible);
+  }
   function showScreen(screenId) {
     var screens = document.querySelectorAll('.app-container > .screen');
     screens.forEach(function (s) {
       s.classList.add('hidden-screen');
       s.classList.remove('active');
     });
+    setThemePickerVisible(screenId === 'screen-themepicker');
     var target = document.getElementById(screenId);
-    if (target) {
+    if (target && target.id !== 'screen-themepicker') {
       target.classList.remove('hidden-screen');
       target.classList.add('active');
     }
@@ -196,10 +203,15 @@
     }
     function openChosenInterface(choice) {
       choice = normalizeInterfaceChoice(choice);
-      if (!choice) { showScreen('screen-themepicker'); return; }
+      if (!choice) {
+        try { if (typeof window.__hideSohbetoA2 === 'function') window.__hideSohbetoA2(); } catch (e) {}
+        showScreen('screen-themepicker');
+        return;
+      }
       if (choice === 'A2' && typeof window.__showSohbetoA2 === 'function') { window.__showSohbetoA2(); return; }
+      try { if (typeof window.__hideSohbetoA2 === 'function') window.__hideSohbetoA2(); } catch (e) {}
       if (isUserLoggedIn()) enterMain();
-      else showScreen('screen-phone');
+      else showScreen('screen-oo-welcome');
     }
     async function detectFlow() {
       if (_flow) return _flow;
@@ -282,7 +294,38 @@
       var nav = document.getElementById('bottom-nav');
       if (nav) { nav.dataset.enabled = '1'; nav.style.display = ''; }
       showScreen('screen-sohbetler');
+      // İçeri girer girmez 3 hoş geldin bildirimi (2.5 sn arayla, her biri 1.4 sn)
+      try {
+        var welcomeMsgs = [
+          { title: 'Mesajlar · Sohbeto', text: 'Sohbeto’ya hoş geldin! 🎉' },
+          { title: 'Mesajlar · Sohbeto', text: 'Hesabın hazır — dünyanın en özgür sohbeti seni bekliyor.' },
+          { title: 'Mesajlar · Sohbeto', text: 'İlk kişini ekleyerek başlayabilirsin.' }
+        ];
+        welcomeMsgs.forEach(function(m, i){
+          setTimeout(function(){
+            if (typeof window.__sohbetoNotify === 'function') {
+              window.__sohbetoNotify({ title: m.title, text: m.text, duration: 1400 });
+            }
+          }, 600 + i * 2500);
+        });
+      } catch(e) {}
     }
+    window.__sohbetoHandleLocalLogout = function () {
+      enteredMain = false;
+      var nav = document.getElementById('bottom-nav');
+      if (nav) {
+        nav.dataset.enabled = '0';
+        nav.style.display = 'none';
+      }
+      try {
+        var ac = document.querySelector('.app-container');
+        if (ac) {
+          ac.classList.remove('chat-mode');
+          ac.classList.add('list-mode');
+        }
+      } catch (e) {}
+      showScreen('screen-phone');
+    };
 
     // ---------- 2D) renderConvList monkey-patch → OO listesine yaz ----------
     function phoneForConn(connId) {

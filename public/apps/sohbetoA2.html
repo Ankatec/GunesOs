@@ -302,6 +302,10 @@
 
     <div class="content">
 
+      <!-- Geri (tema seçici) butonu -->
+      <button id="a2BackToTheme" type="button" aria-label="Tema seçimine dön"
+        style="position:absolute;top:14px;left:14px;z-index:50;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.78);border:1px solid var(--line);color:var(--ink);font-size:16px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:var(--shadow);">←</button>
+
       <!-- Karşılama / Splash Ekranı -->
       <div class="welcome-page" id="welcomePage">
         <div class="welcome-logo">
@@ -338,11 +342,21 @@
       <!-- OTP / Doğrulama Ekranı -->
       <div class="otp-page" id="otpPage">
         <div class="otp">
-          <div style="width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#2aa6c8,#67d6c4);display:grid;place-items:center;color:#fff;font-size:28px;box-shadow:0 16px 30px -14px rgba(42,166,200,.6);margin-top:20px">📱</div>
+          <div style="width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#2aa6c8,#67d6c4);display:grid;place-items:center;color:#fff;box-shadow:0 16px 30px -14px rgba(42,166,200,.6);margin-top:20px">
+            <!-- A2'nin kendi balık ikonu (welcome ekranındaki ile aynı dil) -->
+            <svg viewBox="0 0 110 110" width="40" height="40" aria-hidden="true">
+              <ellipse cx="55" cy="58" rx="34" ry="22" fill="#ffffff"/>
+              <polygon points="20,58 4,46 4,70" fill="#ffffff"/>
+              <path d="M40 47 Q48 38 56 47 Z" fill="#ffffff" opacity=".75"/>
+              <path d="M42 64 Q48 72 54 64 Z" fill="#ffffff" opacity=".7"/>
+              <circle cx="68" cy="56" r="3.2" fill="#1a2733"/>
+              <circle cx="69" cy="55" r="1.1" fill="#ffffff"/>
+            </svg>
+          </div>
           <h2>Numaranı gir</h2>
           <p>Telefon numaranıza 6 haneli doğrulama kodu göndereceğiz. Kod, <b style="color:var(--accent)">Mesajlar</b> uygulamana düşecek.</p>
-          <input id="a2Phone" type="tel" inputmode="tel" placeholder="+90 555 123 45 67" value="+90 "
-            style="width:100%;max-width:280px;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--card-strong);font-size:15px;font-weight:600;color:var(--ink);text-align:center;outline:none;box-shadow:var(--shadow)" />
+          <input id="a2Phone" type="tel" inputmode="tel" placeholder="+90 555 123 45 67" value="+90 " dir="ltr"
+            style="width:100%;max-width:280px;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--card-strong);font-size:15px;font-weight:600;color:var(--ink);text-align:center;outline:none;box-shadow:var(--shadow);unicode-bidi:plaintext" />
           <button class="ctaBtn" id="a2SendCodeBtn" style="max-width:280px">Kodu Gönder</button>
         </div>
       </div>
@@ -543,11 +557,36 @@ otpInputs.forEach((inp, i) => {
   });
 });
 
+/* "+90 " ön ekinden sonra imleci sağa al — bazı mobil tarayıcılarda input
+   text-align:center olduğunda caret başta kalıyor ve kullanıcı yazınca
+   numara "+90" un soluna düşmüş gibi görünüyor. */
+function a2FocusPhone(){
+  const p = document.getElementById('a2Phone');
+  if (!p) return;
+  try { p.focus({ preventScroll: true }); } catch(e){ p.focus(); }
+  try {
+    const end = (p.value || '').length;
+    p.setSelectionRange(end, end);
+  } catch(e){}
+}
 document.getElementById('enterBtn').addEventListener('click', () => {
   document.getElementById('welcomePage').style.display = 'none';
   document.getElementById('otpPage').style.display = 'flex';
-  setTimeout(()=>{ const p=document.getElementById('a2Phone'); if(p) p.focus(); }, 50);
+  setTimeout(a2FocusPhone, 50);
 });
+(function bindPhoneCaret(){
+  const p = document.getElementById('a2Phone');
+  if (!p) return;
+  const toEnd = () => { try { const n=(p.value||'').length; p.setSelectionRange(n,n); } catch(e){} };
+  p.addEventListener('focus', () => setTimeout(toEnd, 0));
+  p.addEventListener('click', () => {
+    // Kullanıcı "+90 " bloğunun içine tıklarsa caret'i sona al
+    try {
+      const pos = p.selectionStart || 0;
+      if (pos < 4) toEnd();
+    } catch(e){ toEnd(); }
+  });
+})();
 
 /* ---------- Auth bridge (parent OO has the engine) ---------- */
 function a2Post(action, payload){
@@ -620,21 +659,115 @@ function showAppShell(){
   document.getElementById('otpPage').style.display = 'none';
   document.getElementById('codePage').style.display = 'none';
   document.getElementById('appShell').style.display = 'flex';
+  var bb = document.getElementById('a2BackToTheme'); if (bb) bb.style.display = 'none';
   goTo('chats');
 }
 function showAuth(){
   document.getElementById('appShell').style.display = 'none';
   document.getElementById('codePage').style.display = 'none';
-  document.getElementById('welcomePage').style.display = 'none';
-  document.getElementById('otpPage').style.display = 'flex';
-  otpInputs.forEach(i => i.value='');
-  setTimeout(()=>{ const p=document.getElementById('a2Phone'); if(p) p.focus(); }, 50);
+  document.getElementById('welcomePage').style.display = 'flex';
+  document.getElementById('otpPage').style.display = 'none';
+  var bb = document.getElementById('a2BackToTheme'); if (bb) bb.style.display = 'grid';
+}
+
+/* Geri → tema seçici */
+(function bindBackToTheme(){
+  var b = document.getElementById('a2BackToTheme');
+  if (!b) return;
+  b.addEventListener('click', function(){ a2Post('backToTheme'); });
+})();
+
+/* ---------- Üst bildirim katmanı (Mesajlar tarzı) ---------- */
+(function injectA2NotifLayer(){
+  if (document.getElementById('a2NotifLayer')) return;
+  var style = document.createElement('style');
+  style.textContent = ''+
+    '#a2NotifLayer{position:fixed;top:10px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;z-index:100000;pointer-events:none;width:min(360px,calc(100vw - 24px));}'+
+    '.a2-toast{pointer-events:auto;background:#ffffffee;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(11,58,85,.10);border-radius:16px;padding:10px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 14px 36px -16px rgba(11,58,85,.35);transform:translateY(-130%);opacity:0;transition:transform .32s cubic-bezier(.2,.9,.25,1), opacity .32s ease;}'+
+    '.a2-toast.in{transform:translateY(0);opacity:1;}'+
+    '.a2-toast.out{transform:translateY(-130%);opacity:0;}'+
+    '.a2-toast-ico{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#2aa6c8,#67d6c4);display:grid;place-items:center;flex-shrink:0;}'+
+    '.a2-toast-body{flex:1;min-width:0;}'+
+    '.a2-toast-title{font-size:13px;font-weight:700;color:#0b3a55;line-height:1.2;}'+
+    '.a2-toast-text{font-size:12px;color:#5b7a8c;line-height:1.35;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'+
+    '.a2-toast-time{font-size:10px;color:#94a3b8;font-weight:600;flex-shrink:0;}'+
+    '#otpGrid input.a2-fill-pulse{animation:a2pulse .55s ease;border-color:var(--accent);}'+
+    '@keyframes a2pulse{0%{box-shadow:0 0 0 0 rgba(42,166,200,.55)}70%{box-shadow:0 0 0 10px rgba(42,166,200,0)}100%{box-shadow:0 0 0 0 rgba(42,166,200,0)}}';
+  document.head.appendChild(style);
+  var layer = document.createElement('div');
+  layer.id = 'a2NotifLayer';
+  document.body.appendChild(layer);
+})();
+var A2_MES_ICO = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+function a2NowLabel(){ try { return new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}); } catch(e){ return ''; } }
+function a2Notify(opts){
+  opts = opts || {};
+  var layer = document.getElementById('a2NotifLayer'); if (!layer) return;
+  var dur = typeof opts.duration === 'number' ? opts.duration : 1400;
+  var el = document.createElement('div');
+  el.className = 'a2-toast';
+  el.innerHTML = '<div class="a2-toast-ico">'+A2_MES_ICO+'</div>'+
+    '<div class="a2-toast-body"><div class="a2-toast-title"></div><div class="a2-toast-text"></div></div>'+
+    '<div class="a2-toast-time"></div>';
+  el.querySelector('.a2-toast-title').textContent = opts.title || 'Mesajlar';
+  el.querySelector('.a2-toast-text').textContent  = opts.text  || '';
+  el.querySelector('.a2-toast-time').textContent  = a2NowLabel();
+  layer.appendChild(el);
+  requestAnimationFrame(function(){ el.classList.add('in'); });
+  // swipe to dismiss
+  var startX=null, dx=0;
+  function onStart(e){ var p=(e.touches&&e.touches[0])||e; startX=p.clientX; dx=0; el.style.transition='none'; }
+  function onMove(e){ if(startX===null) return; var p=(e.touches&&e.touches[0])||e; dx=p.clientX-startX; el.style.transform='translate('+dx+'px,0)'; el.style.opacity=String(Math.max(0,1-Math.abs(dx)/180)); }
+  function onEnd(){ if(startX===null) return; el.style.transition=''; if(Math.abs(dx)>80){ el.style.transform='translate('+(dx<0?-400:400)+'px,0)'; el.style.opacity='0'; setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 260); } else { el.style.transform=''; el.style.opacity=''; } startX=null; dx=0; }
+  el.addEventListener('touchstart', onStart, {passive:true});
+  el.addEventListener('touchmove', onMove, {passive:true});
+  el.addEventListener('touchend', onEnd);
+  el.addEventListener('mousedown', onStart);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onEnd);
+  setTimeout(function(){ if(!el.parentNode) return; el.classList.remove('in'); el.classList.add('out'); setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 380); }, dur);
+}
+function a2FillOtp(code){
+  code = String(code||'').replace(/\D/g,'').slice(0,6);
+  if (code.length !== 6) return;
+  otpInputs.forEach(function(i){ i.value=''; i.classList.remove('a2-fill-pulse'); });
+  var k = 0;
+  (function step(){
+    if (k >= 6) return;
+    var inp = otpInputs[k];
+    if (inp){
+      inp.value = code[k];
+      inp.classList.remove('a2-fill-pulse');
+      void inp.offsetWidth;
+      inp.classList.add('a2-fill-pulse');
+      try { inp.dispatchEvent(new Event('input', {bubbles:true})); } catch(e){}
+    }
+    k++;
+    setTimeout(step, 180);
+  })();
+}
+function a2WelcomeBurst(){
+  var msgs = [
+    { title:'Mesajlar · Sohbeto', text:'Sohbeto’ya hoş geldin! 🎉' },
+    { title:'Mesajlar · Sohbeto', text:'Hesabın hazır — dünyanın en özgür sohbeti seni bekliyor.' },
+    { title:'Mesajlar · Sohbeto', text:'İlk kişini ekleyerek başlayabilirsin.' }
+  ];
+  msgs.forEach(function(m,i){ setTimeout(function(){ a2Notify({ title:m.title, text:m.text, duration:1400 }); }, 600 + i*2500); });
 }
 
 /* Parent → A2 mesajları */
 window.addEventListener('message', (ev) => {
   const d = ev.data || {};
   if (!d || !d.__sohbeto_a2_ack) return;
+  if (d.action === 'code' && d.code){
+    a2Notify({ title:'Mesajlar · Sohbeto', text:'Doğrulama kodun: '+d.code, duration:2000 });
+    a2FillOtp(d.code);
+    return;
+  }
+  if (d.action === 'welcomeBurst'){
+    a2WelcomeBurst();
+    return;
+  }
   if (d.action === 'sendCode'){
     if (a2BusyTimer){ clearTimeout(a2BusyTimer); a2BusyTimer = null; }
     setBusy(a2SendBtn, false, '', 'Kodu Gönder');
