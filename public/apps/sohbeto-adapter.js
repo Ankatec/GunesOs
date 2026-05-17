@@ -148,6 +148,59 @@
     // İlk kez mi giriş yoksa daha önce kayıt olmuş mu? IndexedDB'de firstSessionDone'a bakar.
     // Akışı belirler: WELCOME (ilk kayıt) vs LOGIN (tekrar giriş).
     var _flow = null; // 'welcome' | 'login'
+    var INTERFACE_KEY = 'sohbeto.oo.interface';
+    var LEGACY_THEME_KEY = 'sohbeto.oo.theme';
+    function normalizeInterfaceChoice(v) {
+      v = String(v || '').trim().toUpperCase();
+      return (v === 'OO' || v === 'A2') ? v : '';
+    }
+    function getInterfaceChoice() {
+      var chosen = '';
+      try { chosen = normalizeInterfaceChoice(localStorage.getItem(INTERFACE_KEY)); } catch (e) {}
+      if (chosen) return chosen;
+      try {
+        var legacy = normalizeInterfaceChoice(localStorage.getItem(LEGACY_THEME_KEY));
+        if (legacy) {
+          localStorage.setItem(INTERFACE_KEY, legacy);
+          localStorage.setItem(LEGACY_THEME_KEY, 'ocean');
+          return legacy;
+        }
+      } catch (e) {}
+      return '';
+    }
+    function setInterfaceChoice(choice) {
+      choice = normalizeInterfaceChoice(choice) || 'OO';
+      try { localStorage.setItem(INTERFACE_KEY, choice); } catch (e) {}
+      if (window.GunesOSStore) {
+        try { window.GunesOSStore.set(window.GunesOSStore.path.globalTheme(), choice); } catch (e) {}
+      }
+      return choice;
+    }
+    function isUserLoggedIn() {
+      var loggedIn = false;
+      try { if (typeof myNumber !== 'undefined' && myNumber) loggedIn = true; } catch (e) {}
+      try {
+        if (!loggedIn) {
+          var ls = localStorage.getItem('sohbet_my_number_v1') ||
+                   localStorage.getItem('sohbeto.oo.profile.number') || '';
+          if (ls && ls.trim()) loggedIn = true;
+        }
+      } catch (e) {}
+      try {
+        if (!loggedIn) {
+          var st = getEngineState();
+          if (st && (st.myNumber || st.identity || (st.users && st.users.size))) loggedIn = true;
+        }
+      } catch (e) {}
+      return loggedIn;
+    }
+    function openChosenInterface(choice) {
+      choice = normalizeInterfaceChoice(choice);
+      if (!choice) { showScreen('screen-themepicker'); return; }
+      if (choice === 'A2' && typeof window.__showSohbetoA2 === 'function') { window.__showSohbetoA2(); return; }
+      if (isUserLoggedIn()) enterMain();
+      else showScreen('screen-phone');
+    }
     async function detectFlow() {
       if (_flow) return _flow;
       try {
@@ -220,6 +273,9 @@
     // En basit ve sağlam: motorun renderConvList ilk çağırıldığında ana ekrana geç.
     var enteredMain = false;
     function enterMain() {
+      var interfaceChoice = getInterfaceChoice();
+      if (!interfaceChoice) { showScreen('screen-themepicker'); return; }
+      if (interfaceChoice === 'A2' && typeof window.__showSohbetoA2 === 'function') { window.__showSohbetoA2(); return; }
       if (enteredMain) return;
       enteredMain = true;
       // Alt nav'ı sadece giriş sonrası etkinleştir; sonrası ekran bazlı yönetilir.
@@ -2052,58 +2108,36 @@
     // ---------- 2G) İlk ekranı göster (Adım 7 + Adım 10 tema seçici) ----------
     // Akış:
     //  - Splash 600ms görünür
-    //  - Eğer KULLANICI ZATEN GİRİŞ YAPMIŞSA → doğrudan enterMain (sohbetler)
-    //  - Aksi halde: TEMA henüz seçilmediyse → screen-themepicker
-    //                                  seçildiyse → screen-phone
+    //  - Arayüz seçimi yoksa → screen-themepicker (oturum olsa bile)
+    //  - Arayüz seçiliyse → seçilen arayüz açılır
     // DEV: ?fresh=1 ile ilk-açılış akışını test et (splash + arayüz seçici)
     try {
       if (/[?&]fresh=1\b/.test(location.search)) {
-        ['sohbeto.oo.theme','sohbet_my_number_v1','sohbeto.oo.profile.number'].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+        [INTERFACE_KEY,'sohbeto.oo.theme','sohbet_my_number_v1','sohbeto.oo.profile.number'].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
       }
     } catch(e){}
     setTimeout(function () {
       // DEV: fresh=1 ise her ihtimale karşı boot anında tekrar temizle
       try {
         if (/[?&]fresh=1\b/.test(location.search)) {
-          ['sohbeto.oo.theme','sohbet_my_number_v1','sohbeto.oo.profile.number'].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+          [INTERFACE_KEY,'sohbeto.oo.theme','sohbet_my_number_v1','sohbeto.oo.profile.number'].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
           try { if (window.GunesOSStore) window.GunesOSStore.set(window.GunesOSStore.path.globalTheme(), ''); } catch(e){}
         }
       } catch(e){}
       var splash = document.getElementById('screenSplash');
       if (splash) splash.classList.add('fade-out');
       if (enteredMain) return;
-      var loggedIn = false;
-      try { if (typeof myNumber !== 'undefined' && myNumber) loggedIn = true; } catch (e) {}
-      try {
-        if (!loggedIn) {
-          var ls = localStorage.getItem('sohbet_my_number_v1') ||
-                   localStorage.getItem('sohbeto.oo.profile.number') || '';
-          if (ls && ls.trim()) loggedIn = true;
-        }
-      } catch (e) {}
-      try {
-        if (!loggedIn) {
-          var st = getEngineState();
-          if (st && (st.myNumber || st.identity || (st.users && st.users.size))) loggedIn = true;
-        }
-      } catch (e) {}
-
-      var isFreshDev = false;
-      try { isFreshDev = /[?&]fresh=1\b/.test(location.search); } catch(e){}
-      if (loggedIn && !isFreshDev) { enterMain(); return; }
-
-      // Tema seçimi kontrolü (localStorage + IDB fallback)
-      var themeChosenLS = false;
-      try { themeChosenLS = !!localStorage.getItem('sohbeto.oo.theme'); } catch (e) {}
-      if (themeChosenLS) { showScreen('screen-phone'); return; }
+      var chosenInterface = getInterfaceChoice();
+      if (chosenInterface) { openChosenInterface(chosenInterface); return; }
 
       var isFresh = false;
       try { isFresh = /[?&]fresh=1\b/.test(location.search); } catch(e){}
       if (window.GunesOSStore && !isFresh) {
         window.GunesOSStore.get(window.GunesOSStore.path.globalTheme()).then(function (v) {
-          if (v) {
-            try { localStorage.setItem('sohbeto.oo.theme', v); } catch (e) {}
-            showScreen('screen-phone');
+          var storedInterface = normalizeInterfaceChoice(v);
+          if (storedInterface) {
+            setInterfaceChoice(storedInterface);
+            openChosenInterface(storedInterface);
           } else {
             showScreen('screen-themepicker');
           }
@@ -2118,11 +2152,8 @@
 
     // Tema seçici buton handler'ı
     window.__chooseTheme = function (theme) {
-      try { localStorage.setItem('sohbeto.oo.theme', theme); } catch (e) {}
-      if (window.GunesOSStore) {
-        try { window.GunesOSStore.set(window.GunesOSStore.path.globalTheme(), theme); } catch (e) {}
-      }
-      showScreen('screen-phone');
+      var choice = setInterfaceChoice(theme);
+      openChosenInterface(choice);
     };
 
     // ---------- Twemoji: tüm sohbet balonlarındaki emojileri (özellikle bayrakları) gerçek görüntüye çevir ----------

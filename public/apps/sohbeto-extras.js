@@ -51,6 +51,41 @@
   function inboxPath()  { return '.gunesos/sohbeto/' + myNumber() + '/inbox'; }
   function callsPath()  { return '.gunesos/sohbeto/' + myNumber() + '/calls'; }
   function groupsPath() { return '.gunesos/sohbeto/' + myNumber() + '/groups'; }
+  function allowedKey() { return 'sohbeto.extras.allowedSenders.' + myNumber(); }
+
+  // ----------------- ALLOWED SENDERS (rehberde olmasa da yazabilenler) -----------------
+  // Kullanıcı gelen kutusundan "Yanıtla" derse, o kişiye yazma izni veririz:
+  // sonraki mesajları artık gelen kutusuna düşmesin, normal sohbet açılsın.
+  // Sync erişim için localStorage kullanırız; GunesOSStore'a da ayna tutarız.
+  function loadAllowedSet() {
+    try {
+      var raw = localStorage.getItem(allowedKey());
+      var arr = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(arr)) arr = [];
+      return new Set(arr.map(String));
+    } catch (e) { return new Set(); }
+  }
+  function saveAllowedSet(set) {
+    try {
+      localStorage.setItem(allowedKey(), JSON.stringify(Array.from(set)));
+    } catch (e) {}
+  }
+  function addAllowedEntry(entry) {
+    if (!entry) return;
+    var set = loadAllowedSet();
+    if (entry.connId) set.add('c:' + entry.connId);
+    if (entry.number) set.add('n:' + String(entry.number).replace(/\s+/g, ''));
+    saveAllowedSet(set);
+  }
+  function isAllowedConn(connId) {
+    try {
+      var set = loadAllowedSet();
+      if (connId && set.has('c:' + connId)) return true;
+      var num = peerNumber(connId);
+      if (num && set.has('n:' + String(num).replace(/\s+/g, ''))) return true;
+    } catch (e) {}
+    return false;
+  }
 
   // ----------------- CSS enjekte -----------------
   function injectCSS() {
@@ -637,6 +672,10 @@
 
   function replyEntry(entry) {
     try {
+      // Kullanıcı yanıt veriyor → bu kişiye yazma izni ver.
+      // Bundan sonra gönderdiği mesajlar gelen kutusuna düşmeyecek, normal
+      // sohbet ekranında görünecek (rehbere eklenmesi gerekmez).
+      addAllowedEntry(entry);
       closeAllFsScreens();
       if (entry.number && typeof window.openContactByNumber === 'function') {
         window.openContactByNumber(entry.number);
@@ -789,6 +828,80 @@
 
   // ----------------- ENGINE WRAP: incoming msg/call → inbox -----------------
   function wrapEngineHooks() {
+    // ----- ortak yardımcı: bilinmeyen aramayı sessizce kapat -----
+    function rejectUnknownCall(senderConnId, type) {
+      try {
+        if (typeof sendCallSignal === 'function') {
+          sendCallSignal(senderConnId, 'CALL_REJECT');
+        } else if (typeof window.sendCallSignal === 'function') {
+          window.sendCallSignal(senderConnId, 'CALL_REJECT');
+        }
+      } catch (e) {}
+      try {
+        if (typeof state !== 'undefined' && state) {
+          state.incomingCallFrom = null;
+          state.incomingCallType = 'audio';
+        }
+      } catch (e) {}
+      // Görüntülü aramada arayan, CALL_RING_VIDEO öncesinde OFFER ile
+      // video tracklerini gönderebiliyor; bunlar bizde #videoRemote'a takılmadan
+      // peer'in tüm gelen tracklerini durdurup video elementini de söndürelim.
+      try {
+        var peer = (typeof peers !== 'undefined' ? peers : (window.peers || {}))[senderConnId];
+        if (peer && peer.pc) {
+          try {
+            peer.pc.getReceivers().forEach(function (r) {
+              try { if (r.track) r.track.stop(); } catch (e) {}
+            });
+          } catch (e) {}
+        }
+      } catch (e) {}
+      try {
+        var vRemote = document.getElementById('videoRemote');
+        if (vRemote) {
+          var ve = vRemote.querySelector('video');
+          if (ve) { try { ve.pause(); } catch (e) {} ve.srcObject = null; ve.remove(); }
+        }
+        var vc = document.getElementById('videoContainer');
+        if (vc) vc.classList.remove('active');
+        var cs = document.getElementById('callScreen');
+        if (cs) cs.classList.add('hidden');
+      } catch (e) {}
+      // Üst kabuğun (GunesOS) "Görüntülü arıyor" tam ekran bildirimini de iptal et.
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'sohbeto:incoming-call-cancelled', from: senderConnId }, '*');
+        }
+      } catch (e) {}
+      var nm = peerDisplayName(senderConnId).replace(/\[.*?\]/g, '').trim();
+      appendInbox({
+        kind: 'call',
+        connId: senderConnId,
+        number: peerNumber(senderConnId),
+        name: nm || 'Bilinmeyen',
+        callType: type || 'audio'
+      }).then(updateBadges);
+      playInboxChime();
+    }
+
+    // handleCallSignal sarmalayıcısı — showIncomingCall'a varmadan önce
+    // bilinmeyen aranlardan gelen CALL_RING / CALL_RING_VIDEO sinyallerini yakala.
+    if (typeof window.handleCallSignal === 'function' && !window.handleCallSignal.__extrasWrapped) {
+      var origHandleCall = window.handleCallSignal;
+      window.handleCallSignal = function (senderConnId, text, viaP2P) {
+        try {
+          if (typeof text === 'string' &&
+              (text === 'CALL_RING' || text === 'CALL_RING_VIDEO') &&
+              !isKnownConn(senderConnId)) {
+            var t = text === 'CALL_RING_VIDEO' ? 'video' : 'audio';
+            rejectUnknownCall(senderConnId, t);
+            return;
+          }
+        } catch (e) {}
+        return origHandleCall.apply(this, arguments);
+      };
+      window.handleCallSignal.__extrasWrapped = true;
+    }
     // renderIncomingMsg(senderConnId, targetConnId, text, isP2P, msgId)
     if (typeof window.renderIncomingMsg === 'function' && !window.renderIncomingMsg.__extrasWrapped) {
       var origMsg = window.renderIncomingMsg;
@@ -812,7 +925,7 @@
             return;
           }
           var isPrivate = (targetConnId !== 'HERKES');
-          if (isPrivate && !isKnownConn(senderConnId)) {
+          if (isPrivate && !isKnownConn(senderConnId) && !isAllowedConn(senderConnId)) {
             var nm = peerDisplayName(senderConnId).replace(/\[.*?\]/g, '').trim();
             appendInbox({
               kind: 'msg',
@@ -835,32 +948,9 @@
       window.showIncomingCall = function (senderConnId, type) {
         try {
           if (!isKnownConn(senderConnId)) {
-            var nm = peerDisplayName(senderConnId).replace(/\[.*?\]/g, '').trim();
-            appendInbox({
-              kind: 'call',
-              connId: senderConnId,
-              number: peerNumber(senderConnId),
-              name: nm || 'Bilinmeyen',
-              callType: type || 'audio'
-            }).then(updateBadges);
-            playInboxChime();
-            // Rehberde yok → arama ekranını açma, AMA karşı taraf çalmasın diye
-            // doğrudan CALL_REJECT sinyalini gönder. (rejectIncomingCall yalnızca
-            // state.incomingCallFrom doluyken çalışır; biz orijinal akışı baypas
-            // ettiğimiz için state set edilmiyor.)
-            try {
-              if (typeof sendCallSignal === 'function') {
-                sendCallSignal(senderConnId, 'CALL_REJECT');
-              } else if (typeof window.sendCallSignal === 'function') {
-                window.sendCallSignal(senderConnId, 'CALL_REJECT');
-              }
-            } catch (e) {}
-            try {
-              if (typeof state !== 'undefined' && state) {
-                state.incomingCallFrom = null;
-                state.incomingCallType = 'audio';
-              }
-            } catch (e) {}
+            // Defense-in-depth: handleCallSignal gate'i atlamış olabilir
+            // (örn. handleCallSignal wrap'i daha kurulmadan ilk çağrı geldi).
+            rejectUnknownCall(senderConnId, type);
             return;
           }
         } catch (e) {}
@@ -1083,7 +1173,8 @@
       wrapEngineHooks();
       tries++;
       if ((window.renderIncomingMsg && window.renderIncomingMsg.__extrasWrapped &&
-           window.showIncomingCall && window.showIncomingCall.__extrasWrapped) || tries > 50) {
+           window.showIncomingCall && window.showIncomingCall.__extrasWrapped &&
+           window.handleCallSignal && window.handleCallSignal.__extrasWrapped) || tries > 50) {
         clearInterval(hookTimer);
       }
     }, 200);

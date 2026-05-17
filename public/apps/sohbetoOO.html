@@ -905,6 +905,17 @@
                     </div>
                     <i class="fa-solid fa-arrow-right" style="color:#a5b4fc;"></i>
                 </button>
+                <button type="button" onclick="window.__chooseTheme && window.__chooseTheme('A2')"
+                    style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(42,166,200,.18),rgba(103,214,196,.18));border:1px solid rgba(103,214,196,.45);color:#e5e7eb;cursor:pointer;text-align:left;transition:transform .15s ease,box-shadow .15s ease;"
+                    onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 10px 24px -10px rgba(103,214,196,.6)';"
+                    onmouseout="this.style.transform='';this.style.boxShadow='';">
+                    <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#2aa6c8,#67d6c4);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;">A2</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:14px;">A2 — Akvaryum</div>
+                        <div style="font-size:11px;color:#9aa6bd;">Sakin, su altı esintili alternatif arayüz.</div>
+                    </div>
+                    <i class="fa-solid fa-arrow-right" style="color:#7ee8d6;"></i>
+                </button>
                 <div style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.12);color:#6b7691;text-align:left;">
                     <div style="width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-weight:800;">?</div>
                     <div style="flex:1;">
@@ -1277,7 +1288,7 @@
                         <div class="settings-action"><i class="fa-solid fa-chevron-right"></i></div>
                     </div>
 
-                    <div class="settings-item mt-2">
+                    <div class="settings-item mt-2" onclick="window.__sohbetoLogoutDialog && window.__sohbetoLogoutDialog()">
                         <div class="settings-icon-wrapper icon-danger"><i class="fa-solid fa-arrow-right-from-bracket"></i></div>
                         <div class="settings-text">
                             <span class="settings-item-title" style="color: #c4624b;">Çıkış Yap</span>
@@ -1515,5 +1526,257 @@
     <script src="./sohbeto-extras.js"></script>
     <!-- Adım 14: Kişi kartı boyut + animasyon tercihleri -->
     <script src="./sohbeto-card-anim.js"></script>
+
+    <!-- A2 arayüzü iframe overlay + Çıkış/Hesabı sil yardımcıları -->
+    <div id="a2FrameOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:#fff;">
+      <iframe id="a2Frame" title="Sohbeto A2"
+        style="width:100%;height:100%;border:0;display:block;"
+        allow="camera; microphone; clipboard-write; clipboard-read; autoplay"></iframe>
+    </div>
+    <script>
+    (function(){
+      'use strict';
+      function showA2(){
+        var ov = document.getElementById('a2FrameOverlay');
+        var fr = document.getElementById('a2Frame');
+        if (!ov || !fr) return;
+        if (!fr.src) fr.src = './sohbetoA2.html';
+        ov.style.display = 'block';
+        // Splash/picker gizle
+        var sp = document.getElementById('screenSplash');
+        if (sp) sp.classList.add('hidden-screen');
+        var tp = document.getElementById('screen-themepicker');
+        if (tp) tp.classList.add('hidden-screen');
+      }
+      window.__showSohbetoA2 = showA2;
+
+      // ---------- A2 ↔ OO köprüsü ----------
+      function a2Win(){
+        var fr = document.getElementById('a2Frame');
+        return fr && fr.contentWindow ? fr.contentWindow : null;
+      }
+      function a2Reply(action, payload){
+        var w = a2Win(); if (!w) return;
+        try { w.postMessage(Object.assign({ __sohbeto_a2_ack: true, action: action }, payload || {}), '*'); } catch(e){}
+      }
+      function a2IsLoggedIn(){
+        try {
+          if (typeof myNumber !== 'undefined' && myNumber) return true;
+        } catch(e){}
+        try {
+          if (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.virtualNo) return true;
+        } catch(e){}
+        try {
+          if (window.CONFIG && window.CONFIG.virtualNo) return true;
+        } catch(e){}
+        try {
+          var n = localStorage.getItem('sohbet_my_number_v1') ||
+                  localStorage.getItem('sohbeto.oo.profile.number') || '';
+          if (n && n.trim()) return true;
+        } catch(e){}
+        return false;
+      }
+      function a2WaitForLogin(timeoutMs, cb){
+        var start = Date.now();
+        (function poll(){
+          if (a2IsLoggedIn()) { cb(true); return; }
+          if (Date.now() - start > timeoutMs) { cb(false); return; }
+          setTimeout(poll, 250);
+        })();
+      }
+      window.addEventListener('message', function(ev){
+        var d = ev.data || {};
+        if (!d || !d.__sohbeto_a2) return;
+        var fr = document.getElementById('a2Frame');
+        if (!fr || ev.source !== fr.contentWindow) return;
+        if (d.action === 'checkAuth'){
+          if (a2IsLoggedIn()) a2Reply('verifyCode', { ok: true });
+          return;
+        }
+        if (d.action === 'sendCode'){
+          try {
+            var inp = document.getElementById('phoneInput');
+            if (inp) inp.value = d.phone || '+90 ';
+            if (window.app && typeof window.app.sendCode === 'function'){
+              Promise.resolve(window.app.sendCode(!!d.resend)).then(function(){
+                a2Reply('sendCode', { ok: true });
+              }, function(err){
+                a2Reply('sendCode', { ok: false, error: (err && err.message) || 'Hata' });
+              });
+            } else {
+              a2Reply('sendCode', { ok: false, error: 'Motor hazır değil' });
+            }
+          } catch(err){ a2Reply('sendCode', { ok: false, error: String(err) }); }
+          return;
+        }
+        if (d.action === 'verifyCode'){
+          try {
+            var ins = document.querySelectorAll('#codeInputs .code-input');
+            var code = String(d.code || '');
+            ins.forEach(function(el, i){ el.value = code[i] || ''; });
+            if (window.app && typeof window.app.verifyCode === 'function'){
+              window.app.verifyCode();
+              a2WaitForLogin(8000, function(ok){
+                a2Reply('verifyCode', ok ? { ok: true } : { ok: false, error: 'Kod yanlış veya zaman aşımı.' });
+              });
+            } else {
+              a2Reply('verifyCode', { ok: false, error: 'Motor hazır değil' });
+            }
+          } catch(err){ a2Reply('verifyCode', { ok: false, error: String(err) }); }
+          return;
+        }
+        if (d.action === 'logout'){
+          if (d.mode === 'wipe'){
+            // Tam sıfırlama: parent location.reload eder, iframe de yeniden yüklenir.
+            try {
+              var btnW = document.getElementById('sbLogoutWipe');
+              if (btnW && typeof btnW.click === 'function'){ /* modal aç değil, direkt yap */ }
+            } catch(e){}
+            // Doğrudan wipe akışını çalıştır
+            try {
+              // localStorage temizliği
+              var toRemove = [];
+              for (var i = 0; i < localStorage.length; i++){
+                var k = localStorage.key(i);
+                if (!k) continue;
+                if (k.indexOf('sohbeto') === 0 || k.indexOf('sohbeto.') !== -1 || k.indexOf('sohbeto_') !== -1 ||
+                    k.indexOf('EgaNetwork') !== -1 || k.indexOf('oo.profile') !== -1) toRemove.push(k);
+              }
+              toRemove.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+            } catch(e){}
+            try { sessionStorage.clear(); } catch(e){}
+            var delIDB = function(name){
+              return new Promise(function(res){
+                try { var r = indexedDB.deleteDatabase(name); r.onsuccess=r.onerror=r.onblocked=function(){res();}; setTimeout(res, 1500); }
+                catch(e){ res(); }
+              });
+            };
+            var names = ['EgaNetwork','GunesOS'];
+            var finish = function(){ setTimeout(function(){ location.reload(); }, 120); };
+            try {
+              if (indexedDB.databases){
+                indexedDB.databases().then(function(list){
+                  (list||[]).forEach(function(x){ if (x&&x.name && (x.name.indexOf('EgaNetwork')===0||x.name==='GunesOS') && names.indexOf(x.name)===-1) names.push(x.name); });
+                  Promise.all(names.map(delIDB)).then(finish, finish);
+                }, function(){ Promise.all(names.map(delIDB)).then(finish, finish); });
+              } else { Promise.all(names.map(delIDB)).then(finish, finish); }
+            } catch(e){ finish(); }
+          } else {
+            // Geçici çıkış: engine logout butonunu tetikle, A2 iframe'de auth ekranını göster
+            try {
+              var btn = document.getElementById('menuLogout');
+              if (btn && typeof btn.click === 'function') btn.click();
+            } catch(e){}
+            a2Reply('loggedOut');
+          }
+          return;
+        }
+      });
+
+      // __chooseTheme'i sar: A2 seçilirse iframe aç
+      var prevChoose = window.__chooseTheme;
+      window.__chooseTheme = function(theme){
+        try { localStorage.setItem('sohbeto.oo.theme', theme); } catch(e){}
+        if (window.GunesOSStore) {
+          try { window.GunesOSStore.set(window.GunesOSStore.path.globalTheme(), theme); } catch(e){}
+        }
+        if (theme === 'A2') { showA2(); return; }
+        if (typeof prevChoose === 'function') return prevChoose(theme);
+      };
+
+      // İlk açılışta tema A2 ise direkt iframe'i göster (login/picker akışını atla)
+      function bootCheckA2(){
+        var t = null;
+        try { t = localStorage.getItem('sohbeto.oo.theme'); } catch(e){}
+        if (t === 'A2') {
+          // Adapter'ın splash zamanlayıcısından önce davranmak için biraz bekle
+          setTimeout(showA2, 50);
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootCheckA2);
+      } else {
+        bootCheckA2();
+      }
+
+      // Çıkış Yap diyaloğu
+      window.__sohbetoLogoutDialog = function(){
+        // Basit, mevcut tasarıma uyan modal
+        var existing = document.getElementById('sohbetoLogoutModal');
+        if (existing) existing.remove();
+        var wrap = document.createElement('div');
+        wrap.id = 'sohbetoLogoutModal';
+        wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,14,26,.55);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .2s ease;';
+        wrap.innerHTML = ''
+          + '<div style="width:100%;max-width:340px;background:#fff;border-radius:22px;padding:22px 20px;box-shadow:0 30px 60px -20px rgba(0,0,0,.4);font-family:-apple-system,system-ui,sans-serif;color:#0b3a55;">'
+          +   '<div style="font-size:18px;font-weight:800;margin-bottom:6px;">Çıkış</div>'
+          +   '<div style="font-size:13px;color:#5b7a8c;line-height:1.5;margin-bottom:16px;">Geçici çıkış oturumunu kapatır, profilin saklı kalır. Hesabı sil tüm yerel verileri (tema, profil, sohbetler) temizler ve seni baştan başlatır.</div>'
+          +   '<button id="sbLogoutTemp" style="width:100%;height:44px;border-radius:12px;border:0;margin-bottom:10px;background:linear-gradient(135deg,#7bd1e8,#4fb6d6);color:#fff;font-weight:700;cursor:pointer;">Geçici Çıkış</button>'
+          +   '<button id="sbLogoutWipe" style="width:100%;height:44px;border-radius:12px;border:0;margin-bottom:10px;background:#c4624b;color:#fff;font-weight:700;cursor:pointer;">Hesabı Sil (sıfırla)</button>'
+          +   '<button id="sbLogoutCancel" style="width:100%;height:40px;border-radius:12px;border:1px solid rgba(11,58,85,.15);background:#fff;color:#0b3a55;font-weight:600;cursor:pointer;">İptal</button>'
+          + '</div>';
+        document.body.appendChild(wrap);
+        wrap.addEventListener('click', function(e){ if (e.target === wrap) wrap.remove(); });
+        document.getElementById('sbLogoutCancel').onclick = function(){ wrap.remove(); };
+        document.getElementById('sbLogoutTemp').onclick = function(){
+          wrap.remove();
+          var btn = document.getElementById('menuLogout');
+          if (btn) { try { btn.click(); } catch(e){} }
+        };
+        document.getElementById('sbLogoutWipe').onclick = function(){
+          wrap.remove();
+          try {
+            // Sohbeto ile ilgili tüm localStorage anahtarlarını temizle
+            var toRemove = [];
+            for (var i = 0; i < localStorage.length; i++) {
+              var k = localStorage.key(i);
+              if (!k) continue;
+              if (k.indexOf('sohbeto') === 0 || k.indexOf('sohbeto.') !== -1 || k.indexOf('sohbeto_') !== -1 ||
+                  k.indexOf('EgaNetwork') !== -1 || k.indexOf('oo.profile') !== -1) {
+                toRemove.push(k);
+              }
+            }
+            toRemove.forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+          } catch(e){}
+          try { sessionStorage.clear(); } catch(e){}
+          // IndexedDB veritabanlarını sil (kimlik + sohbet + tema)
+          var deleteIDB = function(name){
+            return new Promise(function(res){
+              try {
+                var req = indexedDB.deleteDatabase(name);
+                req.onsuccess = function(){ res(); };
+                req.onerror   = function(){ res(); };
+                req.onblocked = function(){ res(); };
+                setTimeout(res, 1500);
+              } catch(e){ res(); }
+            });
+          };
+          var done = function(){ setTimeout(function(){ location.reload(); }, 120); };
+          var idbNames = ['EgaNetwork', 'GunesOS'];
+          try {
+            for (var i = 0; i < localStorage.length; i++) {
+              var lk = localStorage.key(i);
+              if (lk && lk.indexOf('EgaNetwork_') === 0) idbNames.push(lk);
+            }
+          } catch(e){}
+          // engine'in tab-bazlı eski db'lerini de süpür
+          try {
+            if (indexedDB.databases) {
+              indexedDB.databases().then(function(list){
+                (list || []).forEach(function(d){
+                  if (d && d.name && (d.name.indexOf('EgaNetwork') === 0 || d.name === 'GunesOS')) {
+                    if (idbNames.indexOf(d.name) === -1) idbNames.push(d.name);
+                  }
+                });
+                Promise.all(idbNames.map(deleteIDB)).then(done, done);
+              }, function(){ Promise.all(idbNames.map(deleteIDB)).then(done, done); });
+            } else {
+              Promise.all(idbNames.map(deleteIDB)).then(done, done);
+            }
+          } catch(e){ done(); }
+        };
+      };
+    })();
+    </script>
 </body>
 </html>

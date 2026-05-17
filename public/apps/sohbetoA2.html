@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Sohbeto</title>
+<style>
+  :root{
+    --bg1:#eaf6ff; --bg2:#cfe9f7; --bg3:#bfe1ef;
+    --ink:#0b3a55; --muted:#5b7a8c;
+    --card:rgba(255,255,255,.72);
+    --card-strong:rgba(255,255,255,.92);
+    --line:rgba(11,58,85,.10);
+    --accent:#2aa6c8; --accent2:#67d6c4; --coral:#ff8a73;
+    --bubble-me:linear-gradient(135deg,#7bd1e8,#4fb6d6);
+    --bubble-them:rgba(255,255,255,.85);
+    --shadow:0 12px 40px -18px rgba(11,58,85,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Inter","SF Pro Text",system-ui,sans-serif;color:var(--ink);overflow:hidden}
+  body{
+    min-height:100vh;
+    background:#ffffff;
+    display:grid;place-items:center;padding:0;
+  }
+
+  /* Phone frame — fills the screen on mobile, framed on larger screens */
+  .phone{
+    position:relative;
+    width:100%;height:100%;
+    max-width:100vw;max-height:100vh;
+    border-radius:0;background:#ffffff;
+    padding:0;
+    box-shadow:none;
+  }
+  @media (min-width: 480px){
+    body{padding:24px;background:#f4f7fa;}
+    .phone{
+      width:min(420px,100%);height:min(900px,calc(100vh - 48px));
+      border-radius:46px;
+      background:linear-gradient(180deg,#fafdff,#e7f3fa);
+      padding:14px;
+      box-shadow:
+        0 30px 60px -30px rgba(11,58,85,.35),
+        0 2px 0 rgba(255,255,255,.9) inset,
+        0 0 0 1px rgba(11,58,85,.06);
+    }
+  }
+  .screen{
+    position:relative;width:100%;height:100%;border-radius:0;overflow:hidden;
+    background:linear-gradient(180deg,#eaf7fc 0%,#d6ecf5 100%);
+    display:flex;flex-direction:column;
+  }
+  @media (min-width: 480px){
+    .screen{border-radius:34px;}
+  }
+
+  /* Aquarium wallpaper (kept) */
+  .aquarium{position:absolute;inset:0;overflow:hidden;}
+  .aquarium::before{
+    content:"";position:absolute;inset:0;
+    background:
+      radial-gradient(120% 60% at 50% 0%, rgba(255,255,255,.55), transparent 60%),
+      radial-gradient(80% 50% at 50% 100%, rgba(11,58,85,.10), transparent 70%),
+      linear-gradient(180deg,#dff3fb 0%,#bfe3f1 60%,#9ecfe2 100%);
+  }
+  .light{
+    position:absolute;top:-10%;left:50%;width:200%;height:60%;transform:translateX(-50%);
+    background:repeating-linear-gradient(110deg,rgba(255,255,255,.18) 0 6px,transparent 6px 28px);
+    filter:blur(4px);opacity:.55;animation:shimmer 9s linear infinite;
+  }
+  @keyframes shimmer{0%{transform:translate(-55%,0)}100%{transform:translate(-45%,0)}}
+  .bubbles span{
+    position:absolute;bottom:-20px;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%,#fff,rgba(255,255,255,.4));
+    opacity:.65;animation:rise linear infinite;
+  }
+  @keyframes rise{
+    0%{transform:translateY(0) translateX(0);opacity:0}
+    10%{opacity:.7}
+    100%{transform:translateY(-120vh) translateX(20px);opacity:0}
+  }
+  .seaweed{position:absolute;bottom:0;width:100%;height:30%;
+    background:
+      radial-gradient(40px 80px at 10% 100%,#3d8a6e 0 60%,transparent 61%),
+      radial-gradient(30px 60px at 22% 100%,#4a9f80 0 60%,transparent 61%),
+      radial-gradient(50px 100px at 80% 100%,#357a62 0 60%,transparent 61%),
+      radial-gradient(35px 70px at 92% 100%,#4a9f80 0 60%,transparent 61%);
+    opacity:.5;filter:blur(.3px);
+  }
+  /* The brown sandy band at bottom — kept as requested */
+  .sand{position:absolute;bottom:0;left:0;right:0;height:8%;
+    background:linear-gradient(180deg,#e9d8b0,#d2bb86);opacity:.85}
+
+  .fish{position:absolute;animation:swim linear infinite;}
+  .fish svg{display:block;filter:drop-shadow(0 4px 6px rgba(11,58,85,.18))}
+  @keyframes swim{
+    0%{transform:translateX(-30%)}
+    50%{transform:translateX(130%) scaleX(-1)}
+    50.01%{transform:translateX(130%) scaleX(-1)}
+    100%{transform:translateX(-30%)}
+  }
+
+  .content{position:relative;z-index:3;flex:1;display:flex;flex-direction:column;min-height:0}
+
+  /* Top bar inside chat */
+  .topbar{
+    margin:14px 12px 10px;padding:10px 12px;border-radius:18px;
+    background:var(--card);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    display:flex;align-items:center;gap:10px;border:1px solid var(--line);
+    box-shadow:var(--shadow);
+  }
+  .avatar{
+    width:36px;height:36px;border-radius:50%;flex:none;
+    background:linear-gradient(135deg,#ffd6c2,#ff8a73);
+    display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;
+    box-shadow:0 6px 14px -6px rgba(255,138,115,.7);
+  }
+  .av-b{background:linear-gradient(135deg,#bfe1ef,#2aa6c8)}
+  .av-c{background:linear-gradient(135deg,#cdeede,#67d6c4)}
+  .av-d{background:linear-gradient(135deg,#f5d2ff,#b07cff)}
+  .av-e{background:linear-gradient(135deg,#ffe9a8,#f5a623)}
+  .meta{flex:1;min-width:0}
+  .meta b{font-size:13px;display:block;line-height:1.1}
+  .meta small{font-size:10.5px;color:var(--muted)}
+  .iconbtn{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.7);border:1px solid var(--line);color:var(--ink);font-size:13px;cursor:pointer;user-select:none}
+  .iconbtn:active{transform:scale(.95)}
+
+  /* Chat stream */
+  .stream{flex:1;overflow-y:auto;padding:6px 14px 10px;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin}
+  .stream::-webkit-scrollbar{width:4px}
+  .stream::-webkit-scrollbar-thumb{background:rgba(11,58,85,.15);border-radius:4px}
+  .bubble{
+    max-width:78%;padding:9px 12px;border-radius:18px;font-size:13px;line-height:1.4;
+    background:var(--bubble-them);backdrop-filter:blur(8px);border:1px solid var(--line);
+    box-shadow:0 6px 14px -10px rgba(11,58,85,.4);word-wrap:break-word;
+  }
+  .bubble.me{align-self:flex-end;background:var(--bubble-me);color:#fff;border-color:transparent}
+  .bubble .t{display:block;font-size:9.5px;opacity:.7;margin-top:3px;text-align:right}
+  .bubble.me .t{color:rgba(255,255,255,.85)}
+  .day{align-self:center;font-size:9.5px;color:var(--muted);background:rgba(255,255,255,.6);padding:3px 9px;border-radius:999px;margin:6px 0}
+
+  /* Input */
+  .composer{
+    margin:6px 12px 12px;padding:8px 8px 8px 14px;border-radius:22px;
+    background:var(--card-strong);display:flex;align-items:center;gap:8px;border:1px solid var(--line);
+    box-shadow:var(--shadow);
+  }
+  .composer input{flex:1;border:0;outline:0;background:transparent;font-size:13px;color:var(--ink);min-width:0}
+  .send{
+    width:34px;height:34px;border-radius:50%;border:0;color:#fff;font-size:14px;
+    background:linear-gradient(135deg,#2aa6c8,#67d6c4);box-shadow:0 8px 16px -8px rgba(42,166,200,.7);
+    cursor:pointer;flex:none;
+  }
+  .send:active{transform:scale(.95)}
+
+  /* List */
+  .listwrap{flex:1;overflow-y:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin}
+  .listwrap::-webkit-scrollbar{width:4px}
+  .listwrap::-webkit-scrollbar-thumb{background:rgba(11,58,85,.15);border-radius:4px}
+  .listcard{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px;
+    display:flex;align-items:center;gap:10px;backdrop-filter:blur(10px);box-shadow:var(--shadow);
+    cursor:pointer;transition:transform .15s;
+  }
+  .listcard:active{transform:scale(.98)}
+  .lc-meta{flex:1;min-width:0}
+  .lc-meta b{font-size:13px;display:block}
+  .lc-meta span{font-size:11.5px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .badge{background:linear-gradient(135deg,#ff8a73,#ff6a85);color:#fff;font-size:9.5px;padding:2px 7px;border-radius:999px;font-weight:700}
+  .time{font-size:9.5px;color:var(--muted)}
+
+  /* Big header */
+  .bighead{padding:14px 18px 4px;display:flex;justify-content:space-between;align-items:flex-end}
+  .bighead h2{margin:0;font-size:24px;letter-spacing:-.01em}
+  .bighead .sub{font-size:11px;color:var(--muted)}
+  .search{
+    margin:8px 12px 6px;background:var(--card-strong);border:1px solid var(--line);border-radius:14px;
+    padding:9px 12px;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:8px;
+    box-shadow:var(--shadow);
+  }
+  .search input{flex:1;border:0;outline:0;background:transparent;font-size:12.5px;color:var(--ink)}
+  .tabs{display:flex;gap:6px;padding:6px 12px 8px;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{padding:6px 12px;font-size:11px;border-radius:999px;background:rgba(255,255,255,.6);border:1px solid var(--line);color:var(--muted);cursor:pointer;white-space:nowrap;flex:none}
+  .tab.on{background:linear-gradient(135deg,#2aa6c8,#67d6c4);color:#fff;border-color:transparent}
+
+  /* OTP */
+  .otp{padding:40px 22px 22px;display:flex;flex-direction:column;gap:14px;text-align:center;align-items:center;flex:1;overflow-y:auto}
+  .otp h2{font-size:22px;margin:0}
+  .otp p{font-size:12.5px;color:var(--muted);margin:0;max-width:260px;line-height:1.5}
+  .otp-grid{display:flex;gap:8px;margin-top:8px}
+  .otp-grid input{
+    width:40px;height:50px;border-radius:14px;background:var(--card-strong);border:1px solid var(--line);
+    text-align:center;font-weight:700;font-size:20px;color:var(--accent);
+    box-shadow:var(--shadow);outline:none;
+  }
+  .otp-grid input:focus{border-color:var(--accent)}
+  .ctaBtn{
+    margin-top:10px;width:100%;padding:14px;border-radius:16px;border:0;color:#fff;font-weight:700;font-size:13.5px;
+    background:linear-gradient(135deg,#2aa6c8,#67d6c4);box-shadow:0 14px 28px -14px rgba(42,166,200,.7);
+    cursor:pointer;
+  }
+  .ctaBtn:active{transform:scale(.98)}
+  .resend{font-size:11.5px;color:var(--muted)}
+  .resend b{color:var(--accent);cursor:pointer}
+
+  /* Profile / settings */
+  .profile-top{padding:24px 18px 6px;text-align:center}
+  .profile-top .av{
+    width:84px;height:84px;border-radius:50%;margin:0 auto 10px;
+    background:linear-gradient(135deg,#7bd1e8,#67d6c4);display:grid;place-items:center;color:#fff;font-size:30px;font-weight:700;
+    box-shadow:0 16px 30px -14px rgba(42,166,200,.6);border:3px solid #fff;
+  }
+  .profile-top h3{margin:0;font-size:16px}
+  .profile-top small{color:var(--muted);font-size:11px}
+  .stats{
+    margin:12px 12px 6px;background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:10px;display:flex;justify-content:space-around;backdrop-filter:blur(10px);box-shadow:var(--shadow);
+  }
+  .stat b{font-size:14px;display:block;text-align:center}
+  .stat span{font-size:10px;color:var(--muted)}
+  .menu{margin:8px 12px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;padding-bottom:8px}
+  .row{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;
+    display:flex;align-items:center;gap:10px;font-size:12.5px;backdrop-filter:blur(10px);box-shadow:var(--shadow);
+    cursor:pointer;
+  }
+  .row .ic{
+    width:28px;height:28px;border-radius:9px;display:grid;place-items:center;color:#fff;font-size:13px;flex:none;
+    background:linear-gradient(135deg,#2aa6c8,#67d6c4);
+  }
+  .row .ic.b{background:linear-gradient(135deg,#ff8a73,#ff6a85)}
+  .row .ic.c{background:linear-gradient(135deg,#b07cff,#7e6cf2)}
+  .row .ic.d{background:linear-gradient(135deg,#f5a623,#ffd166)}
+  .row .ic.e{background:linear-gradient(135deg,#3d8a6e,#67d6c4)}
+  .row span{flex:1}
+  .row em{font-style:normal;color:var(--muted);font-size:11px}
+  .switch{width:32px;height:18px;border-radius:999px;background:#cbd9e0;position:relative;cursor:pointer;transition:background .2s;flex:none}
+  .switch.on{background:#2aa6c8}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .2s}
+  .switch.on::after{transform:translateX(14px)}
+
+  /* Bottom nav */
+  .navbar{
+    position:relative;z-index:4;display:flex;justify-content:space-around;align-items:center;
+    margin:6px 10px 10px;padding:8px 6px;border-radius:22px;
+    background:var(--card-strong);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid var(--line);box-shadow:var(--shadow);
+  }
+  .navitem{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;border-radius:14px;
+    color:var(--muted);font-size:10px;font-weight:600;cursor:pointer;transition:all .2s;
+  }
+  .navitem svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .navitem.on{color:#fff;background:linear-gradient(135deg,#2aa6c8,#67d6c4);box-shadow:0 8px 16px -8px rgba(42,166,200,.6)}
+
+  /* Page management */
+  .page{display:none;flex:1;flex-direction:column;min-height:0}
+  .page.active{display:flex}
+
+  /* Empty state */
+  .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;color:var(--muted);gap:8px}
+  .empty-state .em{font-size:42px}
+  .empty-state b{color:var(--ink);font-size:14px}
+  .empty-state p{font-size:12px;margin:0;max-width:240px;line-height:1.5}
+
+  /* Hide everything except OTP at start */
+  .auth-mode .app-shell{display:none}
+  .auth-mode .otp-page{display:flex}
+  .otp-page{display:none;flex:1;flex-direction:column;min-height:0}
+
+  /* ---- Welcome / Splash ---- */
+  .welcome-page{display:flex;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:28px;text-align:center;position:relative;z-index:2}
+  .welcome-logo{width:128px;height:128px;border-radius:34px;display:grid;place-items:center;
+    background:radial-gradient(circle at 30% 25%, #ffffff 0%, #d6f3ff 35%, #7bd1e8 70%, #2aa6c8 100%);
+    box-shadow:0 22px 50px -18px rgba(42,166,200,.65), inset 0 2px 6px rgba(255,255,255,.7);
+    position:relative;overflow:hidden}
+  .welcome-logo::after{content:"";position:absolute;inset:8px;border-radius:26px;border:2px solid rgba(255,255,255,.55);pointer-events:none}
+  .welcome-logo svg{width:96px;height:96px;filter:drop-shadow(0 4px 6px rgba(0,40,60,.25))}
+  .welcome-title{font-size:42px;font-weight:800;letter-spacing:.5px;margin:0;
+    background:linear-gradient(90deg,#f5a623,#67d6c4 45%,#2aa6c8 75%,#b07cff);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .welcome-sub{margin:0;color:#5a6b7a;font-size:15px;max-width:280px;line-height:1.5}
+  .welcome-cta{margin-top:8px;background:linear-gradient(135deg,#2aa6c8,#67d6c4);color:#fff;border:0;
+    padding:14px 34px;border-radius:999px;font-weight:700;font-size:15px;cursor:pointer;
+    box-shadow:0 14px 28px -12px rgba(42,166,200,.7)}
+  .welcome-foot{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:12px;color:#7d8a96;letter-spacing:1.5px;font-weight:600}
+
+  .app-shell{flex:1;display:flex;flex-direction:column;min-height:0}
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="screen">
+    <div class="aquarium">
+      <div class="light"></div>
+      <div class="seaweed"></div>
+      <div class="sand"></div>
+    </div>
+
+    <div class="content">
+
+      <!-- Karşılama / Splash Ekranı -->
+      <div class="welcome-page" id="welcomePage">
+        <div class="welcome-logo">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <!-- baloncuklar -->
+            <circle cx="22" cy="28" r="3" fill="#ffffff" opacity=".85"/>
+            <circle cx="30" cy="20" r="2" fill="#ffffff" opacity=".7"/>
+            <circle cx="78" cy="32" r="2.5" fill="#ffffff" opacity=".75"/>
+            <!-- balık gövde (sarı) -->
+            <ellipse cx="48" cy="55" rx="22" ry="13" fill="#f5a623"/>
+            <!-- karın highlight -->
+            <ellipse cx="44" cy="60" rx="14" ry="6" fill="#ffd166" opacity=".8"/>
+            <!-- kuyruk (yeşil) -->
+            <polygon points="70,55 88,42 88,68" fill="#67d6c4"/>
+            <!-- yüzgeç (mavi) -->
+            <path d="M40 47 Q48 38 56 47 Z" fill="#2aa6c8" opacity=".9"/>
+            <!-- alt yüzgeç -->
+            <path d="M42 64 Q48 72 54 64 Z" fill="#2aa6c8" opacity=".8"/>
+            <!-- göz -->
+            <circle cx="36" cy="52" r="3.2" fill="#ffffff"/>
+            <circle cx="35.5" cy="52" r="1.8" fill="#1a2733"/>
+            <!-- mor küçük balık arkada -->
+            <ellipse cx="78" cy="78" rx="8" ry="4" fill="#b07cff"/>
+            <polygon points="84,78 92,73 92,83" fill="#b07cff"/>
+            <circle cx="74" cy="77" r="1" fill="#1a2733"/>
+          </svg>
+        </div>
+        <h1 class="welcome-title">Sohbeto</h1>
+        <p class="welcome-sub">Akvaryumun en sıcak sohbet uygulamasına hoş geldin. Balıklar seni bekliyor.</p>
+        <button class="welcome-cta" id="enterBtn">Başla</button>
+        <div class="welcome-foot">SOHBETO · v1.0</div>
+      </div>
+
+      <!-- OTP / Doğrulama Ekranı -->
+      <div class="otp-page" id="otpPage">
+        <div class="otp">
+          <div style="width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#2aa6c8,#67d6c4);display:grid;place-items:center;color:#fff;font-size:28px;box-shadow:0 16px 30px -14px rgba(42,166,200,.6);margin-top:20px">📱</div>
+          <h2>Numaranı gir</h2>
+          <p>Telefon numaranıza 6 haneli doğrulama kodu göndereceğiz. Kod, <b style="color:var(--accent)">Mesajlar</b> uygulamana düşecek.</p>
+          <input id="a2Phone" type="tel" inputmode="tel" placeholder="+90 555 123 45 67" value="+90 "
+            style="width:100%;max-width:280px;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--card-strong);font-size:15px;font-weight:600;color:var(--ink);text-align:center;outline:none;box-shadow:var(--shadow)" />
+          <button class="ctaBtn" id="a2SendCodeBtn" style="max-width:280px">Kodu Gönder</button>
+        </div>
+      </div>
+
+      <!-- 6 haneli kod doğrulama -->
+      <div class="otp-page" id="codePage">
+        <div class="otp">
+          <div style="width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#2aa6c8,#67d6c4);display:grid;place-items:center;color:#fff;font-size:28px;box-shadow:0 16px 30px -14px rgba(42,166,200,.6);margin-top:20px">🔐</div>
+          <h2>Kodu doğrula</h2>
+          <p><span id="a2PhoneLabel" style="color:var(--accent);font-weight:700">+90</span> numarasına gönderilen <b>6 haneli</b> kodu Mesajlar'dan al ve gir.</p>
+          <div class="otp-grid" id="otpGrid">
+            <input maxlength="1" inputmode="numeric" />
+            <input maxlength="1" inputmode="numeric" />
+            <input maxlength="1" inputmode="numeric" />
+            <input maxlength="1" inputmode="numeric" />
+            <input maxlength="1" inputmode="numeric" />
+            <input maxlength="1" inputmode="numeric" />
+          </div>
+          <div class="resend">Kodu almadın mı? <b id="resendBtn">Tekrar gönder</b></div>
+          <button class="ctaBtn" id="verifyBtn">Doğrula ve devam et</button>
+          <button id="backToPhoneBtn" style="background:transparent;border:0;color:var(--muted);font-size:12px;cursor:pointer;margin-top:4px">‹ Numarayı değiştir</button>
+        </div>
+      </div>
+
+      <!-- Ana Uygulama -->
+      <div class="app-shell" id="appShell" style="display:none">
+
+        <!-- Sohbetler -->
+        <div class="page active" data-page="chats">
+          <div class="bighead">
+            <div><h2>Sohbetler</h2><div class="sub">Henüz mesaj yok</div></div>
+            <div class="iconbtn" title="Yeni sohbet">✎</div>
+          </div>
+          <div class="search">🔎 <input placeholder="İsim veya mesaj ara…" /></div>
+          <div class="tabs">
+            <div class="tab on">Tümü</div>
+            <div class="tab">Okunmamış</div>
+            <div class="tab">Gruplar</div>
+            <div class="tab">Favoriler</div>
+          </div>
+          <div class="listwrap" id="chatsList">
+            <div class="empty-state">
+              <div class="em">💬</div>
+              <b>Henüz sohbet yok</b>
+              <p>Bir kişi seçerek ilk sohbetini başlat. Akvaryum seni bekliyor.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sohbet Ekranı -->
+        <div class="page" data-page="chatroom">
+          <div class="topbar">
+            <div class="iconbtn" id="backToChats">‹</div>
+            <div class="avatar" id="chatAvatar">—</div>
+            <div class="meta"><b id="chatName">Sohbet</b><small>● çevrimiçi</small></div>
+            <div class="iconbtn">📞</div>
+          </div>
+          <div class="stream" id="stream">
+            <div class="day">Bugün</div>
+          </div>
+          <div class="composer">
+            <span style="color:var(--muted)">😊</span>
+            <input id="msgInput" placeholder="Bir damla yaz…" />
+            <span style="color:var(--muted)">📎</span>
+            <button class="send" id="sendBtn">➤</button>
+          </div>
+        </div>
+
+        <!-- Kişiler -->
+        <div class="page" data-page="people">
+          <div class="bighead">
+            <div><h2>Kişiler</h2><div class="sub">Rehberinden ekle</div></div>
+            <div class="iconbtn" title="Kişi ekle">+</div>
+          </div>
+          <div class="search">🔎 <input placeholder="Kişi ara…" /></div>
+          <div class="listwrap">
+            <div class="empty-state">
+              <div class="em">👥</div>
+              <b>Henüz kişi yok</b>
+              <p>Üstteki + butonuna dokunarak rehberinden kişi ekleyebilirsin.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gruplar -->
+        <div class="page" data-page="groups">
+          <div class="bighead">
+            <div><h2>Gruplar</h2><div class="sub">Topluluklarını yönet</div></div>
+            <div class="iconbtn" title="Grup oluştur">+</div>
+          </div>
+          <div class="search">🔎 <input placeholder="Grup ara…" /></div>
+          <div class="listwrap">
+            <div class="empty-state">
+              <div class="em">🐠</div>
+              <b>Henüz grup yok</b>
+              <p>Bir sürü oluştur — aile, arkadaşlar veya iş arkadaşların için.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ayarlar -->
+        <div class="page" data-page="settings">
+          <div class="profile-top">
+            <div class="av">?</div>
+            <h3>Kullanıcı</h3>
+            <small>Profilini tamamla</small>
+          </div>
+          <div class="stats">
+            <div class="stat"><b>0</b><span>Sohbet</span></div>
+            <div class="stat"><b>0</b><span>Grup</span></div>
+            <div class="stat"><b>0</b><span>Balon</span></div>
+          </div>
+          <div class="menu">
+            <div class="row"><div class="ic">👤</div><span>Hesap</span><em>›</em></div>
+            <div class="row"><div class="ic b">🔔</div><span>Bildirimler</span><div class="switch on" data-switch></div></div>
+            <div class="row"><div class="ic c">🛡</div><span>Gizlilik & Güvenlik</span><em>›</em></div>
+            <div class="row"><div class="ic d">💾</div><span>Veri & Depolama</span><em>0 GB</em></div>
+            <div class="row"><div class="ic">🐠</div><span>Akvaryum Teması</span><div class="switch on" data-switch></div></div>
+            <div class="row"><div class="ic e">❓</div><span>Yardım & Destek</span><em>›</em></div>
+            <div class="row" id="logoutRow"><div class="ic b">↩</div><span>Çıkış yap</span><em>›</em></div>
+          </div>
+        </div>
+
+        <!-- Bottom Nav -->
+        <nav class="navbar" id="navbar">
+          <div class="navitem on" data-go="chats">
+            <svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 1 1-3.5-6.6L21 4l-1 4.2A7.9 7.9 0 0 1 21 12Z"/></svg>
+            <span>Sohbetler</span>
+          </div>
+          <div class="navitem" data-go="people">
+            <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19c.7-3.3 3.4-5.5 6.5-5.5s5.8 2.2 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.4 0 4.4 1.4 5 3.5"/></svg>
+            <span>Kişiler</span>
+          </div>
+          <div class="navitem" data-go="groups">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="3"/><circle cx="5.5" cy="11" r="2.2"/><circle cx="18.5" cy="11" r="2.2"/><path d="M6 19c.5-2.5 3-4 6-4s5.5 1.5 6 4"/></svg>
+            <span>Gruplar</span>
+          </div>
+          <div class="navitem" data-go="settings">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a7.7 7.7 0 0 0 0-3l1.7-1.3-1.7-3-2 .7a7.7 7.7 0 0 0-2.6-1.5L14.5 3h-3.5l-.3 2.4a7.7 7.7 0 0 0-2.6 1.5l-2-.7-1.7 3 1.7 1.3a7.7 7.7 0 0 0 0 3L4.4 14.8l1.7 3 2-.7a7.7 7.7 0 0 0 2.6 1.5l.3 2.4h3.5l.3-2.4a7.7 7.7 0 0 0 2.6-1.5l2 .7 1.7-3-1.7-1.3Z"/></svg>
+            <span>Ayarlar</span>
+          </div>
+        </nav>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Akvaryum: balıklar ve baloncuklar ---------- */
+const fishSVG = (c1,c2) => `
+<svg width="42" height="22" viewBox="0 0 42 22" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="g${c1.replace('#','')}" x1="0" x2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
+  <path d="M2 11 L12 4 L30 4 Q40 4 40 11 Q40 18 30 18 L12 18 Z" fill="url(#g${c1.replace('#','')})"/>
+  <path d="M2 11 L10 7 L10 15 Z" fill="${c2}" opacity=".85"/>
+  <circle cx="33" cy="9" r="1.6" fill="#0b3a55"/>
+  <path d="M22 4 Q24 1 27 4" stroke="${c2}" stroke-width="1" fill="none" opacity=".6"/>
+</svg>`;
+const palettes = [
+  ['#ff8a73','#ffb199'],['#67d6c4','#a7ecd8'],['#2aa6c8','#7bd1e8'],
+  ['#f5a623','#ffd166'],['#b07cff','#d7c0ff'],['#ff6a85','#ffb6c5']
+];
+document.querySelectorAll('.aquarium').forEach((aq, idx) => {
+  const bw = document.createElement('div');
+  bw.className = 'bubbles';
+  bw.style.cssText = 'position:absolute;inset:0;overflow:hidden;pointer-events:none';
+  for (let i=0;i<14;i++){
+    const b = document.createElement('span');
+    const s = 4 + Math.random()*10;
+    b.style.cssText = `width:${s}px;height:${s}px;left:${Math.random()*100}%;animation-duration:${6+Math.random()*8}s;animation-delay:${-Math.random()*8}s`;
+    bw.appendChild(b);
+  }
+  aq.appendChild(bw);
+  for (let i=0;i<5;i++){
+    const f = document.createElement('div');
+    f.className = 'fish';
+    const p = palettes[(i+idx)%palettes.length];
+    const scale = .7 + Math.random()*.9;
+    const top = 18 + Math.random()*55;
+    const dur = 14 + Math.random()*16;
+    const delay = -Math.random()*dur;
+    f.style.cssText = `top:${top}%;left:0;transform:translateX(-30%) scale(${scale});animation-duration:${dur}s;animation-delay:${delay}s;width:42px;height:22px;`;
+    f.innerHTML = fishSVG(p[0],p[1]);
+    aq.appendChild(f);
+  }
+});
+
+/* ---------- OTP ---------- */
+const otpInputs = document.querySelectorAll('#otpGrid input');
+otpInputs.forEach((inp, i) => {
+  inp.addEventListener('input', e => {
+    e.target.value = e.target.value.replace(/\D/g,'');
+    if (e.target.value && i < otpInputs.length - 1) otpInputs[i+1].focus();
+  });
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !e.target.value && i > 0) otpInputs[i-1].focus();
+  });
+});
+
+document.getElementById('enterBtn').addEventListener('click', () => {
+  document.getElementById('welcomePage').style.display = 'none';
+  document.getElementById('otpPage').style.display = 'flex';
+  setTimeout(()=>{ const p=document.getElementById('a2Phone'); if(p) p.focus(); }, 50);
+});
+
+/* ---------- Auth bridge (parent OO has the engine) ---------- */
+function a2Post(action, payload){
+  try { parent.postMessage(Object.assign({ __sohbeto_a2: true, action }, payload || {}), '*'); } catch(e){}
+}
+function normalizePhone(s){
+  s = String(s||'').replace(/\s+/g,'').replace(/[-()]/g,'');
+  if (s && s[0] !== '+') s = '+' + s.replace(/^\+?/, '');
+  return s;
+}
+let a2BusyTimer = null;
+function setBusy(btn, busy, busyLabel, label){
+  if (!btn) return;
+  if (busy){ btn.dataset._label = btn.innerText; btn.innerText = busyLabel; btn.disabled = true; btn.style.opacity=.7; }
+  else { btn.innerText = label || btn.dataset._label || btn.innerText; btn.disabled = false; btn.style.opacity=''; }
+}
+const a2SendBtn = document.getElementById('a2SendCodeBtn');
+a2SendBtn.addEventListener('click', () => {
+  const inp = document.getElementById('a2Phone');
+  const phone = normalizePhone(inp.value);
+  if (!phone || phone === '+' || phone === '+90'){ inp.style.borderColor = '#ff6a85'; setTimeout(()=>inp.style.borderColor='',1200); return; }
+  inp.value = phone;
+  document.getElementById('a2PhoneLabel').innerText = phone;
+  setBusy(a2SendBtn, true, 'Gönderiliyor…');
+  a2Post('sendCode', { phone });
+  // Geçiş, parent ack ile yapılır; ack gelmezse 1.5s sonra yine geç.
+  if (a2BusyTimer) clearTimeout(a2BusyTimer);
+  a2BusyTimer = setTimeout(() => {
+    setBusy(a2SendBtn, false, '', 'Kodu Gönder');
+    document.getElementById('otpPage').style.display = 'none';
+    document.getElementById('codePage').style.display = 'flex';
+    setTimeout(()=>otpInputs[0].focus(), 50);
+  }, 1500);
+});
+document.getElementById('a2Phone').addEventListener('keydown', e => { if (e.key === 'Enter') a2SendBtn.click(); });
+document.getElementById('resendBtn').addEventListener('click', () => {
+  const phone = document.getElementById('a2Phone').value;
+  a2Post('sendCode', { phone, resend: true });
+  otpInputs.forEach(i => i.value = '');
+  otpInputs[0].focus();
+});
+document.getElementById('backToPhoneBtn').addEventListener('click', () => {
+  document.getElementById('codePage').style.display = 'none';
+  document.getElementById('otpPage').style.display = 'flex';
+  otpInputs.forEach(i => i.value='');
+  document.getElementById('a2Phone').focus();
+});
+
+const verifyBtn = document.getElementById('verifyBtn');
+verifyBtn.addEventListener('click', () => {
+  const code = [...otpInputs].map(i=>i.value).join('');
+  if (code.length < 6) {
+    otpInputs.forEach(i => { if(!i.value) i.style.borderColor = '#ff6a85'; });
+    setTimeout(()=>otpInputs.forEach(i=>i.style.borderColor=''), 1200);
+    return;
+  }
+  setBusy(verifyBtn, true, 'Doğrulanıyor…');
+  a2Post('verifyCode', { code });
+});
+// otomatik doğrula: 6 hane dolunca
+otpInputs.forEach(inp => {
+  inp.addEventListener('input', () => {
+    const all = [...otpInputs].map(i=>i.value).join('');
+    if (all.length === 6) verifyBtn.click();
+  });
+});
+
+function showAppShell(){
+  document.getElementById('welcomePage').style.display = 'none';
+  document.getElementById('otpPage').style.display = 'none';
+  document.getElementById('codePage').style.display = 'none';
+  document.getElementById('appShell').style.display = 'flex';
+  goTo('chats');
+}
+function showAuth(){
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('codePage').style.display = 'none';
+  document.getElementById('welcomePage').style.display = 'none';
+  document.getElementById('otpPage').style.display = 'flex';
+  otpInputs.forEach(i => i.value='');
+  setTimeout(()=>{ const p=document.getElementById('a2Phone'); if(p) p.focus(); }, 50);
+}
+
+/* Parent → A2 mesajları */
+window.addEventListener('message', (ev) => {
+  const d = ev.data || {};
+  if (!d || !d.__sohbeto_a2_ack) return;
+  if (d.action === 'sendCode'){
+    if (a2BusyTimer){ clearTimeout(a2BusyTimer); a2BusyTimer = null; }
+    setBusy(a2SendBtn, false, '', 'Kodu Gönder');
+    if (d.ok){
+      document.getElementById('otpPage').style.display = 'none';
+      document.getElementById('codePage').style.display = 'flex';
+      setTimeout(()=>otpInputs[0].focus(), 50);
+    } else {
+      alert(d.error || 'Kod gönderilemedi. Lütfen tekrar dene.');
+    }
+  } else if (d.action === 'verifyCode'){
+    setBusy(verifyBtn, false, '', 'Doğrula ve devam et');
+    if (d.ok){
+      showAppShell();
+    } else {
+      otpInputs.forEach(i => { i.value=''; i.style.borderColor='#ff6a85'; });
+      setTimeout(()=>otpInputs.forEach(i=>i.style.borderColor=''), 1200);
+      otpInputs[0].focus();
+      if (d.error) alert(d.error);
+    }
+  } else if (d.action === 'loggedOut'){
+    showAuth();
+  }
+});
+// Eğer parent halihazırda giriş yapmış kullanıcıyı görüyorsa direkt ana ekran
+a2Post('checkAuth');
+
+/* ---------- Navigation ---------- */
+const pages = document.querySelectorAll('.page');
+const navItems = document.querySelectorAll('.navitem');
+function goTo(name){
+  pages.forEach(p => p.classList.toggle('active', p.dataset.page === name));
+  navItems.forEach(n => n.classList.toggle('on', n.dataset.go === name));
+}
+navItems.forEach(n => n.addEventListener('click', () => goTo(n.dataset.go)));
+
+/* Sohbet ekranı geri */
+document.getElementById('backToChats').addEventListener('click', () => goTo('chats'));
+
+/* Mesaj gönder */
+const stream = document.getElementById('stream');
+const msgInput = document.getElementById('msgInput');
+function sendMsg(){
+  const v = msgInput.value.trim();
+  if (!v) return;
+  const b = document.createElement('div');
+  b.className = 'bubble me';
+  const t = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+  b.innerHTML = `${v.replace(/</g,'&lt;')}<span class="t">${t} ✓</span>`;
+  stream.appendChild(b);
+  msgInput.value = '';
+  stream.scrollTop = stream.scrollHeight;
+}
+document.getElementById('sendBtn').addEventListener('click', sendMsg);
+msgInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
+
+/* Switches */
+document.querySelectorAll('[data-switch]').forEach(s => {
+  s.addEventListener('click', () => s.classList.toggle('on'));
+});
+
+/* Logout — A2 temasına uyumlu modal */
+function a2LogoutDialog(){
+  const old = document.getElementById('a2LogoutModal'); if (old) old.remove();
+  const wrap = document.createElement('div');
+  wrap.id = 'a2LogoutModal';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(11,58,85,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:24px;';
+  wrap.innerHTML = ''
+    + '<div style="width:100%;max-width:320px;background:linear-gradient(180deg,#fafdff,#e7f3fa);border:1px solid rgba(11,58,85,.10);border-radius:24px;padding:22px 20px;box-shadow:0 30px 60px -20px rgba(11,58,85,.45);color:#0b3a55;font-family:inherit">'
+    +   '<div style="width:54px;height:54px;border-radius:16px;margin:0 auto 12px;background:linear-gradient(135deg,#ff8a73,#ff6a85);display:grid;place-items:center;color:#fff;font-size:24px;box-shadow:0 12px 24px -12px rgba(255,138,115,.7)">↩</div>'
+    +   '<div style="font-size:18px;font-weight:800;text-align:center;margin-bottom:4px">Çıkış</div>'
+    +   '<div style="font-size:12.5px;color:#5b7a8c;line-height:1.5;text-align:center;margin-bottom:16px">Geçici çıkış oturumunu kapatır, profilin saklı kalır. <b>Hesabı sil</b> tüm yerel verileri (tema, profil, sohbetler) temizler ve seni baştan başlatır.</div>'
+    +   '<button id="a2LoTemp" style="width:100%;height:44px;border-radius:14px;border:0;margin-bottom:8px;background:linear-gradient(135deg,#2aa6c8,#67d6c4);color:#fff;font-weight:700;cursor:pointer;box-shadow:0 10px 20px -10px rgba(42,166,200,.7)">Oturumu Kapat</button>'
+    +   '<button id="a2LoWipe" style="width:100%;height:44px;border-radius:14px;border:0;margin-bottom:8px;background:linear-gradient(135deg,#ff8a73,#ff6a85);color:#fff;font-weight:700;cursor:pointer;box-shadow:0 10px 20px -10px rgba(255,138,115,.7)">Hesabı Sil (sıfırla)</button>'
+    +   '<button id="a2LoCancel" style="width:100%;height:40px;border-radius:14px;border:1px solid rgba(11,58,85,.15);background:#fff;color:#0b3a55;font-weight:600;cursor:pointer">İptal</button>'
+    + '</div>';
+  document.body.appendChild(wrap);
+  wrap.addEventListener('click', e => { if (e.target === wrap) wrap.remove(); });
+  document.getElementById('a2LoCancel').onclick = () => wrap.remove();
+  document.getElementById('a2LoTemp').onclick = () => { wrap.remove(); a2Post('logout', { mode: 'temp' }); };
+  document.getElementById('a2LoWipe').onclick = () => { wrap.remove(); a2Post('logout', { mode: 'wipe' }); };
+}
+document.getElementById('logoutRow').addEventListener('click', a2LogoutDialog);
+</script>
+</body>
+</html>
