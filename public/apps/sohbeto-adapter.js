@@ -201,7 +201,7 @@
       } catch (e) {}
       return loggedIn;
     }
-    function openChosenInterface(choice) {
+    async function openChosenInterface(choice) {
       choice = normalizeInterfaceChoice(choice);
       if (!choice) {
         try { if (typeof window.__hideSohbetoA2 === 'function') window.__hideSohbetoA2(); } catch (e) {}
@@ -210,8 +210,15 @@
       }
       if (choice === 'A2' && typeof window.__showSohbetoA2 === 'function') { window.__showSohbetoA2(); return; }
       try { if (typeof window.__hideSohbetoA2 === 'function') window.__hideSohbetoA2(); } catch (e) {}
-      if (isUserLoggedIn()) enterMain();
-      else showScreen('screen-oo-welcome');
+      if (isUserLoggedIn()) { enterMain(); return; }
+      // Engine/localStorage henüz hazır olmayabilir — IndexedDB kimliğine bak.
+      try {
+        if (typeof window.loadIdentity === 'function') {
+          var ident = await window.loadIdentity();
+          if (ident && ident.firstDone) { enterMain(); return; }
+        }
+      } catch (e) {}
+      showScreen('screen-oo-welcome');
     }
     async function detectFlow() {
       if (_flow) return _flow;
@@ -294,19 +301,31 @@
       var nav = document.getElementById('bottom-nav');
       if (nav) { nav.dataset.enabled = '1'; nav.style.display = ''; }
       showScreen('screen-sohbetler');
-      // İçeri girer girmez 3 hoş geldin bildirimi (2.5 sn arayla, her biri 1.4 sn)
+      // Giriş yapılır yapılmaz yapışkan doğrulama bildirimini kapat
       try {
+        if (typeof window.__sohbetoDismissToast === 'function') {
+          window.__sohbetoDismissToast('sohbeto-code');
+        }
+      } catch(e) {}
+      // İçeri girer girmez 3 hoş geldin bildirimi (5 sn arayla, her biri 4.5 sn ekranda)
+      // Sadece ilk kayıt sonrası tek seferlik; sonraki girişlerde tekrar etmesin.
+      try {
+        var WELCOMED_KEY = 'sohbeto.welcomed.v1';
+        var alreadyWelcomed = false;
+        try { alreadyWelcomed = localStorage.getItem(WELCOMED_KEY) === '1'; } catch(e){}
+        if (alreadyWelcomed) throw new Error('skip');
+        try { localStorage.setItem(WELCOMED_KEY, '1'); } catch(e){}
         var welcomeMsgs = [
-          { title: 'Mesajlar · Sohbeto', text: 'Sohbeto’ya hoş geldin! 🎉' },
-          { title: 'Mesajlar · Sohbeto', text: 'Hesabın hazır — dünyanın en özgür sohbeti seni bekliyor.' },
-          { title: 'Mesajlar · Sohbeto', text: 'İlk kişini ekleyerek başlayabilirsin.' }
+          { title: 'Mesajlar · Sohbeto', text: '👋 Merhaba ve hoş geldin!\nHesabın hazır — dünyanın en özgür sohbeti seni bekliyor.' },
+          { title: 'Mesajlar · Sohbeto', text: 'Sohbeto\u2019ya başarıyla kaydoldun. Artık güvenli, hızlı ve uçtan uca şifreli mesajlaşmanın keyfini çıkarabilirsin.' },
+          { title: 'Mesajlar · Sohbeto', text: '💡 İpucu: Profil resmini ve adını Sohbeto > Ayarlar bölümünden güncelleyebilirsin. İyi sohbetler! 🌟' }
         ];
         welcomeMsgs.forEach(function(m, i){
           setTimeout(function(){
             if (typeof window.__sohbetoNotify === 'function') {
-              window.__sohbetoNotify({ title: m.title, text: m.text, duration: 1400 });
+              window.__sohbetoNotify({ title: m.title, text: m.text, duration: 4500 });
             }
-          }, 600 + i * 2500);
+          }, 800 + i * 5000);
         });
       } catch(e) {}
     }

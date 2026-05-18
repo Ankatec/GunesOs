@@ -18,6 +18,8 @@ import Sohbeto from "./apps/Sohbeto";
 import Kuran from "./apps/Kuran";
 import Mesajlar from "./apps/Mesajlar";
 import Muzikler from "./apps/Muzikler";
+import MesajlarIcon from "./MesajlarIcon";
+import SohbetoIcon from "./SohbetoIcon";
 import { EXTRA_APP_MAP } from "@/lib/extraApps";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -214,7 +216,16 @@ const PaintApp: React.FC = () => {
 const GunesOSInner: React.FC = () => {
   const { theme, settings } = useTheme();
   const [booted, setBooted] = useState(false);
-  const [unlocked, setUnlocked] = useState(false);
+  // Kilit ekranı yalnızca kullanıcı Ayarlar > Güvenlik'ten etkinleştirmişse görünür.
+  const lockCfg = (() => {
+    try {
+      const raw = localStorage.getItem("gunesos.lock.v1");
+      if (!raw) return { enabled: false, password: "" };
+      const obj = JSON.parse(raw);
+      return { enabled: !!obj.enabled, password: String(obj.password || "") };
+    } catch { return { enabled: false, password: "" }; }
+  })();
+  const [unlocked, setUnlocked] = useState(!lockCfg.enabled || !lockCfg.password);
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
   const zCounter = useRef(100);
@@ -226,17 +237,37 @@ const GunesOSInner: React.FC = () => {
   const [incomingCall, setIncomingCall] = useState<{ from: string; name: string; callType: "audio" | "video" } | null>(null);
   const visibleWindows = windows.filter((w) => !w.isBackground);
 
-  // Sohbeto'nun açık ve odakta (minimize değil) olup olmadığını çapraz-okumalı
-  // bildirim köprüsü için ref'le takip ediyoruz. Sohbeto açıkken duplicate
-  // sistem bildirimi göstermiyoruz; başka uygulamadayken (Kuran, Oyunlar vb.)
-  // bildirim Mesajlar'a + toast olarak düşüyor.
-  const sohbetoFocusedRef = useRef(false);
-  useEffect(() => {
-    const sohbeto = windows.find((w) => w.appId === "sohbeto");
-    sohbetoFocusedRef.current = !!(
-      sohbeto && !sohbeto.isBackground && !sohbeto.isMinimized && activeWindowId === sohbeto.id
-    );
-  }, [windows, activeWindowId]);
+  // Ref to openApp so effects defined before openApp can still invoke it.
+  const openAppRef = useRef<((appId: AppId) => void) | null>(null);
+
+  // Rich top-banner notification with custom icon and click-to-open behavior.
+  const notifyTop = useCallback(
+    (opts: { app: "sohbeto" | "mesajlar"; title: string; body: string; duration?: number }) => {
+      toast.custom(
+        (id) => (
+          <div
+            onClick={() => {
+              openAppRef.current?.(opts.app);
+              toast.dismiss(id);
+            }}
+            className="flex items-start gap-3 w-[360px] max-w-[92vw] rounded-2xl border border-white/10 bg-[#1f2937]/95 text-white shadow-2xl backdrop-blur p-3 cursor-pointer hover:bg-[#273345]/95 transition-colors"
+          >
+            <div className="shrink-0 text-[34px] leading-none">
+              {opts.app === "sohbeto" ? <SohbetoIcon /> : <MesajlarIcon />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold truncate">{opts.title}</div>
+              <div className="text-[12.5px] text-white/80 whitespace-pre-wrap break-words line-clamp-3">
+                {opts.body}
+              </div>
+            </div>
+          </div>
+        ),
+        { duration: opts.duration ?? 4500 },
+      );
+    },
+    [],
+  );
 
   // İlk girişte: Mesajlar boş başlar — sadece GüneşOS Ekibi karşılama mesajı düşer.
   // Sohbeto'ya kayıt olduğunda doğrulama + 3 hoş geldin mesajı ayrı ayrı bildirim olarak gelir.
@@ -254,16 +285,31 @@ const GunesOSInner: React.FC = () => {
       } catch {
         /* ignore */
       }
-      import("@/lib/messaging").then(({ pushSystemMessage }) => {
-        pushSystemMessage({
-          threadId: "gunesos-team",
-          name: "GüneşOS Ekibi",
-          avatar: "☀️",
-          text: "🌞 GüneşOS'a hoş geldin! Tüm uygulamalar masaüstünde seni bekliyor. İyi keşifler!",
+      // Kullanıcı içeri girdikten 5 sn sonra: üst bildirim (Mesajlar ikonu) +
+      // Mesajlar uygulamasına düşür. İçeride avatar olarak güneş simgesi ☀️ kalır.
+      const welcomeText =
+        "🌞 GüneşOS'a hoş geldin! Tüm uygulamalar masaüstünde seni bekliyor. İyi keşifler!";
+      const t = setTimeout(() => {
+        import("@/lib/messaging").then(({ pushSystemMessage }) => {
+          pushSystemMessage({
+            threadId: "gunesos-team",
+            name: "GüneşOS Ekibi",
+            avatar: "☀️",
+            text: welcomeText,
+          });
+          notifyTop({
+            app: "mesajlar",
+            title: "GüneşOS Ekibi",
+            body: welcomeText,
+          });
         });
-        toast("☀️ GüneşOS Ekibi", { description: "Yeni bir mesajın var." });
-      });
-      localStorage.setItem(SEED, "1");
+        localStorage.setItem(SEED, "1");
+      }, 5000);
+      // Cleanup edilirse ikinci kez tetiklenmesin diye yine seed yazma effect cleanup'ta yok.
+      // Effect tek seferlik çalıştığı için sorun değil.
+      // (return cleanup aşağıdaki listener cleanup ile birleşir)
+      // not: temizlik için timeout'u sakla
+      (window as unknown as { __gunesosWelcomeT?: number }).__gunesosWelcomeT = t as unknown as number;
     }
 
     // Sohbeto iframe'inden gelen kayıt olaylarını dinle ve Mesajlar'a düşür.
@@ -277,19 +323,22 @@ const GunesOSInner: React.FC = () => {
             threadId: "sohbeto-welcome",
             name: "Sohbeto",
             avatar: "💬",
-            text: `🔐 Sohbeto Doğrulama Kodun: ${data.code}\n\nKodu kimseyle paylaşma. Bu kod 10 dakika geçerlidir.`,
+            text: `🔐 Sohbeto Doğrulama Kodun: ${data.code}\n\nKodu kimseyle paylaşma. Bu kod 5 dakika geçerlidir.`,
           });
         } else if (data.type === "sohbeto:registered") {
-          // 3 hoş geldin mesajı — Mesajlar'a yaz, alttan toast YOK (iframe üst bildirimi gösterir).
+          // 3 hoş geldin mesajı — Mesajlar'a yaz (5 sn arayla, iframe üst bildirimi ile eş zamanlı).
           const followUps = [
-            { delay: 600, text: "👋 Merhaba ve hoş geldin!" },
             {
-              delay: 3100,
+              delay: 800,
+              text: "👋 Merhaba ve hoş geldin!\nHesabın hazır — dünyanın en özgür sohbeti seni bekliyor.",
+            },
+            {
+              delay: 5800,
               text: "Sohbeto'ya başarıyla kaydoldun. Artık güvenli, hızlı ve uçtan uca şifreli mesajlaşmanın keyfini çıkarabilirsin.",
             },
             {
-              delay: 5600,
-              text: "İpucu: Profil resmini ve adını Sohbeto > Ayarlar bölümünden güncelleyebilirsin. İyi sohbetler! ✨",
+              delay: 10800,
+              text: "💡 İpucu: Profil resmini ve adını Sohbeto > Ayarlar bölümünden güncelleyebilirsin. İyi sohbetler! 🌟",
             },
           ];
           followUps.forEach((m) => {
@@ -303,32 +352,19 @@ const GunesOSInner: React.FC = () => {
             }, m.delay);
           });
         } else if (data.type === "sohbeto:incoming-msg" && typeof data.text === "string") {
-          if (sohbetoFocusedRef.current) return;
           const name = (typeof data.name === "string" && data.name) || "Sohbeto";
-          const from = String(data.from || "peer");
-          pushSystemMessage({
-            threadId: `sohbeto-peer-${from}`,
-            name: `💬 ${name}`,
-            avatar: "💬",
-            text: data.text,
-          });
-          toast(`💬 ${name}`, {
-            description: data.text.length > 80 ? data.text.slice(0, 80) + "…" : data.text,
+          // Sohbeto içinden gelen gerçek sohbet mesajları Mesajlar uygulamasına yazılmaz.
+          // Üst bildirim Sohbeto ikonu ile gelir; tıklanırsa Sohbeto penceresi açılır.
+          notifyTop({
+            app: "sohbeto",
+            title: name,
+            body: data.text,
           });
         } else if (data.type === "sohbeto:incoming-call") {
           const name = (typeof data.name === "string" && data.name) || "Bilinmeyen";
           const callType: "audio" | "video" = data.callType === "video" ? "video" : "audio";
           const from = String(data.from || "peer");
           setIncomingCall({ from, name, callType });
-          if (!sohbetoFocusedRef.current) {
-            const kind = callType === "video" ? "📹 Görüntülü arıyor" : "📞 Sesli arıyor";
-            pushSystemMessage({
-              threadId: `sohbeto-peer-${from}`,
-              name: `💬 ${name}`,
-              avatar: "💬",
-              text: `${kind} — Sohbeto'yu açıp cevapla.`,
-            });
-          }
         } else if (data.type === "sohbeto:incoming-call-cancelled") {
           setIncomingCall(null);
         } else if (data.type === "sohbeto:call-accepted") {
@@ -550,6 +586,11 @@ const GunesOSInner: React.FC = () => {
     },
     [windows, activeWindowId, focusWindow, minimizeWindow],
   );
+
+  // openApp referansını ref'e bağla — bildirimlerden tıklanınca açabilelim.
+  useEffect(() => {
+    openAppRef.current = openApp;
+  }, [openApp]);
 
   const handleTerminalCommand = useCallback(
     (cmd: string, args: string) => {
@@ -861,7 +902,7 @@ const GunesOSInner: React.FC = () => {
   }
 
   if (!unlocked) {
-    return <LoginScreen onUnlock={() => setUnlocked(true)} />;
+    return <LoginScreen password={lockCfg.password} onUnlock={() => setUnlocked(true)} />;
   }
 
   return (

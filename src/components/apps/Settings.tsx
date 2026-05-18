@@ -4,6 +4,80 @@ import { EXTRA_APP_MAP } from "@/lib/extraApps";
 import { detectDevice, refreshHighEntropyDeviceInfo } from "@/utils/deviceDetect";
 import { BOOT_SOUND_OPTIONS, playBootSound, type BootSoundId } from "@/lib/bootSound";
 
+// ─── GüneşOS Kilit Ekranı ayarları (localStorage) ───
+const LOCK_KEY = "gunesos.lock.v1";
+type LockCfg = { enabled: boolean; password: string };
+function readLock(): LockCfg {
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(LOCK_KEY) : null;
+    if (!raw) return { enabled: false, password: "" };
+    const o = JSON.parse(raw);
+    return { enabled: !!o.enabled, password: String(o.password || "") };
+  } catch { return { enabled: false, password: "" }; }
+}
+function writeLock(cfg: LockCfg) {
+  try { localStorage.setItem(LOCK_KEY, JSON.stringify(cfg)); } catch {}
+}
+
+const LockSection: React.FC<{ compact?: boolean }> = ({ compact }) => {
+  const [cfg, setCfg] = useState<LockCfg>(() => readLock());
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const enable = () => {
+    if (pw.length < 3) { setMsg("Şifre en az 3 karakter olmalı"); return; }
+    if (pw !== pw2) { setMsg("Şifreler eşleşmiyor"); return; }
+    const next = { enabled: true, password: pw };
+    writeLock(next); setCfg(next); setPw(""); setPw2("");
+    setMsg("✅ Kilit ekranı etkin. Bir sonraki açılışta şifre sorulacak.");
+  };
+  const disable = () => {
+    const next = { enabled: false, password: "" };
+    writeLock(next); setCfg(next); setMsg("Kilit ekranı kapatıldı.");
+  };
+
+  const wrap = compact
+    ? "bg-white rounded-2xl p-3 shadow-sm space-y-2"
+    : "p-3 bg-gray-50 rounded-lg border space-y-2";
+
+  return (
+    <div className={wrap}>
+      <h3 className="text-[12px] font-bold text-gray-700">🔒 Kilit Ekranı</h3>
+      <p className="text-[10px] text-gray-500">
+        Etkinleştirirsen GüneşOS açılışında şifre sorulur. Şifre tarayıcında güvenli şekilde saklanır.
+      </p>
+      {cfg.enabled ? (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] text-green-700 font-medium">✅ Açık</span>
+          <button
+            onClick={disable}
+            className="px-3 py-1.5 text-[11px] rounded-lg bg-red-500 text-white hover:bg-red-600"
+          >Kilidi Kaldır</button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <input
+            type="password" value={pw} onChange={(e) => { setPw(e.target.value); setMsg(null); }}
+            placeholder="Yeni şifre"
+            className="w-full px-3 py-2 text-[12px] border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+          />
+          <input
+            type="password" value={pw2} onChange={(e) => { setPw2(e.target.value); setMsg(null); }}
+            placeholder="Şifreyi tekrar gir"
+            className="w-full px-3 py-2 text-[12px] border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+          />
+          <button
+            onClick={enable}
+            className="w-full py-2 text-[11px] rounded-lg bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 font-semibold"
+          >Kilidi Etkinleştir</button>
+        </div>
+      )}
+      {msg && <p className="text-[10px] text-gray-600">{msg}</p>}
+    </div>
+  );
+};
+
 const CORE_ICON_META: Record<string, { label: string; emoji: string }> = {
   mycomputer: { label: "Bilgisayarım", emoji: "🖥️" },
   browser: { label: "Tarayıcı", emoji: "🧭" },
@@ -226,6 +300,12 @@ const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMob
             >
               🗑️ Tüm Verileri Sıfırla
             </button>
+          </section>
+
+          {/* Güvenlik / Kilit */}
+          <section>
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-2 px-1">Güvenlik</p>
+            <LockSection compact />
           </section>
         </div>
       </div>
@@ -500,6 +580,8 @@ const SettingsApp: React.FC<{ isMobile: boolean; isTablet: boolean }> = ({ isMob
                 })}
               </div>
             </div>
+
+            <LockSection />
           </div>
         )}
 

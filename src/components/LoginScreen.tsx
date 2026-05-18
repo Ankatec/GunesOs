@@ -3,11 +3,10 @@ import sunHappyImg from "@/assets/cute-sun.png";
 
 interface LoginScreenProps {
   onUnlock: () => void;
+  password?: string;
 }
 
-const PASSWORD = "güneş1";
-
-const LoginScreen: React.FC<LoginScreenProps> = ({ onUnlock }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onUnlock, password = "güneş1" }) => {
   const [value, setValue] = useState("");
   const [error, setError] = useState(false);
   const [shake, setShake] = useState(false);
@@ -15,7 +14,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onUnlock }) => {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const normalized = value.trim().toLocaleLowerCase("tr-TR");
-    if (normalized === PASSWORD) {
+    const target = password.trim().toLocaleLowerCase("tr-TR");
+    if (normalized === target) {
       onUnlock();
     } else {
       setError(true);

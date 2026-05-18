@@ -17,7 +17,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <TooltipProvider>
-          <Toaster />
+          <Toaster position="top-center" />
           <GunesOS />
         </TooltipProvider>
       </ThemeProvider>
