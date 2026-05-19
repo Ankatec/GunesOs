@@ -1548,9 +1548,8 @@
       // Arama ekranı zaten açık değilse aç
       var scr = document.getElementById('screen-ooCall');
       if (!scr || scr.classList.contains('hidden-screen')) openOOCallScreen(c, kind);
-      var st2 = document.getElementById('oocStatus'); if (st2) st2.textContent = 'Çalıyor…';
-      // Caller: yerel ringback başlat, mikrofon trafiğini accept'e kadar sustur
-      startRingbackTone();
+      var st2 = document.getElementById('oocStatus'); if (st2) st2.textContent = 'Aranıyor…';
+      // Caller: karşı taraf ring ACK gönderene kadar gerçek "çalıyor" sesi başlatılmaz.
       muteOutgoingTracksUntilAccepted(connId);
 
       try {
@@ -1599,8 +1598,7 @@
       }
       var c = { name: name, number: number, connId: connId, engineIndex: -1 };
       openOOCallScreen(c, kind);
-      var st2 = document.getElementById('oocStatus'); if (st2) st2.textContent = 'Çalıyor…';
-      startRingbackTone();
+      var st2 = document.getElementById('oocStatus'); if (st2) st2.textContent = 'Aranıyor…';
       muteOutgoingTracksUntilAccepted(connId);
       try {
         if (kind === 'video' && typeof window.startVideoCall === 'function') window.startVideoCall(connId, false);
@@ -1649,6 +1647,13 @@
         ringbackTimer = setInterval(play, 3000);
       } catch (e) { /* sessizce yut */ }
     }
+    window.addEventListener('sohbeto:call-ring-ack', function () {
+      var oo = document.getElementById('screen-ooCall');
+      if (!oo || oo.classList.contains('hidden-screen')) return;
+      var st = document.getElementById('oocStatus');
+      if (st && st.textContent !== 'Bağlandı') st.textContent = 'Çalıyor…';
+      startRingbackTone();
+    });
     function stopRingbackTone() {
       try { if (ringbackTimer) clearInterval(ringbackTimer); } catch (e) {}
       ringbackTimer = null;
@@ -1884,7 +1889,7 @@
       var durEl = document.getElementById('oocDuration');
 
       if (modeEl) modeEl.textContent = kind === 'video' ? 'Görüntülü Arama' : 'Sesli Arama';
-      if (statusEl) statusEl.textContent = 'Çalıyor…';
+      if (statusEl) statusEl.textContent = (opts && opts.startedAt) ? 'Bağlandı' : 'Aranıyor…';
       if (nmEl) nmEl.textContent = (c && c.name) || '—';
       if (durEl) {
         durEl.textContent = '00:00';
@@ -1929,6 +1934,11 @@
       stopOOCallTimer();
       stopRingbackTone();
       clearOutgoingMute();
+      // Arka arkaya çağrılarda eski metinler sızmasın.
+      var _oD = document.getElementById('oocDuration');
+      if (_oD) { _oD.textContent = '00:00'; _oD.style.visibility = 'hidden'; }
+      var _oS = document.getElementById('oocStatus');
+      if (_oS) _oS.textContent = '';
     }
 
     // Motorun stub #activeCallScreen / #activeCallStatus / #activeCallDuration değişimlerini OO'ya yansıt
@@ -1950,7 +1960,8 @@
         var oS = document.getElementById('oocStatus');
         var oD = document.getElementById('oocDuration');
         if (oS && st) oS.textContent = st;
-        if (oD && du && du !== '00:00' && !ooCallTimer) oD.textContent = du;
+        // ÖNEMLİ: stale "00:01" sızmasın — yalnızca Bağlandı durumunda kopyala.
+        if (oD && du && du !== '00:00' && !ooCallTimer && st === 'Bağlandı') oD.textContent = du;
         if (st === 'Bağlandı') {
           oo.classList.add('connected');
           if (oD) oD.style.visibility = 'visible';
@@ -1988,9 +1999,14 @@
                 });
               }
             } catch (e) {}
-            var acceptedStartedAt = ooAcceptedIncomingStartedAt || Date.now();
+            // Sadece gerçekten kabul edilmiş gelen arama için startedAt geçiyoruz.
+            // Caller (giden arama) tarafında startVideoCall da activeCallScreen'i ring sırasında
+            // açıyor; o durumda startedAt VERMİYORUZ — 'Bağlandı' geldiğinde aşağıdaki 500ms poll
+            // timer'ı sıfırdan başlatır. Aksi halde caller, ring süresinden saymaya başlar.
+            var acceptedStartedAt = ooAcceptedIncomingStartedAt || 0;
             ooAcceptedIncomingStartedAt = 0;
-            openOOCallScreen({ name: name, number: number }, kind, { startedAt: acceptedStartedAt });
+            var openOpts = acceptedStartedAt ? { startedAt: acceptedStartedAt } : undefined;
+            openOOCallScreen({ name: name, number: number }, kind, openOpts);
           }
           ooEngineActiveSeen = true;
           // Gelen arama ekranı varsa kapat
@@ -2169,6 +2185,11 @@
           }
           // Savunma: CALL_ACCEPT geldiğinde OO call ekranı açıksa "Bağlandı" + 00:00 başlat
           if (typeof text === 'string' && (text === 'CALL_ACCEPT' || text.indexOf('CALL_ACCEPT###') === 0)) {
+            var acceptParts = String(text || '').split('###');
+            var acceptToken = acceptParts[2] || '';
+            var currentToken = '';
+            try { currentToken = window.__SOHBETO_OUTGOING_CALL_TOKEN || ''; } catch (e) {}
+            if (!currentToken || acceptToken !== currentToken) return;
             var oo = document.getElementById('screen-ooCall');
             if (oo && !oo.classList.contains('hidden-screen')) {
               var oS = document.getElementById('oocStatus'); if (oS) oS.textContent = 'Bağlandı';

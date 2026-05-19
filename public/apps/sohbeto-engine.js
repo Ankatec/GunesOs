@@ -1,6 +1,6 @@
 // ===== CACHE BUST: Force reload if stale version detected =====
 (function(){
-    var VER = 'v2026_05_19_inbox_flow_fix_3';
+    var VER = 'v2026_05_19_call_signal_ack_fix_1';
     try {
         var stored = sessionStorage.getItem('_sp_ver');
         if (stored && stored !== VER) {
@@ -55,7 +55,7 @@ const state = {
     target: "HERKES", users: new Map(), currentConvTab: "genel", currentView: "sohbetler",
     chatMode: "list", activeChat: null, outboundQueue: new Map(), sentMsgs: new Map(),
     nick: "", bio: "", profileEmoji: "👤", profileImage: null,
-    conversations: new Map(), memories: [], peerProfiles: {}, incomingCallFrom: null, incomingCallType: "audio"
+    conversations: new Map(), memories: [], peerProfiles: {}, incomingCallFrom: null, incomingCallType: "audio", incomingCallToken: null
 };
 const peers = {};
 let localAudioStream = null;
@@ -453,8 +453,12 @@ function createProfileUpdatePacket(includeImage = true) {
 }
 function sendDataChannelText(targetConnId, text) {
     const peer = peers[targetConnId];
-    if (peer?.dc?.readyState !== 'open') return false;
-    try { peer.dc.send(text); return true; } catch(e) { return false; }
+    if (!peer?.dc || peer.dc.readyState === 'closed') return false;
+    try {
+        peer.dc.send(text);
+        if (peer.conn) peer.conn._sohbetoOpen = true;
+        return true;
+    } catch(e) { return false; }
 }
 function sendWhenP2PReady(targetConnId, text, label, attempts = 24) {
     if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) return false;
@@ -630,9 +634,10 @@ function playBeep(isPrivate) {
 }
 
 // ==================== CALL SCREEN ====================
-function showIncomingCall(senderConnId, type = "audio") {
+function showIncomingCall(senderConnId, type = "audio", callToken) {
     state.incomingCallFrom = senderConnId;
     state.incomingCallType = type;
+    state.incomingCallToken = callToken || (Date.now() + '_' + Math.random().toString(36).slice(2, 8));
     const nick = getDisplayName(senderConnId);
     document.getElementById('callName').innerText = nick.replace(/\[.*?\]/g, '').trim() || nick;
     document.getElementById('callStatus').innerText = type === "video" ? 'Görüntülü arıyor...' : 'Seni Arıyor...';
@@ -660,18 +665,19 @@ async function acceptCall() {
     const callerConnId = state.incomingCallFrom;
     const callType = state.incomingCallType || "audio";
     const connectedAt = Date.now();
-    document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio";
+    const acceptToken = state.incomingCallToken;
+    document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio"; state.incomingCallToken = null;
     if (callerConnId) {
         if (callType === "video") await startVideoCall(callerConnId, true, connectedAt);
         else await startAudioCall(callerConnId, true, connectedAt);
-        sendCallSignal(callerConnId, `CALL_ACCEPT###${connectedAt}`);
+        sendCallSignal(callerConnId, `CALL_ACCEPT###${connectedAt}###${acceptToken || ''}`);
         notifyParentCallState('sohbeto:call-accepted', { from: callerConnId, connectedAt });
     }
 }
 
 function rejectCall() {
     if (state.incomingCallFrom) { sendCallSignal(state.incomingCallFrom, "CALL_REJECT"); }
-    document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio";
+    document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio"; state.incomingCallToken = null;
 }
 
 async function quickReply(msg) {
@@ -684,7 +690,7 @@ async function quickReply(msg) {
         // Aramayı reddet (CALL_REJECT sadece P2P üzerinden gider)
         sendCallSignal(target, "CALL_REJECT");
     }
-    document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio";
+    document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio"; state.incomingCallToken = null;
 }
 
 function sendCallSignal(targetConnId, text) {
@@ -692,27 +698,92 @@ function sendCallSignal(targetConnId, text) {
     return sendSecureP2PWhenReady(targetConnId, text, `Çağrı sinyali: ${String(text || '').split('###')[0]}`);
 }
 
+let outgoingCallSeq = 0;
+let outgoingCallToken = null;
+let outgoingRingAckTimer = null;
+
+function setCallConnectedAt(value) {
+    try { window.__SOHBETO_CALL_CONNECTED_AT = value || null; } catch (e) {}
+}
+
+function clearOutgoingRingAckTimer() {
+    if (outgoingRingAckTimer) clearTimeout(outgoingRingAckTimer);
+    outgoingRingAckTimer = null;
+}
+
+function scheduleOutgoingRingAckTimeout(token) {
+    clearOutgoingRingAckTimer();
+    outgoingRingAckTimer = setTimeout(() => {
+        if (!token || token !== outgoingCallToken) return;
+        const statusEl = document.getElementById('activeCallStatus');
+        if (statusEl && statusEl.innerText !== 'Bağlandı') statusEl.innerText = 'Ulaşılamıyor';
+        const durationEl = document.getElementById('activeCallDuration');
+        if (durationEl) durationEl.innerText = '00:00';
+        clearOutgoingCallToken();
+        log('Çağrı karşı tarafa ulaşmadı; bağlantı yenilenmeli.', '#fbbf24');
+    }, 10000);
+}
+
+function beginOutgoingCallToken() {
+    outgoingCallToken = Date.now() + '_' + (++outgoingCallSeq) + '_' + Math.random().toString(36).slice(2, 8);
+    try { window.__SOHBETO_OUTGOING_CALL_TOKEN = outgoingCallToken; } catch (e) {}
+    setCallConnectedAt(null);
+    scheduleOutgoingRingAckTimeout(outgoingCallToken);
+    return outgoingCallToken;
+}
+
+function clearOutgoingCallToken() {
+    clearOutgoingRingAckTimer();
+    outgoingCallToken = null;
+    try { window.__SOHBETO_OUTGOING_CALL_TOKEN = null; } catch (e) {}
+}
+
+function isCurrentCallAccept(signal) {
+    const parts = String(signal || '').split('###');
+    const token = parts[2] || '';
+    return !!(token && outgoingCallToken && token === outgoingCallToken);
+}
+
 function handleCallSignal(senderConnId, text, viaP2P) {
     const signal = String(text || '');
     if (!signal) return;
-    if (signal === 'CALL_RING' || signal === 'CALL_RING_VIDEO') {
-        showIncomingCall(senderConnId, signal === 'CALL_RING_VIDEO' ? 'video' : 'audio');
+    if (signal === 'CALL_RING' || signal === 'CALL_RING_VIDEO' || signal.startsWith('CALL_RING###') || signal.startsWith('CALL_RING_VIDEO###')) {
+        const ringParts = signal.split('###');
+        const ringType = signal.startsWith('CALL_RING_VIDEO') ? 'video' : 'audio';
+        const ringToken = ringParts[1] || '';
+        showIncomingCall(senderConnId, ringType, ringToken);
+        if (ringToken) sendCallSignal(senderConnId, `CALL_RING_ACK###${ringToken}`);
+        return;
+    }
+    if (signal.startsWith('CALL_RING_ACK')) {
+        const ackToken = signal.split('###')[1] || '';
+        if (!ackToken || !outgoingCallToken || ackToken !== outgoingCallToken) return;
+        clearOutgoingRingAckTimer();
+        const statusEl = document.getElementById('activeCallStatus');
+        if (statusEl && statusEl.innerText !== 'Bağlandı') statusEl.innerText = 'Çalıyor...';
+        try { window.dispatchEvent(new CustomEvent('sohbeto:call-ring-ack', { detail: { from: senderConnId, token: ackToken } })); } catch (e) {}
         return;
     }
     if (signal.startsWith('CALL_ACCEPT')) {
-        const acceptedAt = Number(signal.split('###')[1]) || Date.now();
+        if (!isCurrentCallAccept(signal)) return;
+        // Saat sapmasından bağımsız olmak için caller kendi local saatini başlangıç alır.
+        // Karşı tarafın acceptedAt değerini sinyalde taşımaya devam ediyoruz ama timer'a vermiyoruz.
+        const localAcceptedAt = Date.now();
+        clearOutgoingCallToken();
         const statusEl = document.getElementById('activeCallStatus');
         if (statusEl) statusEl.innerText = 'Bağlandı';
-        try { window.__SOHBETO_CALL_CONNECTED_AT = acceptedAt; } catch (e) {}
-        startCallTimer(acceptedAt);
-        notifyParentCallState('sohbeto:call-accepted', { from: senderConnId, connectedAt: acceptedAt });
+        setCallConnectedAt(localAcceptedAt);
+        startCallTimer(localAcceptedAt);
+        notifyParentCallState('sohbeto:call-accepted', { from: senderConnId, connectedAt: localAcceptedAt });
         return;
     }
     if (signal === 'CALL_REJECT' || signal === 'CALL_END') {
+        clearOutgoingCallToken();
         if (state.incomingCallFrom === senderConnId) {
             document.getElementById('callScreen').classList.add('hidden');
             state.incomingCallFrom = null;
             state.incomingCallType = 'audio';
+            state.incomingCallToken = null;
         }
         endVideoCall(true);
         endActiveCall(true);
@@ -876,14 +947,18 @@ async function handleP2PMsg(senderConnId, data) {
 function makeDcShim(conn) {
     return {
         _conn: conn,
-        get readyState() { return conn.open ? 'open' : 'connecting'; },
+        get readyState() { return conn._sohbetoClosed ? 'closed' : ((conn.open || conn._sohbetoOpen) ? 'open' : 'connecting'); },
         send(data) { try { conn.send(data); return true; } catch (e) { return false; } },
         close() { try { conn.close(); } catch (e) {} }
     };
 }
 
 function bindPeerJSConnection(connId, conn, direction) {
+    conn._sohbetoCreatedAt = conn._sohbetoCreatedAt || Date.now();
+    conn._sohbetoClosed = false;
     conn.on('open', () => {
+        conn._sohbetoOpen = true;
+        conn._sohbetoOpenedAt = Date.now();
         log(`P2P aktif (${direction})`, "#22c55e");
         const knownNumber = getPeerNumber(connId);
         if (knownNumber) {
@@ -900,13 +975,14 @@ function bindPeerJSConnection(connId, conn, direction) {
             if (num) handleLookupReply(num, connId);
         } catch (e) {}
     });
-    conn.on('data', (data) => handleP2PMsg(connId, data));
+    conn.on('data', (data) => { conn._sohbetoOpen = true; handleP2PMsg(connId, data); });
     conn.on('close', () => {
+        conn._sohbetoClosed = true;
         log(`P2P kapandı: ${String(connId).substring(0, 12)}`, "#fbbf24");
         if (peers[connId]) { peers[connId].dc = null; peers[connId].conn = null; }
         updateUI();
     });
-    conn.on('error', (e) => log(`P2P hata: ${e?.type || e?.message || 'bilinmiyor'}`, "#ef4444"));
+    conn.on('error', (e) => { conn._sohbetoClosed = true; log(`P2P hata: ${e?.type || e?.message || 'bilinmiyor'}`, "#ef4444"); });
 }
 
 async function initP2P(targetConnId) {
@@ -914,7 +990,12 @@ async function initP2P(targetConnId) {
     if (!peerObj || peerObj.destroyed) { log("PeerJS hazır değil", "#ef4444"); return null; }
     const existing = peers[targetConnId];
     if (existing?.dc && existing.dc.readyState === 'open') return existing;
-    if (existing?.conn && !existing.conn.open) return existing; // bağlanıyor
+    if (existing?.conn && !existing.conn.open && !existing.conn._sohbetoClosed && Date.now() - (existing.conn._sohbetoCreatedAt || 0) < 2500) return existing; // kısa süre bağlanıyor
+    if (existing?.conn && !existing.conn.open) {
+        try { existing.conn._sohbetoClosed = true; existing.conn.close(); } catch (e) {}
+        existing.conn = null;
+        existing.dc = null;
+    }
     try {
         const conn = peerObj.connect(targetConnId, { reliable: true });
         if (!conn) return null;
@@ -942,9 +1023,33 @@ async function ensureMediaPc(connId) {
     if (pc && pc.signalingState !== 'closed') return pc;
     pc = new RTCPeerConnection({ iceServers: CONFIG.iceServers });
     peers[connId].pc = pc;
+    peers[connId].iceQueue = [];
     configurePeerConnection(connId, pc);
     pc.ondatachannel = () => { /* veri kanalı PeerJS tarafında; burayı yoksay */ };
     return pc;
+}
+
+// Media PC'yi tamamen söker; DataConnection (peer.conn/dc) DOKUNULMAZ.
+// Bu fonksiyon çağrılmadan aynı pc tekrar kullanılırsa, ontrack ikinci
+// aramada tetiklenmiyor ve karşı taraftan ses/görüntü gelmiyor.
+function teardownMediaPc(connId) {
+    if (!connId) return;
+    const peer = peers[connId];
+    if (!peer) return;
+    const pc = peer.pc;
+    if (pc) {
+        try { pc.getSenders().forEach(s => { try { s.track && s.track.stop(); } catch(_){} try { pc.removeTrack(s); } catch(_){} }); } catch(_){}
+        try { pc.getReceivers().forEach(r => { try { r.track && r.track.stop(); } catch(_){} }); } catch(_){}
+        try { pc.ontrack = null; pc.onicecandidate = null; pc.onconnectionstatechange = null; } catch(_){}
+        try { pc.close(); } catch(_){}
+    }
+    peer.pc = null;
+    peer.iceQueue = [];
+    // Bu peer'a ait kalıcı remote <audio> elementini temizle
+    try {
+        const el = document.getElementById('audio_' + connId);
+        if (el) { try { el.srcObject = null; } catch(_){} el.remove(); }
+    } catch(_){}
 }
 
 async function renegotiateMediaPc(connId) {
@@ -1834,6 +1939,7 @@ async function startAudioCall(connId, isIncoming, connectedAt) {
     renderProfileAvatar(avatarEl, connId, 'active-call-avatar', nick, 'font-size:44px');
     document.getElementById('activeCallName').innerText = nick.replace(/\[.*?\]/g, '').trim() || nick;
     document.getElementById('activeCallDuration').innerText = '00:00';
+    document.getElementById('activeCallStatus').innerText = isIncoming ? 'Bağlandı' : 'Aranıyor...';
     document.getElementById('activeCallScreen').classList.remove('hidden');
 
     isMuted = false; isSpeaker = false;
@@ -1863,11 +1969,13 @@ async function startAudioCall(connId, isIncoming, connectedAt) {
         // Incoming call accepted - start timer immediately since both sides are ready
         document.getElementById('activeCallStatus').innerText = 'Bağlandı';
         startCallTimer(connectedAt || Date.now());
-        if (audioChanged) await renegotiateMediaPc(connId);
+        // Her zaman renegotiate: yeni pc'de OFFER gerekli, eski pc'de track değiştiyse de gerekli.
+        await renegotiateMediaPc(connId);
     } else {
-        // Outgoing call - show "Çalıyor..." and wait for CALL_ACCEPT
-        document.getElementById('activeCallStatus').innerText = 'Çalıyor...';
-        sendCallSignal(connId, "CALL_RING");
+        // Outgoing call - wait for CALL_RING_ACK before showing "Çalıyor...", then CALL_ACCEPT starts timer.
+        document.getElementById('activeCallStatus').innerText = 'Aranıyor...';
+        const token = beginOutgoingCallToken();
+        sendCallSignal(connId, `CALL_RING###${token}`);
     }
 }
 
@@ -1902,7 +2010,16 @@ function endActiveCall(skipSend) {
     }
     const connId = activeCallConnId || state.activeChat;
     if (!skipSend && connId && connId !== 'genel') sendCallSignal(connId, "CALL_END");
+    // Bir sonraki arama için media PC'yi tamamen sök; data kanalı kalsın.
+    try { teardownMediaPc(connId); } catch(_){}
     activeCallConnId = null;
+    clearOutgoingCallToken();
+    try { window.__SOHBETO_CALL_CONNECTED_AT = null; } catch(_){}
+    // Arka arkaya çağrılarda eski metinler sızmasın: status/duration'ı sıfırla.
+    try {
+        var _acD = document.getElementById('activeCallDuration'); if (_acD) _acD.innerText = '00:00';
+        var _acS = document.getElementById('activeCallStatus');   if (_acS) _acS.innerText = '';
+    } catch(_){}
     document.getElementById('activeCallScreen').classList.add('hidden');
     log("Arama sonlandırıldı", "#f59e0b");
 }
@@ -1956,18 +2073,22 @@ async function startVideoCall(connId, isIncoming, connectedAt) {
         document.getElementById('videoLocal').appendChild(localVideoEl);
 
         document.getElementById('videoCallName').innerText = nick.replace(/\[.*?\]/g, '').trim() || nick;
-        document.getElementById('videoContainer').classList.add('active');
 
-        // Tema/adapter köprüleri için #activeCallScreen'i de aç ve durumu yaz —
-        // görsel ekran iframe içinde offscreen stub'ta, etki yok; sadece sinyal.
+        // ÖNEMLİ: önce status/duration'ı yaz, SONRA videoContainer.active ekle.
+        // Aksi halde adapter'ın MutationObserver'ı önceki çağrıdan kalan stale
+        // "Bağlandı" / "00:01" metinlerini okuyup yeni OO ekranına sızdırabiliyor.
         const acScreen = document.getElementById('activeCallScreen');
-        if (acScreen) acScreen.classList.remove('hidden');
         const acName = document.getElementById('activeCallName');
         if (acName) acName.innerText = nick.replace(/\[.*?\]/g, '').trim() || nick;
         const acStatus = document.getElementById('activeCallStatus');
-        if (acStatus) acStatus.innerText = isIncoming ? 'Bağlandı' : 'Çalıyor…';
+        if (acStatus) acStatus.innerText = isIncoming ? 'Bağlandı' : 'Aranıyor...';
         const acDuration = document.getElementById('activeCallDuration');
         if (acDuration) acDuration.innerText = '00:00';
+        const videoDurationEl = document.getElementById('videoCallDuration');
+        if (videoDurationEl) videoDurationEl.innerText = '00:00';
+        if (acScreen) acScreen.classList.remove('hidden');
+
+        document.getElementById('videoContainer').classList.add('active');
 
         // Sinyal/data kanalı hazır olsun; media PC'yi kabul edilmiş akışta kur.
         await initP2P(connId);
@@ -1976,7 +2097,8 @@ async function startVideoCall(connId, isIncoming, connectedAt) {
         if (isIncoming) {
             await ensureMediaPc(connId);
             changed = addStreamTracksToPeer(connId, localVideoStream);
-            if (changed) await renegotiateMediaPc(connId);
+            // Her zaman renegotiate - yeni pc'de OFFER zorunlu.
+            await renegotiateMediaPc(connId);
         }
 
         if (isIncoming) {
@@ -1990,7 +2112,10 @@ async function startVideoCall(connId, isIncoming, connectedAt) {
         } else {
             // Outgoing call - don't start timer, wait for CALL_ACCEPT
             document.getElementById('videoCallDuration').innerText = '00:00';
-            sendCallSignal(connId, "CALL_RING_VIDEO");
+            const acStatus = document.getElementById('activeCallStatus');
+            if (acStatus) acStatus.innerText = 'Aranıyor...';
+            const token = beginOutgoingCallToken();
+            sendCallSignal(connId, `CALL_RING_VIDEO###${token}`);
             log("Görüntülü arama başlatıldı - Karşı taraf bekleniyor", "#6366f1");
         }
     } catch (e) {
@@ -2020,10 +2145,22 @@ function endVideoCall(skipSend) {
     }
     const connId = activeCallConnId || state.activeChat;
     if (!skipSend && connId && connId !== 'genel') sendCallSignal(connId, "CALL_END");
+    // Media PC'yi tamamen sök; bir sonraki görüntülü/sesli arama için temiz başlangıç.
+    try { teardownMediaPc(connId); } catch(_){}
     activeCallConnId = null;
+    clearOutgoingCallToken();
+    try { window.__SOHBETO_CALL_CONNECTED_AT = null; } catch(_){}
     document.getElementById('videoContainer').classList.remove('active');
     document.getElementById('videoLocal').innerHTML = '';
     document.getElementById('videoRemote').innerHTML = '<div class="video-placeholder">📹</div>';
+    // Arka arkaya çağrılarda eski metinler sızmasın: status/duration'ı sıfırla,
+    // activeCallScreen'i de gizle (endActiveCall ile aynı temizlik).
+    try {
+        var _acD = document.getElementById('activeCallDuration'); if (_acD) _acD.innerText = '00:00';
+        var _acS = document.getElementById('activeCallStatus');   if (_acS) _acS.innerText = '';
+        var _vcD = document.getElementById('videoCallDuration');  if (_vcD) _vcD.innerText = '00:00';
+        var _acScr = document.getElementById('activeCallScreen'); if (_acScr) _acScr.classList.add('hidden');
+    } catch(_){}
     log("Görüntülü arama sonlandırıldı", "#f59e0b");
 }
 
