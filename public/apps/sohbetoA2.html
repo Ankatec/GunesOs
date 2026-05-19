@@ -288,49 +288,6 @@
   .welcome-foot{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:12px;color:#7d8a96;letter-spacing:1.5px;font-weight:600}
 
   .app-shell{flex:1;display:flex;flex-direction:column;min-height:0}
-
-  /* ---- Fluid tab pager (sohbeto-fluid-tabs.js mantığı, A2'ye uyarlandı) ---- */
-  .tab-stack{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:pan-y;overscroll-behavior-x:none;}
-  .tab-stack > .page{position:absolute;inset:0;display:flex !important;flex-direction:column;
-    transition:transform 240ms cubic-bezier(0.33, 1, 0.68, 1);
-    will-change:transform;backface-visibility:hidden;}
-  .tab-stack.dragging > .page{transition:none !important;}
-  .tab-stack.instant > .page{transition:none !important;}
-  .tab-stack > .page.tab-inactive{pointer-events:none;}
-  .app-shell.chatroom-mode .tab-stack{display:none;}
-
-  /* ---- A2 bottom sheets (Kişi / Grup ekle) ---- */
-  .a2-sheet-back{position:fixed;inset:0;z-index:9000;background:rgba(11,58,85,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;transition:opacity .25s ease;display:flex;align-items:flex-end;justify-content:center;}
-  .a2-sheet-back.in{opacity:1;}
-  .a2-sheet{width:100%;max-width:480px;background:linear-gradient(180deg,#fafdff,#e7f3fa);
-    border-radius:24px 24px 0 0;padding:14px 18px 22px;color:var(--ink);
-    box-shadow:0 -20px 60px -20px rgba(11,58,85,.45);
-    transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.9,.25,1);
-    max-height:86vh;overflow-y:auto;}
-  .a2-sheet-back.in .a2-sheet{transform:translateY(0);}
-  .a2-sheet-handle{width:42px;height:4px;border-radius:999px;background:rgba(11,58,85,.18);margin:2px auto 12px;}
-  .a2-sheet h3{margin:0 0 4px;font-size:18px;font-weight:800;}
-  .a2-sheet .sub{font-size:12px;color:var(--muted);margin-bottom:14px;}
-  .a2-field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
-  .a2-field label{font-size:11.5px;color:var(--muted);font-weight:600;padding-left:4px;}
-  .a2-field input{padding:12px 14px;border-radius:14px;border:1px solid var(--line);
-    background:var(--card-strong);font-size:14px;color:var(--ink);outline:none;
-    box-shadow:var(--shadow);font-family:inherit;}
-  .a2-field input:focus{border-color:var(--accent);}
-  .a2-sheet-actions{display:flex;gap:8px;margin-top:6px;}
-  .a2-btn{flex:1;padding:13px;border-radius:14px;border:0;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;}
-  .a2-btn.primary{background:linear-gradient(135deg,#2aa6c8,#67d6c4);color:#fff;box-shadow:0 12px 24px -12px rgba(42,166,200,.7);}
-  .a2-btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);}
-  .a2-btn:active{transform:scale(.97);}
-  .a2-picker{max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;}
-  .a2-pick-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;cursor:pointer;}
-  .a2-pick-row:hover{background:rgba(255,255,255,.6);}
-  .a2-pick-row.on{background:linear-gradient(135deg,rgba(42,166,200,.18),rgba(103,214,196,.18));}
-  .a2-pick-row .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#bfe1ef,#2aa6c8);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;}
-  .a2-pick-row .nm{flex:1;font-size:13px;}
-  .a2-pick-row .ck{width:20px;height:20px;border-radius:6px;border:2px solid rgba(11,58,85,.25);display:grid;place-items:center;color:#fff;font-size:12px;}
-  .a2-pick-row.on .ck{background:linear-gradient(135deg,#2aa6c8,#67d6c4);border-color:transparent;}
-  .a2-picker-empty{padding:18px;text-align:center;color:var(--muted);font-size:12px;}
 </style>
 </head>
 <body>
@@ -472,10 +429,10 @@
         <div class="page" data-page="people">
           <div class="bighead">
             <div><h2>Kişiler</h2><div class="sub">Rehberinden ekle</div></div>
-            <div class="iconbtn" id="addContactBtn" title="Kişi ekle">+</div>
+            <div class="iconbtn" title="Kişi ekle">+</div>
           </div>
-          <div class="search">🔎 <input id="peopleSearch" placeholder="Kişi ara…" /></div>
-          <div class="listwrap" id="peopleList">
+          <div class="search">🔎 <input placeholder="Kişi ara…" /></div>
+          <div class="listwrap">
             <div class="empty-state">
               <div class="em">👥</div>
               <b>Henüz kişi yok</b>
@@ -488,10 +445,10 @@
         <div class="page" data-page="groups">
           <div class="bighead">
             <div><h2>Gruplar</h2><div class="sub">Topluluklarını yönet</div></div>
-            <div class="iconbtn" id="addGroupBtn" title="Grup oluştur">+</div>
+            <div class="iconbtn" title="Grup oluştur">+</div>
           </div>
-          <div class="search">🔎 <input id="groupsSearch" placeholder="Grup ara…" /></div>
-          <div class="listwrap" id="groupsList">
+          <div class="search">🔎 <input placeholder="Grup ara…" /></div>
+          <div class="listwrap">
             <div class="empty-state">
               <div class="em">🐠</div>
               <b>Henüz grup yok</b>
@@ -692,7 +649,6 @@ verifyBtn.addEventListener('click', () => {
 // otomatik doğrula: 6 hane dolunca
 otpInputs.forEach(inp => {
   inp.addEventListener('input', () => {
-    if (window.__a2AutoFilling) return; // autofill kendi 2.5s gecikmesiyle doğrular
     const all = [...otpInputs].map(i=>i.value).join('');
     if (all.length === 6) verifyBtn.click();
   });
@@ -774,26 +730,10 @@ function a2Notify(opts){
 function a2FillOtp(code){
   code = String(code||'').replace(/\D/g,'').slice(0,6);
   if (code.length !== 6) return;
-  window.__a2AutoFilling = true;
   otpInputs.forEach(function(i){ i.value=''; i.classList.remove('a2-fill-pulse'); });
   var k = 0;
   (function step(){
-    if (k >= 6) {
-      // OO davranışı: 6 hane dolduktan sonra 2.5 sn bekle, sonra doğrula.
-      // Bu süre boyunca buton "Doğrulanıyor…" gözükür ki kullanıcı hemen
-      // içeri dalmadığını hissetsin.
-      try { setBusy(verifyBtn, true, 'Doğrulanıyor…'); } catch(e){}
-      setTimeout(function(){
-        window.__a2AutoFilling = false;
-        var allCode = [...otpInputs].map(function(i){ return i.value; }).join('');
-        if (allCode.length === 6) {
-          a2Post('verifyCode', { code: allCode });
-        } else {
-          try { setBusy(verifyBtn, false, '', 'Doğrula ve devam et'); } catch(e){}
-        }
-      }, 2500);
-      return;
-    }
+    if (k >= 6) return;
     var inp = otpInputs[k];
     if (inp){
       inp.value = code[k];
@@ -808,86 +748,11 @@ function a2FillOtp(code){
 }
 function a2WelcomeBurst(){
   var msgs = [
-    { title: 'Mesajlar · Sohbeto', text: '👋 Merhaba ve hoş geldin!\nHesabın hazır — dünyanın en özgür sohbeti seni bekliyor.' },
-    { title: 'Mesajlar · Sohbeto', text: 'Sohbeto\u2019ya başarıyla kaydoldun. Artık güvenli, hızlı ve uçtan uca şifreli mesajlaşmanın keyfini çıkarabilirsin.' },
-    { title: 'Mesajlar · Sohbeto', text: '💡 İpucu: Profil resmini ve adını Sohbeto > Ayarlar bölümünden güncelleyebilirsin. İyi sohbetler! 🌟' }
+    { title:'Mesajlar · Sohbeto', text:'Sohbeto’ya hoş geldin! 🎉' },
+    { title:'Mesajlar · Sohbeto', text:'Hesabın hazır — dünyanın en özgür sohbeti seni bekliyor.' },
+    { title:'Mesajlar · Sohbeto', text:'İlk kişini ekleyerek başlayabilirsin.' }
   ];
-  // OO davranışı: önceki bildirim(ler) ekrandaysa hoş geldin akışı başlarken
-  // temizlenir; böylece doğrulama kodu balonu ile karşılama balonu çakışmaz.
-  a2ClearNotifs();
-  // OO ile birebir: 800 ms + i*5000 ms, her biri 4500 ms ekranda.
-  // Ayrıca her mesajı GünesOS Mesajlar uygulamasına da yaz (sohbeto-welcome thread'i).
-  msgs.forEach(function(m, i){
-    setTimeout(function(){
-      // Yeni bildirim düşmeden, sıradakine yer açmak için varsa açık balonu kapat.
-      a2ClearNotifs();
-      a2Notify({ title: m.title, text: m.text, duration: 4500 });
-      try { a2PushToMesajlar(m.text); } catch(e){}
-    }, 800 + i * 5000);
-  });
-}
-
-/* Ekranda açık tüm A2 bildirimlerini anında kapat. */
-function a2ClearNotifs(){
-  var layer = document.getElementById('a2NotifLayer'); if (!layer) return;
-  var nodes = layer.querySelectorAll('.a2-toast');
-  nodes.forEach(function(el){
-    el.classList.remove('in');
-    el.classList.add('out');
-    setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 220);
-  });
-}
-
-/* GünesOS Mesajlar uygulamasına sistem mesajı yaz (src/lib/messaging.ts sözleşmesi). */
-function a2PushToMesajlar(text){
-  var KEY = 'gunesOS-mesajlar';
-  var EVT = 'gunesos-mesajlar-changed';
-  var threadId = 'sohbeto-welcome';
-  var now = '';
-  try { now = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}); } catch(e){}
-  var threads = [];
-  try { threads = JSON.parse(window.parent.localStorage.getItem(KEY) || '[]') || []; } catch(e){ threads = []; }
-  // Dedupe: aynı metin son 4 sn içinde yazıldıysa tekrar yazma (postMessage
-  // veya listener çift tetiklenirse Mesajlar uygulamasında çift kayıt olmasın).
-  for (var t = 0; t < threads.length; t++){
-    if (threads[t].id !== threadId) continue;
-    var ms = threads[t].messages || [];
-    var last = ms[ms.length - 1];
-    if (last && last.text === text){
-      var lastTs = Number(String(last.id||'').split('-')[1]) || 0;
-      if (Date.now() - lastTs < 4000) return;
-    }
-    break;
-  }
-  var msg = {
-    id: 's-' + Date.now() + '-' + Math.random().toString(36).slice(2,6),
-    from: 'system',
-    text: text,
-    time: now
-  };
-  var idx = -1;
-  for (var j = 0; j < threads.length; j++){ if (threads[j].id === threadId){ idx = j; break; } }
-  if (idx === -1){
-    threads.unshift({
-      id: threadId,
-      name: 'Sohbeto',
-      avatar: '💬',
-      preview: text,
-      time: now,
-      unread: 1,
-      messages: [msg]
-    });
-  } else {
-    var th = threads[idx];
-    threads[idx] = Object.assign({}, th, {
-      preview: text,
-      time: now,
-      unread: (th.unread || 0) + 1,
-      messages: (th.messages || []).concat([msg])
-    });
-  }
-  try { window.parent.localStorage.setItem(KEY, JSON.stringify(threads)); } catch(e){}
-  try { window.parent.dispatchEvent(new CustomEvent(EVT)); } catch(e){}
+  msgs.forEach(function(m,i){ setTimeout(function(){ a2Notify({ title:m.title, text:m.text, duration:1400 }); }, 600 + i*2500); });
 }
 
 /* Parent → A2 mesajları */
@@ -895,9 +760,7 @@ window.addEventListener('message', (ev) => {
   const d = ev.data || {};
   if (!d || !d.__sohbeto_a2_ack) return;
   if (d.action === 'code' && d.code){
-    var codeText = '🔐 Sohbeto Doğrulama Kodun: ' + d.code + '\nKodu kimseyle paylaşma. Bu kod 5 dakika geçerlidir.';
-    a2Notify({ title:'Mesajlar · Sohbeto', text: codeText, duration: 4500 });
-    try { a2PushToMesajlar(codeText); } catch(e){}
+    a2Notify({ title:'Mesajlar · Sohbeto', text:'Doğrulama kodun: '+d.code, duration:2000 });
     a2FillOtp(d.code);
     return;
   }
@@ -933,349 +796,13 @@ window.addEventListener('message', (ev) => {
 a2Post('checkAuth');
 
 /* ---------- Navigation ---------- */
-/* Tab pager (sohbeto-fluid-tabs.js mantığı, A2'ye gömülü). */
-const TAB_ORDER = ['chats','people','groups','settings'];
-const appShell = document.getElementById('appShell');
+const pages = document.querySelectorAll('.page');
 const navItems = document.querySelectorAll('.navitem');
-const chatroomPage = appShell.querySelector('[data-page="chatroom"]');
-
-/* 4 tab'i .tab-stack içine taşı */
-const tabStack = document.createElement('div');
-tabStack.className = 'tab-stack';
-TAB_ORDER.forEach(name => {
-  const el = appShell.querySelector('[data-page="'+name+'"]');
-  if (el) tabStack.appendChild(el);
-});
-appShell.insertBefore(tabStack, appShell.firstChild);
-
-let activeTab = 0;
-let containerWidth = 0;
-let dragging = false, pointerId = null;
-let dragStartX = 0, dragStartY = 0, dragLastX = 0, dragLastT = 0;
-let dragVelocity = 0, dragDx = 0, horizontalLocked = null;
-let rafId = 0, pendingDx = 0;
-
-const DURATION_MS = 240, SWIPE_DISTANCE_RATIO = 0.24, SWIPE_VELOCITY = 0.22;
-const DRAG_RUBBER = 0.42, LOCK_START_PX = 2, VERTICAL_LOCK_PX = 10;
-const HORIZONTAL_BIAS = 0.72, VERTICAL_BIAS = 1.25;
-
-function paintPager(dx){
-  const w = containerWidth || tabStack.clientWidth || appShell.clientWidth || window.innerWidth;
-  TAB_ORDER.forEach((name, i) => {
-    const el = appShell.querySelector('[data-page="'+name+'"]');
-    if (!el) return;
-    el.style.transform = 'translate3d(' + ((i - activeTab) * w + dx) + 'px,0,0)';
-  });
-}
-function scheduleDraw(dx){
-  pendingDx = dx;
-  if (rafId) return;
-  rafId = requestAnimationFrame(() => { rafId = 0; paintPager(pendingDx); });
-}
-function setActiveTab(idx, animate){
-  idx = Math.max(0, Math.min(TAB_ORDER.length - 1, idx));
-  activeTab = idx;
-  appShell.classList.remove('chatroom-mode');
-  chatroomPage.classList.remove('active');
-  TAB_ORDER.forEach((name, i) => {
-    const el = appShell.querySelector('[data-page="'+name+'"]');
-    if (!el) return;
-    el.classList.toggle('tab-inactive', i !== activeTab);
-  });
-  containerWidth = tabStack.clientWidth || appShell.clientWidth || window.innerWidth;
-  if (animate === false){
-    tabStack.classList.add('instant');
-    paintPager(0);
-    requestAnimationFrame(() => requestAnimationFrame(() => tabStack.classList.remove('instant')));
-  } else {
-    paintPager(0);
-  }
-  navItems.forEach(n => n.classList.toggle('on', n.dataset.go === TAB_ORDER[activeTab]));
-}
 function goTo(name){
-  const idx = TAB_ORDER.indexOf(name);
-  if (idx !== -1){
-    setActiveTab(idx, false);
-    return;
-  }
-  if (name === 'chatroom'){
-    appShell.classList.add('chatroom-mode');
-    chatroomPage.classList.add('active');
-    return;
-  }
+  pages.forEach(p => p.classList.toggle('active', p.dataset.page === name));
+  navItems.forEach(n => n.classList.toggle('on', n.dataset.go === name));
 }
 navItems.forEach(n => n.addEventListener('click', () => goTo(n.dataset.go)));
-
-/* --- Pointer / touch handlers --- */
-function shouldIgnoreTarget(target){
-  if (!target) return false;
-  const tag = (target.tagName || '').toLowerCase();
-  if (tag === 'input' || tag === 'textarea' || tag === 'select' || tag === 'button') return true;
-  if (target.isContentEditable) return true;
-  let el = target;
-  while (el && el !== tabStack){
-    try {
-      const ov = getComputedStyle(el).overflowX;
-      if ((ov === 'auto' || ov === 'scroll') && el.scrollWidth > el.clientWidth + 1) return true;
-    } catch(e){}
-    el = el.parentElement;
-  }
-  return false;
-}
-function getX(e){ return e.touches ? e.touches[0].clientX : e.clientX; }
-function getY(e){ return e.touches ? e.touches[0].clientY : e.clientY; }
-function onPagerStart(e){
-  if (appShell.classList.contains('chatroom-mode')) return;
-  if (e.pointerType === 'mouse' && e.button !== 0) return;
-  if (e.touches && e.touches.length > 1) return;
-  if (shouldIgnoreTarget(e.target)) return;
-  dragStartX = dragLastX = getX(e);
-  dragStartY = getY(e);
-  dragLastT = performance.now();
-  dragVelocity = 0; dragDx = 0; horizontalLocked = null; dragging = true;
-  pointerId = e.pointerId != null ? e.pointerId : null;
-  containerWidth = tabStack.clientWidth || window.innerWidth;
-}
-function onPagerMove(e){
-  if (!dragging) return;
-  const x = getX(e), y = getY(e);
-  const dx = x - dragStartX, dy = y - dragStartY;
-  if (horizontalLocked === null){
-    const ax = Math.abs(dx), ay = Math.abs(dy);
-    if (ax < LOCK_START_PX && ay < VERTICAL_LOCK_PX) return;
-    if (ay > VERTICAL_LOCK_PX && ay > ax * VERTICAL_BIAS){ horizontalLocked = false; dragging = false; return; }
-    if (ax >= LOCK_START_PX && ax >= ay * HORIZONTAL_BIAS){
-      horizontalLocked = true;
-      tabStack.classList.add('dragging');
-      if (pointerId != null && tabStack.setPointerCapture){
-        try { tabStack.setPointerCapture(pointerId); } catch(err){}
-      }
-    } else { horizontalLocked = false; dragging = false; return; }
-  }
-  if (!horizontalLocked) return;
-  if (e.cancelable) e.preventDefault();
-  const atLeft = activeTab === 0 && dx > 0;
-  const atRight = activeTab === TAB_ORDER.length - 1 && dx < 0;
-  const effDx = (atLeft || atRight) ? dx * DRAG_RUBBER : dx;
-  dragDx = effDx;
-  scheduleDraw(effDx);
-  const now = performance.now();
-  const dt = now - dragLastT;
-  if (dt > 0) dragVelocity = (x - dragLastX) / dt;
-  dragLastX = x; dragLastT = now;
-}
-function onPagerEnd(){
-  if (!dragging){ horizontalLocked = null; return; }
-  const wasHoriz = horizontalLocked === true;
-  dragging = false; horizontalLocked = null;
-  if (rafId){ cancelAnimationFrame(rafId); rafId = 0; paintPager(dragDx); }
-  tabStack.classList.remove('dragging');
-  if (pointerId != null && tabStack.releasePointerCapture){
-    try { tabStack.releasePointerCapture(pointerId); } catch(err){}
-  }
-  pointerId = null;
-  if (!wasHoriz) return;
-  const rawDx = dragLastX - dragStartX;
-  const ratio = Math.abs(dragDx) / (containerWidth || 1);
-  const fastFlick = Math.abs(dragVelocity) > SWIPE_VELOCITY && Math.abs(rawDx) > 8;
-  let nextIdx = activeTab;
-  if (ratio > SWIPE_DISTANCE_RATIO || fastFlick){
-    if (rawDx < 0 && activeTab < TAB_ORDER.length - 1) nextIdx = activeTab + 1;
-    else if (rawDx > 0 && activeTab > 0) nextIdx = activeTab - 1;
-  }
-  setActiveTab(nextIdx, true);
-}
-if (window.PointerEvent){
-  tabStack.addEventListener('pointerdown', onPagerStart, { passive: true });
-  tabStack.addEventListener('pointermove', onPagerMove, { passive: false });
-  tabStack.addEventListener('pointerup', onPagerEnd, { passive: true });
-  tabStack.addEventListener('pointercancel', onPagerEnd, { passive: true });
-} else {
-  tabStack.addEventListener('touchstart', onPagerStart, { passive: true });
-  tabStack.addEventListener('touchmove', onPagerMove, { passive: false });
-  tabStack.addEventListener('touchend', onPagerEnd, { passive: true });
-  tabStack.addEventListener('touchcancel', onPagerEnd, { passive: true });
-}
-window.addEventListener('resize', () => {
-  if (appShell.style.display === 'none') return;
-  containerWidth = tabStack.clientWidth || window.innerWidth;
-  paintPager(0);
-});
-
-/* appShell görünür olduğunda pager'ı ilk kez boya */
-const _origShowAppShell = showAppShell;
-showAppShell = function(){
-  _origShowAppShell();
-  requestAnimationFrame(() => {
-    containerWidth = tabStack.clientWidth || window.innerWidth;
-    setActiveTab(0, false);
-    renderContacts();
-    renderGroups();
-  });
-};
-
-/* ---------- Kişiler & Gruplar: storage + render + sheets ---------- */
-const A2_CONTACTS_KEY = 'sohbetoA2_contacts';
-const A2_GROUPS_KEY = 'sohbetoA2_groups';
-function readContacts(){
-  try { return JSON.parse(localStorage.getItem(A2_CONTACTS_KEY) || '[]'); } catch(e){ return []; }
-}
-function writeContacts(arr){ localStorage.setItem(A2_CONTACTS_KEY, JSON.stringify(arr)); }
-function readGroups(){
-  try { return JSON.parse(localStorage.getItem(A2_GROUPS_KEY) || '[]'); } catch(e){ return []; }
-}
-function writeGroups(arr){ localStorage.setItem(A2_GROUPS_KEY, JSON.stringify(arr)); }
-function initials(s){
-  return (s||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase() || '?';
-}
-function avClass(i){ return ['','av-b','av-c','av-d','av-e'][i % 5]; }
-
-function renderContacts(filter){
-  const list = document.getElementById('peopleList');
-  if (!list) return;
-  const items = readContacts();
-  const q = (filter||'').trim().toLowerCase();
-  const filtered = q ? items.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q)) : items;
-  if (!items.length){
-    list.innerHTML = '<div class="empty-state"><div class="em">👥</div><b>Henüz kişi yok</b><p>Üstteki + butonuna dokunarak yeni kişi ekleyebilirsin.</p></div>';
-    return;
-  }
-  if (!filtered.length){
-    list.innerHTML = '<div class="empty-state"><div class="em">🔎</div><b>Eşleşen kişi yok</b><p>Farklı bir arama dene.</p></div>';
-    return;
-  }
-  list.innerHTML = filtered.map((c,i) =>
-    '<div class="listcard" data-contact-id="'+c.id+'">'+
-      '<div class="avatar '+avClass(i)+'">'+initials(c.name)+'</div>'+
-      '<div class="lc-meta"><b>'+escapeHtml(c.name)+'</b><span>'+escapeHtml(c.phone||'')+'</span></div>'+
-      '<div class="time">'+escapeHtml(c.added||'')+'</div>'+
-    '</div>'
-  ).join('');
-}
-function renderGroups(filter){
-  const list = document.getElementById('groupsList');
-  if (!list) return;
-  const items = readGroups();
-  const q = (filter||'').trim().toLowerCase();
-  const filtered = q ? items.filter(g => (g.name||'').toLowerCase().includes(q)) : items;
-  if (!items.length){
-    list.innerHTML = '<div class="empty-state"><div class="em">🐠</div><b>Henüz grup yok</b><p>Üstteki + ile yeni grup oluştur.</p></div>';
-    return;
-  }
-  if (!filtered.length){
-    list.innerHTML = '<div class="empty-state"><div class="em">🔎</div><b>Eşleşen grup yok</b><p>Farklı bir arama dene.</p></div>';
-    return;
-  }
-  list.innerHTML = filtered.map((g,i) =>
-    '<div class="listcard" data-group-id="'+g.id+'">'+
-      '<div class="avatar '+avClass(i+1)+'">'+initials(g.name)+'</div>'+
-      '<div class="lc-meta"><b>'+escapeHtml(g.name)+'</b><span>'+(g.members?g.members.length:0)+' üye</span></div>'+
-      '<div class="time">'+escapeHtml(g.added||'')+'</div>'+
-    '</div>'
-  ).join('');
-}
-function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function nowDate(){ try { return new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'short'}); } catch(e){ return ''; } }
-
-/* Sheet helpers */
-function openSheet(html){
-  const back = document.createElement('div');
-  back.className = 'a2-sheet-back';
-  back.innerHTML = '<div class="a2-sheet"><div class="a2-sheet-handle"></div>'+html+'</div>';
-  document.body.appendChild(back);
-  back.addEventListener('click', e => { if (e.target === back) closeSheet(back); });
-  requestAnimationFrame(() => back.classList.add('in'));
-  return back;
-}
-function closeSheet(back){
-  back.classList.remove('in');
-  setTimeout(() => { if (back.parentNode) back.parentNode.removeChild(back); }, 300);
-}
-
-/* Kişi ekle sheet */
-function openAddContactSheet(){
-  const back = openSheet(
-    '<h3>Yeni kişi</h3>'+
-    '<div class="sub">Bir isim ve telefon numarası ekle. Akvaryumdaki balıklar bu kişiyle sohbet etmek için hazır.</div>'+
-    '<div class="a2-field"><label>İsim</label><input id="acName" type="text" placeholder="Örn. Ahmet Yılmaz" autocomplete="off" /></div>'+
-    '<div class="a2-field"><label>Telefon</label><input id="acPhone" type="tel" inputmode="tel" placeholder="+90 555 123 45 67" /></div>'+
-    '<div class="a2-sheet-actions">'+
-      '<button class="a2-btn ghost" id="acCancel">Vazgeç</button>'+
-      '<button class="a2-btn primary" id="acSave">Kaydet</button>'+
-    '</div>'
-  );
-  const nameEl = back.querySelector('#acName');
-  const phoneEl = back.querySelector('#acPhone');
-  setTimeout(() => nameEl.focus(), 200);
-  back.querySelector('#acCancel').onclick = () => closeSheet(back);
-  function save(){
-    const name = (nameEl.value||'').trim();
-    const phone = (phoneEl.value||'').trim();
-    if (!name){ nameEl.style.borderColor = '#ff6a85'; setTimeout(()=>nameEl.style.borderColor='',1200); nameEl.focus(); return; }
-    const items = readContacts();
-    items.unshift({
-      id: 'c-' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-      name, phone, added: nowDate()
-    });
-    writeContacts(items);
-    renderContacts();
-    a2Notify({ title:'Kişiler · Sohbeto', text:name+' kişilere eklendi.', duration:1600 });
-    closeSheet(back);
-  }
-  back.querySelector('#acSave').onclick = save;
-  [nameEl, phoneEl].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') save(); }));
-}
-
-/* Grup oluştur sheet */
-function openAddGroupSheet(){
-  const contacts = readContacts();
-  const pickerHtml = contacts.length
-    ? '<div class="a2-picker" id="agPicker">' + contacts.map((c,i) =>
-        '<div class="a2-pick-row" data-id="'+c.id+'">'+
-          '<div class="av '+avClass(i)+'">'+initials(c.name)+'</div>'+
-          '<div class="nm">'+escapeHtml(c.name)+'</div>'+
-          '<div class="ck">✓</div>'+
-        '</div>'
-      ).join('') + '</div>'
-    : '<div class="a2-picker"><div class="a2-picker-empty">Önce Kişiler sekmesinden kişi ekle.</div></div>';
-  const back = openSheet(
-    '<h3>Yeni grup</h3>'+
-    '<div class="sub">Bir isim ver ve aşağıdaki kişilerden üye seç.</div>'+
-    '<div class="a2-field"><label>Grup adı</label><input id="agName" type="text" placeholder="Örn. Aile" autocomplete="off" /></div>'+
-    '<div class="a2-field"><label>Üyeler</label>'+pickerHtml+'</div>'+
-    '<div class="a2-sheet-actions">'+
-      '<button class="a2-btn ghost" id="agCancel">Vazgeç</button>'+
-      '<button class="a2-btn primary" id="agSave">Oluştur</button>'+
-    '</div>'
-  );
-  const nameEl = back.querySelector('#agName');
-  setTimeout(() => nameEl.focus(), 200);
-  back.querySelectorAll('.a2-pick-row').forEach(r => {
-    r.addEventListener('click', () => r.classList.toggle('on'));
-  });
-  back.querySelector('#agCancel').onclick = () => closeSheet(back);
-  function save(){
-    const name = (nameEl.value||'').trim();
-    if (!name){ nameEl.style.borderColor = '#ff6a85'; setTimeout(()=>nameEl.style.borderColor='',1200); nameEl.focus(); return; }
-    const selected = [...back.querySelectorAll('.a2-pick-row.on')].map(r => r.dataset.id);
-    const items = readGroups();
-    items.unshift({
-      id: 'g-' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-      name, members: selected, added: nowDate()
-    });
-    writeGroups(items);
-    renderGroups();
-    a2Notify({ title:'Gruplar · Sohbeto', text:'"'+name+'" grubu oluşturuldu ('+selected.length+' üye).', duration:1800 });
-    closeSheet(back);
-  }
-  back.querySelector('#agSave').onclick = save;
-  nameEl.addEventListener('keydown', e => { if (e.key === 'Enter') save(); });
-}
-
-document.getElementById('addContactBtn').addEventListener('click', openAddContactSheet);
-document.getElementById('addGroupBtn').addEventListener('click', openAddGroupSheet);
-document.getElementById('peopleSearch').addEventListener('input', e => renderContacts(e.target.value));
-document.getElementById('groupsSearch').addEventListener('input', e => renderGroups(e.target.value));
 
 /* Sohbet ekranı geri */
 document.getElementById('backToChats').addEventListener('click', () => goTo('chats'));
