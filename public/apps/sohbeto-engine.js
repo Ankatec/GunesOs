@@ -1,6 +1,6 @@
 // ===== CACHE BUST: Force reload if stale version detected =====
 (function(){
-    var VER = 'v2026_05_16_call_bridge_sync_1';
+    var VER = 'v2026_05_19_inbox_flow_fix_3';
     try {
         var stored = sessionStorage.getItem('_sp_ver');
         if (stored && stored !== VER) {
@@ -26,7 +26,7 @@ const CONFIG = {
         { urls: "turn:openrelay.metered.ca:80",  username: "openrelayproject", credential: "openrelayproject" },
         { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" }
     ],
-    virtualNo: "", seed: "", connectionId: ""
+    virtualNo: "", seed: "", connectionId: "", forceRandomPeerId: false
 };
 
 const SOHBETO_TAB_ID = (() => {
@@ -334,7 +334,8 @@ function nameWithKnownNumber(connId, name) {
 }
 function getDisplayName(connId, fallbackNick) {
     const profile = getPeerProfile(connId);
-    if (profile?.name) return nameWithKnownNumber(connId, profile.name);
+    if (profile?.name) return profile.number ? `${profile.name} [${profile.number}]` : nameWithKnownNumber(connId, profile.name);
+    if (profile?.number) return profile.number;
     const contact = getContactByConnId(connId);
     const fromState = state.users.get(connId) || '';
     const cleanFallback = String(fallbackNick || '').replace(/^P2P$/i, '').trim();
@@ -344,6 +345,21 @@ function getDisplayName(connId, fallbackNick) {
     if (cleanState) return cleanState;
     if (contact?.number) return contact.number;
     return connId.substring(0, 10);
+}
+function getPeerNumber(connId) {
+    const profile = getPeerProfile(connId);
+    if (profile?.number) return normalizeNumber(profile.number);
+    const contact = getContactByConnId(connId);
+    if (contact?.number) return normalizeNumber(contact.number);
+    const fromState = getStoredNumberFromNick(state.users.get(connId));
+    if (fromState) return normalizeNumber(fromState);
+    const digits = String(connId || '').replace(/^sohbeto-/, '').replace(/[^\d]/g, '');
+    return digits.length >= 7 ? normalizeNumber(digits) : '';
+}
+function conversationKeyForConn(connId) {
+    if (!connId || connId === 'HERKES' || connId === 'genel') return 'genel';
+    const num = getPeerNumber(connId);
+    return num ? 'num:' + num.replace(/[^\d]/g, '') : connId;
 }
 function getAvatarContent(connId, fallbackNick) {
     const profile = getPeerProfile(connId);
@@ -364,21 +380,35 @@ function decodeProfileUpdatePacket(packet) {
     try {
         const raw = packet.substring('PROFILE_UPDATE###'.length);
         const parsed = JSON.parse(base64ToUtf8(raw));
-        return { name: cleanProfileName(parsed.name), emoji: String(parsed.emoji || '👤').substring(0, 4), image: sanitizeProfileImage(parsed.image), bio: String(parsed.bio || '').substring(0, 120) };
+        return { name: cleanProfileName(parsed.name), number: normalizeNumber(parsed.number || ''), emoji: String(parsed.emoji || '👤').substring(0, 4), image: sanitizeProfileImage(parsed.image), bio: String(parsed.bio || '').substring(0, 120) };
     } catch (e) {
         const parts = packet.split('###');
-        return { name: cleanProfileName(parts[1]), emoji: String(parts[2] || '👤').substring(0, 4), image: sanitizeProfileImage(parts[3]), bio: '' };
+        return { name: cleanProfileName(parts[1]), number: '', emoji: String(parts[2] || '👤').substring(0, 4), image: sanitizeProfileImage(parts[3]), bio: '' };
     }
 }
 function applyPeerProfileUpdate(connId, profile) {
     if (!connId || !profile) return;
     if (!state.peerProfiles) state.peerProfiles = {};
-    const normalized = { name: cleanProfileName(profile.name), emoji: profile.emoji || '👤', image: sanitizeProfileImage(profile.image), bio: profile.bio || '' };
+    const normalized = { name: cleanProfileName(profile.name), number: normalizeNumber(profile.number || ''), emoji: profile.emoji || '👤', image: sanitizeProfileImage(profile.image), bio: profile.bio || '' };
     state.peerProfiles[connId] = normalized;
-    if (normalized.name) state.users.set(connId, nameWithKnownNumber(connId, normalized.name));
+    if (normalized.number) {
+        const contact = getContactByNumber(normalized.number);
+        if (contact) {
+            contact.connId = connId;
+            contact.lastSeen = Date.now();
+            contactsState.byNumber.set(contact.number, contact);
+            dbSaveContact(contact);
+        }
+        state.users.set(connId, `${normalized.name || contact?.name || normalized.number} [${normalized.number}]`);
+    } else if (normalized.name) state.users.set(connId, nameWithKnownNumber(connId, normalized.name));
     persistPeerProfiles();
     updateUI();
     refreshLiveScreensForPeer(connId);
+    try {
+        if (window.SohbetoExtras && typeof window.SohbetoExtras.normalizePeerRecords === 'function') {
+            window.SohbetoExtras.normalizePeerRecords(connId);
+        }
+    } catch(e) {}
 }
 
 // Aktif/incoming call ekranlarındaki avatar+isim, sohbet topbar'ı, kişi kartı ve info modalı
@@ -418,7 +448,7 @@ function createProfileUpdatePacket(includeImage = true) {
     // Adapter notu: 'Kullanıcı' lekesi olmasın diye boş gönderiyoruz; alıcı tarafta resolveDisplayName numara/rehber adına düşer.
     var __rawNick = cleanProfileName(state.nick);
     if (__rawNick === 'Kullanıcı') __rawNick = '';
-    const payload = { name: __rawNick, emoji: state.profileEmoji || '👤', image: includeImage ? sanitizeProfileImage(state.profileImage) : '', bio: state.bio || '' };
+    const payload = { name: __rawNick, number: CONFIG.virtualNo || '', emoji: state.profileEmoji || '👤', image: includeImage ? sanitizeProfileImage(state.profileImage) : '', bio: state.bio || '' };
     return 'PROFILE_UPDATE###' + utf8ToBase64(JSON.stringify(payload));
 }
 function sendDataChannelText(targetConnId, text) {
@@ -480,7 +510,16 @@ function getTargetB64(connId) { if (connId === "HERKES") return "HERKES"; return
 // düz `sendWhenP2PReady` ile aynı işi yapıyor.
 function sendSecureP2PWhenReady(targetConnId, payload, label, onSent, attempts = 24) {
     if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) { if (onSent) onSent(false); return false; }
-    if (sendDataChannelText(targetConnId, payload)) {
+    const sendOrderedPayload = () => {
+        if (typeof payload === 'string' && !payload.startsWith('PROFILE_UPDATE###')) {
+            // Aynı hesap farklı cihaz/sekmede rastgele PeerJS ID alabilir. Her mesaj/arama
+            // sinyalinden hemen önce kimliği aynı ordered DataChannel içinde gönderiyoruz;
+            // alıcı taraf karar verirken connId yerine gerçek telefon numarasını biliyor.
+            sendDataChannelText(targetConnId, createProfileUpdatePacket(false));
+        }
+        return sendDataChannelText(targetConnId, payload);
+    };
+    if (sendOrderedPayload()) {
         if (label) log(`[P2P →] ${label}`, '#22c55e');
         if (onSent) onSent(true);
         return true;
@@ -488,7 +527,7 @@ function sendSecureP2PWhenReady(targetConnId, payload, label, onSent, attempts =
     try { initP2P(targetConnId); } catch(e) {}
     let left = attempts;
     const timer = setInterval(() => {
-        if (sendDataChannelText(targetConnId, payload)) {
+        if (sendOrderedPayload()) {
             clearInterval(timer);
             if (label) log(`[P2P →] ${label}`, '#22c55e');
             if (onSent) onSent(true);
@@ -815,7 +854,7 @@ async function handleP2PMsg(senderConnId, data) {
         const peer = peers[senderConnId];
         if (peer?.dc?.readyState === 'open') {
             peer.dc.send(`MSG_ACK###${mid}###DELIVERED`);
-            if (state.chatMode === 'chat' && state.activeChat === senderConnId) setTimeout(() => peer.dc.send(`MSG_ACK###${mid}###READ`), 300);
+            if (isActiveConversationId(senderConnId)) setTimeout(() => peer.dc.send(`MSG_ACK###${mid}###READ`), 300);
         }
         return;
     }
@@ -846,7 +885,10 @@ function makeDcShim(conn) {
 function bindPeerJSConnection(connId, conn, direction) {
     conn.on('open', () => {
         log(`P2P aktif (${direction})`, "#22c55e");
-        if (!state.users.has(connId)) {
+        const knownNumber = getPeerNumber(connId);
+        if (knownNumber) {
+            state.users.set(connId, `${knownNumber} [${knownNumber}]`);
+        } else if (!state.users.has(connId)) {
             const guess = String(connId || '').replace(/^sohbeto-/, '');
             state.users.set(connId, guess || connId.substring(0, 10));
         }
@@ -973,9 +1015,10 @@ function connectPeer(onReady) {
         setTimeout(() => connectPeer(onReady), 2000);
         return;
     }
-    // ID: numaraya bağlı (sohbeto-NUMARA). Numara yoksa rastgele oturum ID'si.
-    // ÖNEMLİ: PeerJS sunucusu ID'de '+' kabul etmez → peerIdFromNumber kullan.
-    const myId = CONFIG.virtualNo
+    // ID: normalde numaraya bağlıdır (sohbeto-NUMARA). Aynı numara iki sekmede/PWA+web'de
+    // aynı anda açıksa PeerJS aynı ID'yi vermez; o durumda sadece bu oturum rastgele ID alır
+    // ama profil paketinde gerçek numarayı taşır, böylece karşı tarafta tek kişi olarak birleşir.
+    const myId = (CONFIG.virtualNo && !CONFIG.forceRandomPeerId)
         ? peerIdFromNumber(CONFIG.virtualNo)
         : `${CONFIG.peerPrefix}t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
@@ -1048,7 +1091,7 @@ function connectPeer(onReady) {
         if (t === 'peer-unavailable') return;
         // ID çakışması: rastgele ID ile tekrar dene
         if (t === 'unavailable-id') {
-            CONFIG.virtualNo = '';
+            CONFIG.forceRandomPeerId = true;
             setTimeout(() => connectPeer(onReady), 1500);
             return;
         }
@@ -1071,12 +1114,12 @@ function updateTopbarStatus(online) {
 function getChatIdForMsg(targetConnId, senderConnId, isOwn) {
     // Returns the conversation ID this message belongs to
     if (targetConnId === "HERKES") return "genel";
-    if (isOwn) return targetConnId; // own private message belongs to the target's chat
-    return senderConnId; // incoming private message belongs to sender's chat
+    if (isOwn) return conversationKeyForConn(targetConnId); // own private message belongs to the target's chat
+    return conversationKeyForConn(senderConnId); // incoming private message belongs to sender's chat
 }
 
-function shouldRenderInActiveChat(chatId) {
-    return state.chatMode === 'chat' && state.activeChat === chatId;
+function isActiveConversationId(connId) {
+    return state.chatMode === 'chat' && conversationKeyForConn(state.activeChat) === conversationKeyForConn(connId);
 }
 
 function appendMsgToDOM(div) {
@@ -1111,7 +1154,7 @@ function renderOwnMsg(targetConnId, text, msgId, isP2P) {
     const div = buildOwnMsgEl(text, msgId, isP2P, timeStr, 'sent');
 
     // Only render in DOM if this chat is currently active
-    if (shouldRenderInActiveChat(chatId)) {
+    if (isActiveConversationId(targetConnId)) {
         appendMsgToDOM(div);
     }
     state.sentMsgs.set(msgId, { el: div, status: 'sent', chatId });
@@ -1130,7 +1173,7 @@ function renderIncomingMsg(senderConnId, targetConnId, text, isP2P, msgId) {
     const div = buildIncomingMsgEl(displaySender, text, isP2P, isPrivate, timeStr, msgId);
 
     // Only render in DOM if this chat is currently active
-    if (shouldRenderInActiveChat(chatId)) {
+    if (isActiveConversationId(senderConnId)) {
         appendMsgToDOM(div);
     }
     playBeep(isPrivate);
@@ -1138,7 +1181,7 @@ function renderIncomingMsg(senderConnId, targetConnId, text, isP2P, msgId) {
     // Persist to IndexedDB
     dbSaveMessage(chatId, { text, ts, sender: displaySender, isOwn: false, isP2P, isPrivate, msgId });
 
-    if (isPrivate && !(state.chatMode === 'chat' && state.activeChat === senderConnId)) {
+    if (isPrivate && !isActiveConversationId(senderConnId)) {
         ozelSayac++;
         const badge = document.getElementById('convOzelBadge'); badge.innerText = ozelSayac; badge.classList.remove('hidden');
         const navBadge = document.getElementById('navBadgeSohbet'); navBadge.innerText = ozelSayac; navBadge.classList.remove('hidden');
@@ -1162,12 +1205,13 @@ function renderIncomingMsg(senderConnId, targetConnId, text, isP2P, msgId) {
 function updateConversation(connId, lastMsg, isOwn, isPrivate) {
     const nick = getDisplayName(connId);
     const now = new Date(); const timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-    const existing = state.conversations.get(connId);
-    const isActiveChat = state.chatMode === 'chat' && state.activeChat === connId;
+    const convId = conversationKeyForConn(connId);
+    const existing = state.conversations.get(convId);
+    const isActiveChat = isActiveConversationId(connId);
     const newUnread = isOwn || isActiveChat ? (existing?.unread || 0) : (existing?.unread || 0) + 1;
-    const conv = { nick, lastMsg: isOwn ? `Sen: ${lastMsg}` : lastMsg, time: timeStr, unread: newUnread, isPrivate, ts: Date.now() };
-    state.conversations.set(connId, conv);
-    if (isPrivate) dbSaveConversation(connId, conv);
+    const conv = { nick, connId, lastMsg: isOwn ? `Sen: ${lastMsg}` : lastMsg, time: timeStr, unread: newUnread, isPrivate, ts: Date.now() };
+    state.conversations.set(convId, conv);
+    if (isPrivate) dbSaveConversation(convId, conv);
     renderConvList();
 }
 
@@ -1176,8 +1220,9 @@ function renderConvList() {
     genelList.innerHTML = ''; ozelList.innerHTML = '';
     // Genel Sohbet artık varsayılan olarak gösterilmiyor.
     let ozelCount = 0;
-    state.conversations.forEach((conv, connId) => {
+    state.conversations.forEach((conv, convId) => {
         if (!conv.isPrivate) return; ozelCount++;
+        const connId = conv.connId || convId;
         const displayNick = getDisplayName(connId, conv.nick);
         const d = document.createElement('div'); d.className = 'conv-item';
         d.innerHTML = `<div class="conv-avatar ${getAvatarColor(displayNick)}" data-card-trigger="1" style="cursor:pointer">${getAvatarContent(connId, displayNick)}</div><div class="conv-info"><div class="conv-name">${escapeHtml(displayNick)}</div><div class="conv-preview">${escapeHtml(conv.lastMsg)}</div></div><div class="conv-meta"><div class="conv-time">${conv.time}</div>${conv.unread > 0 ? `<div class="conv-unread">${conv.unread}</div>` : ''}</div>`;
@@ -1194,6 +1239,7 @@ function getInitials(name) { const clean = name.replace(/\[.*?\]/g, '').trim(); 
 // ==================== SWIPE NAVIGATION ====================
 async function openChat(id) {
     state.chatMode = 'chat'; state.activeChat = id; state.target = id === 'genel' ? 'HERKES' : id;
+    const chatId = id === 'genel' ? 'genel' : conversationKeyForConn(id);
     const displayNick = id === 'genel' ? 'Genel Sohbet' : getDisplayName(id);
     const cleanName = displayNick.replace(/\[.*?\]/g, '').trim() || displayNick;
     document.getElementById('topbarTitle').innerText = cleanName;
@@ -1221,7 +1267,7 @@ async function openChat(id) {
     const prevBehavior = container.style.scrollBehavior;
     container.style.scrollBehavior = 'auto';
     container.innerHTML = '';
-    const msgs = await dbLoadMessages(id, 200);
+    const msgs = await dbLoadMessages(chatId, 200);
     if (msgs.length === 0) {
         container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#5a6a7e;font-size:12px;line-height:1.5">💬 Henüz mesaj yok<br><span style="font-size:10px">İlk mesajı siz gönderin</span></div>';
     } else {
@@ -1233,8 +1279,8 @@ async function openChat(id) {
             if (m.isOwn) {
                 el = buildOwnMsgEl(m.text, m.msgId, m.isP2P, timeStr, m.status || 'sent');
                 if (m.msgId) {
-                    const existing = state.sentMsgs.get(m.msgId);
-                    if (existing) { existing.el = el; } else { state.sentMsgs.set(m.msgId, { el, status: m.status || 'sent', chatId: id }); }
+                        const existing = state.sentMsgs.get(m.msgId);
+                        if (existing) { existing.el = el; } else { state.sentMsgs.set(m.msgId, { el, status: m.status || 'sent', chatId }); }
                 }
             } else {
                 el = buildIncomingMsgEl(m.sender || 'Bilinmiyor', m.text, m.isP2P, m.isPrivate, timeStr, m.msgId);
@@ -1249,7 +1295,7 @@ async function openChat(id) {
         requestAnimationFrame(() => { container.scrollTop = container.scrollHeight; container.style.scrollBehavior = prevBehavior || ''; });
     }
 
-    if (id !== 'genel') { const conv = state.conversations.get(id); if (conv) { conv.unread = 0; renderConvList(); dbSaveConversation(id, conv); } switchConvTab('ozel'); }
+    if (id !== 'genel') { const conv = state.conversations.get(chatId); if (conv) { conv.unread = 0; renderConvList(); dbSaveConversation(chatId, conv); } switchConvTab('ozel'); }
     document.getElementById('pageConvList').className = 'swipe-page left';
     document.getElementById('pageChat').className = 'swipe-page center';
 }
@@ -1601,7 +1647,7 @@ function renderOwnVoice(targetConnId, blobUrl, durSec, msgId) {
     const now = new Date(ts);
     const timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
     const el = buildVoiceMsgEl('SEN', blobUrl, durSec, true, true, timeStr, msgId);
-    if (shouldRenderInActiveChat(chatId)) appendMsgToDOM(el);
+    if (isActiveConversationId(targetConnId)) appendMsgToDOM(el);
     state.sentMsgs.set(msgId, { el, status: 'sent', chatId });
     const previewText = `🎤 Sesli mesaj (${durSec}s)`;
     dbSaveMessage(chatId, { text: previewText, ts, sender: 'SEN', isOwn: true, isP2P: true, isPrivate, msgId, status: 'sent' });
@@ -1615,11 +1661,11 @@ function renderIncomingVoice(senderConnId, blobUrl, durSec) {
     const timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
     const displaySender = getDisplayName(senderConnId);
     const el = buildVoiceMsgEl(displaySender, blobUrl, durSec, false, true, timeStr, null);
-    if (shouldRenderInActiveChat(chatId)) appendMsgToDOM(el);
+    if (isActiveConversationId(senderConnId)) appendMsgToDOM(el);
     playBeep(true);
     const previewText = `🎤 Sesli mesaj (${durSec}s)`;
     dbSaveMessage(chatId, { text: previewText, ts, sender: displaySender, isOwn: false, isP2P: true, isPrivate: true });
-    if (!(state.chatMode === 'chat' && state.activeChat === senderConnId)) {
+    if (!isActiveConversationId(senderConnId)) {
         ozelSayac++;
         const badge = document.getElementById('convOzelBadge'); if (badge) { badge.innerText = ozelSayac; badge.classList.remove('hidden'); }
         const navBadge = document.getElementById('navBadgeSohbet'); if (navBadge) { navBadge.innerText = ozelSayac; navBadge.classList.remove('hidden'); }
@@ -1722,7 +1768,7 @@ async function deleteContactFromCard() {
     contactsState.byNumber.delete(c.number);
     await dbDeleteContact(c.number);
     closeContactCard();
-    if (state.chatMode === 'chat' && state.activeChat === connId) backToList();
+    if (isActiveConversationId(connId)) backToList();
     updateUI();
     log(`Kişi silindi: ${c.name || c.number}`, '#ef4444');
 }

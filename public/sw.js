@@ -8,7 +8,7 @@
  * scope ile uyumlu bir path'ten servis edilmelidir.
  * Örn: /gunesos/sw.js  → register('/gunesos/sw.js', { scope: '/gunesos/' })
  */
-const VERSION = "v1.0.4";
+const VERSION = "v1.0.6";
 const PRECACHE = `gunesos-precache-${VERSION}`;
 const RUNTIME_HTML = `gunesos-html-${VERSION}`;
 const RUNTIME_ASSETS = `gunesos-assets-${VERSION}`;

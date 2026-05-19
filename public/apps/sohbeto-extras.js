@@ -481,22 +481,98 @@
     } catch (e) {}
     return out;
   }
+  function contactForNumber(num) {
+    if (!num) return null;
+    try { if (typeof getContactByNumber === 'function') return getContactByNumber(num); } catch (e) {}
+    try {
+      var wanted = cleanNumberForKey(num);
+      var found = null;
+      if (typeof contactsState !== 'undefined' && contactsState && contactsState.byNumber) {
+        contactsState.byNumber.forEach(function (c) {
+          if (!found && c && cleanNumberForKey(c.number) === wanted) found = c;
+        });
+      }
+      return found;
+    } catch (e) { return null; }
+  }
+  function contactForConnId(connId) {
+    try { if (typeof getContactByConnId === 'function') return getContactByConnId(connId); } catch (e) {}
+    try {
+      var found = null;
+      if (typeof contactsState !== 'undefined' && contactsState && contactsState.byNumber) {
+        contactsState.byNumber.forEach(function (c) {
+          if (!found && c && c.connId === connId) found = c;
+        });
+      }
+      return found;
+    } catch (e) { return null; }
+  }
+  function shouldKeepCallLogEntry(c) {
+    if (!c || c.direction === 'outgoing' || c.isOwn) return false;
+    if (c.connId && contactForConnId(c.connId)) return true;
+    var n = c.number || peerNumber(c.connId);
+    return !!contactForNumber(n);
+  }
+  function normalizeCallsLog(arr) {
+    var out = [], changed = false;
+    (arr || []).forEach(function (raw) {
+      var c = Object.assign({}, raw || {});
+      if (!shouldKeepCallLogEntry(c)) { changed = true; return; }
+      var contact = contactForConnId(c.connId) || contactForNumber(c.number || peerNumber(c.connId));
+      if (contact && !c.number) { c.number = contact.number; changed = true; }
+      if (contact && (!c.name || c.name === c.number || /^bilinmeyen$/i.test(String(c.name)))) { c.name = contact.name || contact.number; changed = true; }
+      if (c.callType && !c.kind) { c.kind = c.callType; changed = true; }
+      if (c.kind === 'call') { c.kind = c.callType || 'audio'; changed = true; }
+      c.direction = 'incoming';
+      out.push(c);
+    });
+    return { arr: out, changed: changed || out.length !== (arr || []).length };
+  }
+  function saveCallsLog(arr) {
+    if (!window.GunesOSStore) return Promise.resolve(false);
+    return window.GunesOSStore.set(callsPath(), arr);
+  }
   function loadCallsLog() {
     if (!window.GunesOSStore) return Promise.resolve([]);
     return window.GunesOSStore.get(callsPath()).then(function (v) {
-      return Array.isArray(v) ? v : [];
+      var normalized = normalizeCallsLog(Array.isArray(v) ? v : []);
+      if (normalized.changed) saveCallsLog(normalized.arr);
+      return normalized.arr;
     });
   }
   function clearCallsLog() {
     if (!window.GunesOSStore) return Promise.resolve(false);
-    return window.GunesOSStore.set(callsPath(), []);
+    return saveCallsLog([]);
+  }
+  function callLogKey(c) {
+    var n = cleanNumberForKey(c && (c.number || peerNumber(c.connId)));
+    var t = (c && (c.kind || c.callType)) || 'audio';
+    return (n ? 'n:' + n : 'c:' + ((c && c.connId) || '')) + ':' + t;
+  }
+  function appendCallLog(entry) {
+    var incoming = Object.assign({ ts: Date.now(), seen: false, direction: 'incoming' }, entry || {});
+    var contact = contactForConnId(incoming.connId) || contactForNumber(incoming.number || peerNumber(incoming.connId));
+    if (!contact) return Promise.resolve(false);
+    if (!incoming.number) incoming.number = contact.number;
+    if (!incoming.name || incoming.name === incoming.number || /^bilinmeyen$/i.test(String(incoming.name))) incoming.name = contact.name || contact.number;
+    incoming.kind = incoming.callType || incoming.kind || 'audio';
+    return loadCallsLog().then(function (arr) {
+      var key = callLogKey(incoming);
+      arr = arr.filter(function (x) { return !(callLogKey(x) === key && Math.abs((incoming.ts || 0) - (x.ts || 0)) < 3000); });
+      arr.unshift(incoming);
+      if (arr.length > 200) arr = arr.slice(0, 200);
+      return saveCallsLog(arr);
+    });
   }
   function renderCalls() {
     var body = document.getElementById('calls-body');
     if (!body) return;
-    var fromAdapter = loadOfflineCallsFromAdapter();
+    // NOT: adapter "oo_offline_call_queue_v1__*" kuyruğu, BENİM yapıp ulaşamadığım
+    // GİDEN aramalardır. Bunları KENDİ gelen-arama isteklerim listesinde
+    // göstermek bug'dı (kullanıcı kendi aramasını "cevapsız" olarak görüyordu).
+    // Sadece gerçek gelen kayıtları (callsLog) gösteriyoruz.
     loadCallsLog().then(function (extra) {
-      var all = fromAdapter.concat(extra).sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+      var all = (extra || []).slice().sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
       if (!all.length) {
         body.innerHTML =
           '<div class="fs-empty">' +
@@ -512,7 +588,6 @@
       all.forEach(function (c) {
         var name = c.name || c.number || 'Bilinmeyen';
         var kind = c.kind === 'video' ? 'Görüntülü arama' : 'Sesli arama';
-        var initials = (name.match(/[A-Za-zÇĞİÖŞÜçğıöşü0-9]/) || [name.charAt(0) || '?'])[0].toUpperCase();
         html += '<div class="list-row">' +
                 '  <div class="lr-avatar danger"><i class="fa-solid fa-phone-slash"></i></div>' +
                 '  <div class="lr-info">' +
@@ -539,18 +614,70 @@
     if (!window.GunesOSStore) return Promise.resolve(false);
     return window.GunesOSStore.set(inboxPath(), arr);
   }
+  function normalizeInbox(arr) {
+    var seen = Object.create(null), out = [], changed = false;
+    (arr || []).forEach(function (raw) {
+      var e = Object.assign({}, raw || {});
+      var n = peerNumber(e.connId);
+      if (n && !e.number) { e.number = n; changed = true; }
+      var nm = peerDisplayName(e.connId).replace(/\[.*?\]/g, '').trim();
+      if (nm && (!e.name || /^sohbeto-t|^tmp|bilinmeyen$/i.test(String(e.name)))) { e.name = nm; changed = true; }
+      var key = entryKey(e);
+      if (key && seen[key]) { changed = true; return; }
+      if (key) seen[key] = true;
+      out.push(e);
+    });
+    return { arr: out, changed: changed || out.length !== (arr || []).length };
+  }
   function appendInbox(entry) {
     return loadInbox().then(function (arr) {
-      arr.unshift(Object.assign({ ts: Date.now(), seen: false }, entry || {}));
+      arr = normalizeInbox(arr).arr;
+      var incoming = Object.assign({ ts: Date.now(), seen: false }, entry || {});
+      var n = incoming.number || peerNumber(incoming.connId);
+      if (n) incoming.number = n;
+      var nm = peerDisplayName(incoming.connId).replace(/\[.*?\]/g, '').trim();
+      if (nm && (!incoming.name || /^sohbeto-t|^tmp|bilinmeyen$/i.test(String(incoming.name)))) incoming.name = nm;
+      var key = entryKey(incoming);
+      if (key) arr = arr.filter(function (x) { return entryKey(x) !== key; });
+      arr.unshift(incoming);
       // En fazla son 200 kayıt
       if (arr.length > 200) arr = arr.slice(0, 200);
       return saveInbox(arr);
     });
   }
+  function cleanNumberForKey(n) { return String(n || '').replace(/[^\d]/g, ''); }
+  function entryKey(e) {
+    if (!e) return '';
+    var num = cleanNumberForKey(e.number || peerNumber(e.connId));
+    var kind = e.kind || 'msg';
+    var subtype = kind === 'call' ? ':' + (e.callType || 'audio') : '';
+    if (num) return 'n:' + num + ':' + kind + subtype;
+    if (e.connId) return 'c:' + e.connId + ':' + kind + subtype;
+    return '';
+  }
+
+  function normalizePeerRecords(connId) {
+    return loadInbox().then(function (arr) {
+      var normalized = normalizeInbox(arr);
+      if (normalized.changed) return saveInbox(normalized.arr).then(function () { return normalized.arr; });
+      return normalized.arr;
+    }).then(function () {
+      try { updateBadges(); } catch (e) {}
+    });
+  }
+  function parseOfflineCallNotice(text) {
+    var s = String(text || '');
+    var m = s.match(/^Saat\s+(\d{2}:\d{2})\s+civarında\s+seni\s+(görüntülü arama|sesli arama)\s+ile\s+aradım\s+ama\s+çevrimdışıydın\.?$/i);
+    if (!m) return null;
+    return { at: m[1], callType: /görüntülü/i.test(m[2]) ? 'video' : 'audio' };
+  }
   function renderInbox() {
     var body = document.getElementById('inbox-body');
     if (!body) return;
     loadInbox().then(function (arr) {
+      var normalized = normalizeInbox(arr);
+      arr = normalized.arr;
+      if (normalized.changed) saveInbox(arr);
       if (!arr.length) {
         body.innerHTML =
           '<div class="fs-empty">' +
@@ -653,14 +780,34 @@
     } catch (e) { console.warn('[extras] openAddContact hata', e); }
   }
 
+  function openConvForEntry(entry) {
+    // Önce rehberde varsa contact üzerinden aç (LOOKUP + connId yenileme)
+    var contact = null;
+    try {
+      if (entry.number && typeof getContactByNumber === 'function') contact = getContactByNumber(entry.number);
+    } catch (e) {}
+    if (contact && typeof window.openContactByNumber === 'function') {
+      window.openContactByNumber(entry.number);
+      return true;
+    }
+    // Rehberde değil → direkt connId üzerinden sohbeti aç (engine kişiyi geçici user olarak tutar)
+    if (entry.connId && typeof window.openChat === 'function') {
+      try {
+        if (typeof switchView === 'function') switchView('sohbetler');
+        else if (window.switchView) window.switchView('sohbetler');
+      } catch (e) {}
+      try { window.openChat(entry.connId); } catch (e) {}
+      return true;
+    }
+    return false;
+  }
+
   function callBackEntry(entry) {
     try {
       closeAllFsScreens();
-      if (entry.number && typeof window.openContactByNumber === 'function') {
-        window.openContactByNumber(entry.number);
-      } else if (entry.connId && typeof window.openChat === 'function') {
-        window.openChat(entry.connId);
-      }
+      addAllowedEntry(entry);
+      var opened = openConvForEntry(entry);
+      if (!opened) return;
       setTimeout(function () {
         try {
           if (entry.callType === 'video' && typeof window.chatVideo === 'function') window.chatVideo();
@@ -673,15 +820,9 @@
   function replyEntry(entry) {
     try {
       // Kullanıcı yanıt veriyor → bu kişiye yazma izni ver.
-      // Bundan sonra gönderdiği mesajlar gelen kutusuna düşmeyecek, normal
-      // sohbet ekranında görünecek (rehbere eklenmesi gerekmez).
       addAllowedEntry(entry);
       closeAllFsScreens();
-      if (entry.number && typeof window.openContactByNumber === 'function') {
-        window.openContactByNumber(entry.number);
-      } else if (entry.connId && typeof window.openChat === 'function') {
-        window.openChat(entry.connId);
-      }
+      openConvForEntry(entry);
     } catch (e) {}
   }
   function markInboxSeen() {
@@ -706,16 +847,17 @@
       el.textContent = n > 9 ? '9+' : String(n);
       el.classList.toggle('show', n > 0);
     });
-    // Calls: son görülme tarihinden sonraki kayıtların sayısı
+    // Calls: callsLog'da seenTs'den yeni kayıt sayısı (giden başarısız aramalar dahil değil)
     var seenTs = 0;
     try { seenTs = parseInt(localStorage.getItem('sohbeto.extras.callsSeenTs') || '0', 10) || 0; } catch (e) {}
-    var calls = loadOfflineCallsFromAdapter();
-    var unread = calls.filter(function (c) { return (c.ts || 0) > seenTs; }).length;
-    var cb = document.getElementById('hdr-calls-badge');
-    if (cb) {
-      cb.textContent = unread > 9 ? '9+' : String(unread);
-      cb.classList.toggle('show', unread > 0);
-    }
+    loadCallsLog().then(function (calls) {
+      var unread = (calls || []).filter(function (c) { return (c.ts || 0) > seenTs; }).length;
+      var cb = document.getElementById('hdr-calls-badge');
+      if (cb) {
+        cb.textContent = unread > 9 ? '9+' : String(unread);
+        cb.classList.toggle('show', unread > 0);
+      }
+    });
   }
 
   // ----------------- Alt nav entegrasyonu -----------------
@@ -800,13 +942,15 @@
   // ----------------- TANIMA: connId rehberde mi? -----------------
   function isKnownConn(connId) {
     try {
+      var num = peerNumber(connId);
+      if (num && typeof getContactByNumber === 'function' && getContactByNumber(num)) return true;
       if (typeof getContactByConnId === 'function') {
         if (getContactByConnId(connId)) return true;
       }
       if (typeof contactsState !== 'undefined' && contactsState && contactsState.byNumber) {
         var found = false;
         contactsState.byNumber.forEach(function (c) {
-          if (!found && c && c.connId === connId) found = true;
+          if (!found && c && (c.connId === connId || (num && c.number === num))) found = true;
         });
         if (found) return true;
       }
@@ -819,9 +963,12 @@
   }
   function peerNumber(connId) {
     try {
+      if (typeof state !== 'undefined' && state && state.peerProfiles && state.peerProfiles[connId] && state.peerProfiles[connId].number) return state.peerProfiles[connId].number;
       var n = peerDisplayName(connId);
       var m = String(n || '').match(/\[(.*?)\]/);
       if (m && m[1]) return m[1];
+      var bare = String(n || '').replace(/[\s\-()]/g, '');
+      if (/^\+?\d{7,}$/.test(bare)) return n;
     } catch (e) {}
     return '';
   }
@@ -884,11 +1031,24 @@
       playInboxChime();
     }
 
+    function rememberKnownIncomingCall(senderConnId, type) {
+      var contact = contactForConnId(senderConnId) || contactForNumber(peerNumber(senderConnId));
+      if (!contact) return;
+      appendCallLog({
+        connId: senderConnId,
+        number: contact.number,
+        name: contact.name || contact.number,
+        kind: type || 'audio',
+        callType: type || 'audio',
+        direction: 'incoming'
+      }).then(updateBadges);
+    }
+
     // handleCallSignal sarmalayıcısı — showIncomingCall'a varmadan önce
     // bilinmeyen aranlardan gelen CALL_RING / CALL_RING_VIDEO sinyallerini yakala.
     if (typeof window.handleCallSignal === 'function' && !window.handleCallSignal.__extrasWrapped) {
       var origHandleCall = window.handleCallSignal;
-      window.handleCallSignal = function (senderConnId, text, viaP2P) {
+      var wrappedHandleCall = function (senderConnId, text, viaP2P) {
         try {
           if (typeof text === 'string' &&
               (text === 'CALL_RING' || text === 'CALL_RING_VIDEO') &&
@@ -896,16 +1056,21 @@
             var t = text === 'CALL_RING_VIDEO' ? 'video' : 'audio';
             rejectUnknownCall(senderConnId, t);
             return;
+          } else if (typeof text === 'string' &&
+              (text === 'CALL_RING' || text === 'CALL_RING_VIDEO')) {
+            rememberKnownIncomingCall(senderConnId, text === 'CALL_RING_VIDEO' ? 'video' : 'audio');
           }
         } catch (e) {}
         return origHandleCall.apply(this, arguments);
       };
-      window.handleCallSignal.__extrasWrapped = true;
+      wrappedHandleCall.__extrasWrapped = true;
+      window.handleCallSignal = wrappedHandleCall;
+      try { handleCallSignal = wrappedHandleCall; } catch (e) {}
     }
     // renderIncomingMsg(senderConnId, targetConnId, text, isP2P, msgId)
     if (typeof window.renderIncomingMsg === 'function' && !window.renderIncomingMsg.__extrasWrapped) {
       var origMsg = window.renderIncomingMsg;
-      window.renderIncomingMsg = function (senderConnId, targetConnId, text, isP2P, msgId) {
+      var wrappedIncomingMsg = function (senderConnId, targetConnId, text, isP2P, msgId) {
         try {
           // GROUP_INVITE protokolü: text "GROUP_INVITE_V2###groupId###name###members"
           var txt = String(text || '');
@@ -925,6 +1090,32 @@
             return;
           }
           var isPrivate = (targetConnId !== 'HERKES');
+          var offlineCallNotice = isPrivate ? parseOfflineCallNotice(txt) : null;
+          if (offlineCallNotice) {
+            var contactNotice = contactForConnId(senderConnId) || contactForNumber(peerNumber(senderConnId));
+            if (contactNotice) {
+              appendCallLog({
+                connId: senderConnId,
+                number: contactNotice.number,
+                name: contactNotice.name || contactNotice.number,
+                kind: offlineCallNotice.callType,
+                callType: offlineCallNotice.callType,
+                direction: 'incoming'
+              }).then(updateBadges);
+              return; // Rehberde kayıtlı kişinin "seni aradım" bildirimi telefon bölümüne gider.
+            }
+            // Rehberde olmayan biri bu otomatik bildirimi gönderirse ana sohbete düşürme.
+            var noticeName = peerDisplayName(senderConnId).replace(/\[.*?\]/g, '').trim();
+            appendInbox({
+              kind: 'call',
+              connId: senderConnId,
+              number: peerNumber(senderConnId),
+              name: noticeName || 'Bilinmeyen',
+              callType: offlineCallNotice.callType
+            }).then(updateBadges);
+            playInboxChime();
+            return;
+          }
           if (isPrivate && !isKnownConn(senderConnId) && !isAllowedConn(senderConnId)) {
             var nm = peerDisplayName(senderConnId).replace(/\[.*?\]/g, '').trim();
             appendInbox({
@@ -940,12 +1131,14 @@
         } catch (e) {}
         return origMsg.apply(this, arguments);
       };
-      window.renderIncomingMsg.__extrasWrapped = true;
+      wrappedIncomingMsg.__extrasWrapped = true;
+      window.renderIncomingMsg = wrappedIncomingMsg;
+      try { renderIncomingMsg = wrappedIncomingMsg; } catch (e) {}
     }
     // showIncomingCall(senderConnId, type)
     if (typeof window.showIncomingCall === 'function' && !window.showIncomingCall.__extrasWrapped) {
       var origCall = window.showIncomingCall;
-      window.showIncomingCall = function (senderConnId, type) {
+      var wrappedShowIncomingCall = function (senderConnId, type) {
         try {
           if (!isKnownConn(senderConnId)) {
             // Defense-in-depth: handleCallSignal gate'i atlamış olabilir
@@ -956,7 +1149,9 @@
         } catch (e) {}
         return origCall.apply(this, arguments);
       };
-      window.showIncomingCall.__extrasWrapped = true;
+      wrappedShowIncomingCall.__extrasWrapped = true;
+      window.showIncomingCall = wrappedShowIncomingCall;
+      try { showIncomingCall = wrappedShowIncomingCall; } catch (e) {}
     }
   }
 
@@ -1141,6 +1336,7 @@
     renderGroups: renderGroups,
     closeAll:   closeAllFsScreens,
     appendInbox: appendInbox,
+    normalizePeerRecords: normalizePeerRecords,
     playInboxChime: playInboxChime,
     appendGroupInvite: function (opts) {
       opts = opts || {};

@@ -356,9 +356,19 @@
       } catch (e) {}
       try {
         var st = getEngineState();
+        if (st && st.peerProfiles && st.peerProfiles[connId] && st.peerProfiles[connId].number) {
+          return String(st.peerProfiles[connId].number);
+        }
         var raw = st && st.users ? st.users.get(connId) : '';
-        var m = String(raw || '').match(/\[(.*?)\]/);
+        var s = String(raw || '');
+        var m = s.match(/\[(.*?)\]/);
         if (m && m[1]) return m[1];
+        // "Ad [num]" formatı yoksa: bazı durumlarda motor state.users içinde
+        // doğrudan ham telefon numarasını saklayabiliyor (örn. nick yokken
+        // username olarak numara geldiğinde). Aynı numaradan iki farklı
+        // bağlantı için ayrı sohbet kutusu açılmasın diye onu da yakala.
+        var bare = s.replace(/\[.*?\]/g, '').trim();
+        if (bare && /^\+?\d{7,}$/.test(bare.replace(/[\s\-()]/g, ''))) return bare;
       } catch (e) {}
       return '';
     }
@@ -447,6 +457,8 @@
       // state.conversations Map sırası = motorun render sırası (sadece isPrivate olanlar)
       var connIds = convMap ? Array.from(convMap.keys()).filter(function (k) {
         var c = convMap.get(k); return c && c.isPrivate;
+      }).map(function (k) {
+        var c = convMap.get(k); return (c && c.connId) || k;
       }) : [];
       var srcChildren = Array.from(src.children);
       var seen = Object.create(null);
@@ -458,9 +470,17 @@
         var display = resolveDisplayName(connId, rawName);
         // Adım 7: dedup ARTIK telefon numarası bazlı.
         // Aynı numaradan gelen mesajlar — karşı taraf adını/profilini değiştirmiş olsa bile —
-        // tek bir thread'de birikir. Numara çıkmazsa connId, o da yoksa son çare olarak isim.
-        var phoneKey = (phoneForConn(connId) || '').replace(/[^\d+]/g, '');
-        var key = phoneKey || ('cid:' + (connId || display.toLowerCase()));
+        // tek bir thread'de birikir. Numara çıkmazsa görünen ad (lowercase), o da
+        // yoksa son çare olarak connId. connId'yi son çare yapıyoruz çünkü
+        // farklı oturumlardan (PWA / web) aynı numaranın connId'si farklı olur
+        // ve eski kod onları iki ayrı kutu olarak gösteriyordu.
+        var phoneKey = normalizePhoneForAdapter(phoneForConn(connId) || '');
+        var nameKey = String(display || '').trim().toLocaleLowerCase('tr');
+        // Eğer display sade bir numaraysa onu da phoneKey'e çevir
+        if (!phoneKey && nameKey && /^\+?\d{7,}$/.test(nameKey.replace(/[\s\-()]/g, ''))) {
+          phoneKey = normalizePhoneForAdapter(nameKey);
+        }
+        var key = phoneKey || (nameKey ? ('nm:' + nameKey) : '') || ('cid:' + connId);
         if (seen[key]) return; // Aynı kişi için yeni kutu açma
         seen[key] = true;
         var clone = child.cloneNode(true);
@@ -1477,6 +1497,10 @@
         if (!number) return resolve(null);
         var options = opts || {};
         var normalized = normalizePhoneForAdapter(number);
+        var directPeerId = '';
+        try {
+          directPeerId = (typeof peerIdFromNumber === 'function') ? peerIdFromNumber(normalized) : ('sohbeto-' + normalized.replace(/\D/g, ''));
+        } catch (e) { directPeerId = 'sohbeto-' + normalized.replace(/\D/g, ''); }
         var startedAt = Date.now();
         var live = findLiveConnIdByNumber(number);
         var baseline = new Set(findAllConnIdsByNumber(number));
@@ -1485,12 +1509,15 @@
         try {
           if (typeof window.wsSend === 'function') window.wsSend('LOOKUP###' + number, 'HERKES');
         } catch (e) {}
+        try { if (directPeerId && typeof initP2P === 'function') initP2P(directPeerId); } catch (e) {}
         var elapsed = 0, step = 200;
         var t = setInterval(function () {
           var fresh = lookupReplyCache.get(normalized);
           var newest = findLiveConnIdByNumber(number);
           var changed = findAllConnIdsByNumber(number).find(function (id) { return !baseline.has(id); });
-          var id = fresh && fresh.ts >= startedAt - 50 ? fresh.connId : (options.forceFresh ? (changed || (newest && hasOpenP2P(newest) ? newest : null)) : newest);
+          var directReady = directPeerId && hasOpenP2P(directPeerId) ? directPeerId : null;
+          if (directReady) rememberLookupReply(normalized, directReady);
+          var id = fresh && fresh.ts >= startedAt - 50 ? fresh.connId : (options.forceFresh ? (changed || directReady || (newest && hasOpenP2P(newest) ? newest : null)) : (newest || directReady));
           elapsed += step;
           if (id) { clearInterval(t); resolve(id); }
           else if (elapsed >= (timeoutMs || 3000)) { clearInterval(t); resolve(null); }
@@ -1509,8 +1536,10 @@
         if (!connId) {
           if (c.connId) markConnOffline(c.connId, 'fresh-lookup-timeout-before-call');
           closeOOCallScreen();
-          enqueueOfflineCall(c, kind);
-          showCallToast('📵 ' + (c.name || c.number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.');
+          var queued = enqueueOfflineCall(c, kind);
+          showCallToast(queued
+            ? '📵 ' + (c.name || c.number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.'
+            : '📵 ' + (c.name || c.number || 'Kişi') + ' çevrimdışı.');
           return;
         }
       }
@@ -1547,8 +1576,10 @@
         var freshForCall = await lookupAndWait(number, 3500, { forceFresh: true });
         if (!freshForCall) {
           markConnOffline(connId, 'active-chat-fresh-lookup-timeout');
-          enqueueOfflineCall({ name: name, number: number, connId: connId }, kind);
-          showCallToast('📵 ' + (name || number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.');
+          var queuedActiveFresh = enqueueOfflineCall({ name: name, number: number, connId: connId }, kind);
+          showCallToast(queuedActiveFresh
+            ? '📵 ' + (name || number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.'
+            : '📵 ' + (name || number || 'Kişi') + ' çevrimdışı.');
           return;
         }
         connId = freshForCall;
@@ -1557,8 +1588,10 @@
         markConnOffline(connId, 'active-chat-stale-before-call');
         var refreshed = number ? (findLiveConnIdByNumber(number) || await lookupAndWait(number, 3500)) : null;
         if (!refreshed) {
-          enqueueOfflineCall({ name: name, number: number, connId: connId }, kind);
-          showCallToast('📵 ' + (name || number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.');
+          var queuedActiveStale = enqueueOfflineCall({ name: name, number: number, connId: connId }, kind);
+          showCallToast(queuedActiveStale
+            ? '📵 ' + (name || number || 'Kişi') + ' çevrimdışı. Çevrimiçi olduğunda otomatik haber vereceğiz.'
+            : '📵 ' + (name || number || 'Kişi') + ' çevrimdışı.');
           return;
         }
         connId = refreshed;
@@ -1678,11 +1711,50 @@
     function saveOfflineCallQueue(q) {
       try { localStorage.setItem(OFFLINE_CALL_KEY, JSON.stringify(q)); } catch (e) {}
     }
+    function purgeNonContactOfflineQueues() {
+      try {
+        for (var i = localStorage.length - 1; i >= 0; i--) {
+          var key = localStorage.key(i);
+          if (!key || key.indexOf('oo_offline_call_queue_v1__') !== 0) continue;
+          var arr = JSON.parse(localStorage.getItem(key) || '[]');
+          if (!Array.isArray(arr)) { localStorage.removeItem(key); continue; }
+          var kept = arr.filter(function (item) { return isSavedContactNumber(item && item.number); });
+          if (kept.length !== arr.length) localStorage.setItem(key, JSON.stringify(kept));
+        }
+      } catch (e) {}
+    }
+    function isSavedContactNumber(num) {
+      num = num ? String(num) : '';
+      if (!num) return false;
+      try {
+        var normalized = normalizePhoneForAdapter(num);
+        var stripped = num.replace(/\D/g, '');
+        if (typeof contactsState !== 'undefined' && contactsState && contactsState.byNumber) {
+          if (contactsState.byNumber.get(normalized) || contactsState.byNumber.get(stripped) || contactsState.byNumber.get(num)) return true;
+          var found = false;
+          contactsState.byNumber.forEach(function (rec) {
+            if (!found && rec && normalizePhoneForAdapter(rec.number) === normalized) found = true;
+          });
+          if (found) return true;
+        }
+        if (typeof getContactByNumber === 'function' && getContactByNumber(normalized)) return true;
+      } catch (e) {}
+      return false;
+    }
+
     function enqueueOfflineCall(c, kind) {
+      // Sadece rehberde olan kişilere "seni aradım, çevrimdışıydın" bildirimi
+      // yollanmalı. Rehberde olmayan birine bu mesaj atmak (üstelik daha sonra
+      // çevrimiçi olduğunda) kabul edilemez bir gizlilik/UX hatasıdır.
+      try {
+        if (!isSavedContactNumber(c && c.number)) return false; // rehberde değil → kuyruğa alma, otomatik mesaj yok
+      } catch (e) { return false; }
       var q = loadOfflineCallQueue();
       q.push({ name: c.name || '', number: c.number || '', kind: kind, ts: Date.now() });
       saveOfflineCallQueue(q);
+      return true;
     }
+    purgeNonContactOfflineQueues();
     function showCallToast(msg) {
       var t = document.createElement('div');
       t.textContent = msg;
@@ -1716,6 +1788,7 @@
           try {
             var p = (typeof peers !== 'undefined') ? peers : null;
             if (p && p[connId] && p[connId].dc && p[connId].dc.readyState === 'open') {
+              try { if (typeof createProfileUpdatePacket === 'function') p[connId].dc.send(createProfileUpdatePacket(false)); } catch (e) {}
               p[connId].dc.send('MSG###' + msgId + '###' + text);
               sent = true;
             }
@@ -2084,7 +2157,7 @@
       if (typeof orig !== 'function') {
         return setTimeout(patchHandleCallSignal, 200);
       }
-      window.handleCallSignal = function (senderConnId, text, viaP2P) {
+      var wrappedAdapterHandleCallSignal = function (senderConnId, text, viaP2P) {
         var incomingScr = document.getElementById('screen-ooIncoming');
         var wasIncomingOpen = !!(incomingScr && !incomingScr.classList.contains('hidden-screen'));
         try { orig.apply(this, arguments); } catch (e) { console.error('[adapter] handleCallSignal:', e); }
@@ -2112,6 +2185,8 @@
           }
         } catch (e) { console.warn('[adapter] handleCallSignal yan etki hata:', e); }
       };
+      window.handleCallSignal = wrappedAdapterHandleCallSignal;
+      try { handleCallSignal = wrappedAdapterHandleCallSignal; } catch (e) {}
     })();
 
     window.ooiAccept = function () {
