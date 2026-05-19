@@ -16,12 +16,16 @@
    ==================================================================== */
 
 const CONFIG = {
-    chatHost: "wss://web29.topsportlivers.com/imws",
-    countHost: "wss://web.topsportlivers.com/ws/realtime?K-Access-Token=eyJhbGciOiJSUzI1NiJ9.eyJLLUFjY2Vzcy1Ub2tlbiI6IntcImFnZW50XCI6XCJQQ1wiLFwiZGV2aWNlSWRcIjpcIlwiLFwiZ3Vlc3RcIjpmYWxzZSxcImlkXCI6XCIxOTYxMTE2MjA0NjI2MDg3OTM2XCIsXCJtb2JpbGVcIjpcIlwiLFwibW9iaWxlVXNlclwiOmZhbHNlLFwicGxhdGZvcm1cIjpcIlBDXCIsXCJ1c2VyVHlwZVwiOjEsXCJ1c2VybmFtZVwiOlwidmlzaXRvclwifSIsImp0aSI6IjUzYmE0MmZkLTNmN2ItNDJhYy04NTM2LTMwMzllZWExM2RmZSIsImV4cCI6MTc3NzY2OTIwMH0.aP-GObNZEMMlXwFXSqbQKBEDmCPbryo3C45cRRz4L1_zEpjkINdwpX6xPRIrGQcK74nFtX3a1vqLqrrYLf2g2FQvVmu7-i9f8arQhfOOaCY7hE8fapQxpWdK9L7YM5wR3JSC4Z_v978i8FpgKZchtn4f63d57ZauqvhusfVzP3zdXNBdA722_ukcOr3q_GJ0gBVwQgypOvvmj9YWFVsXJyuB_Rda3PjNua74wjQog7td_CYHw5olxCCV-NE2GOeT7mV-q88ixZIOwv7oPqVBYzlPpNR5dNmG5FSOre0ZdBBQDpPKryH38US0B_BTXVyPkESaE0WvWVvMJ-lk4qQbYw",
-    uid: "19de8146902528c0007220f",
-    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySUQiOiIxOWRlODE0NjkwMjUyOGMwMDA3MjIwZiIsIlBsYXRmb3JtSUQiOjUsImV4cCI6MTc4NTQ5MTE1NywiaWF0IjoxNzc3NzE1MTUyfQ.rN18KyaHTnOBS8yFmCXEYASKva85qHOIJb-iZ-m0X-s",
-    roomId: "14454688",
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    // PeerJS public sunucusu (ücretsiz, sınırlı kapasiteli). Kendi sunucumuzu
+    // ileride buradan değiştiririz. ID önekiyle namespace ayırıyoruz.
+    peerHost: "0.peerjs.com", peerPort: 443, peerPath: "/", peerSecure: true,
+    peerPrefix: "sohbeto-",
+    iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        // Open Relay Project — ücretsiz public TURN (NAT arkasındaki kullanıcılar için)
+        { urls: "turn:openrelay.metered.ca:80",  username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" }
+    ],
     virtualNo: "", seed: "", connectionId: ""
 };
 
@@ -46,7 +50,7 @@ const SOHBETO_TAB_ID = (() => {
 const SOHBETO_DB_NAME = 'EgaNetwork';
 function tabScopedKey(key) { return key; }
 
-let wsChat = null, wsCount = null, ozelSayac = 0;
+let peerObj = null, ozelSayac = 0;
 const state = {
     target: "HERKES", users: new Map(), currentConvTab: "genel", currentView: "sohbetler",
     chatMode: "list", activeChat: null, outboundQueue: new Map(), sentMsgs: new Map(),
@@ -263,6 +267,13 @@ function normalizeNumber(n) {
     else if (digits.startsWith('0090')) digits = digits.substring(2);
     return '+' + digits;
 }
+// PeerJS sunucusu ID'de '+' kabul etmiyor (regex: alphanumeric + hyphen/underscore).
+// Bu yüzden Peer ID için numarayı '+'siz/digit-only forma çeviriyoruz.
+// Örn: "+905551234567"  →  "sohbeto-905551234567"
+function peerIdFromNumber(num) {
+    const clean = String(num || '').replace(/[^\d]/g, '');
+    return clean ? `sohbeto-${clean}` : '';
+}
 async function dbSaveContact(c) {
     try { const db = await openDB(); return new Promise(r => { const tx = db.transaction("contacts","readwrite"); tx.objectStore("contacts").put(c); tx.oncomplete=()=>r(); tx.onerror=()=>r(); }); } catch(e){}
 }
@@ -460,158 +471,41 @@ function resizeProfileImage(file, maxSize = 256, quality = 0.72) {
 function getMyB64() { return btoa(encodeURIComponent(`P2P###${CONFIG.connectionId}###${CONFIG.virtualNo || ''}`)); }
 function getTargetB64(connId) { if (connId === "HERKES") return "HERKES"; return btoa(encodeURIComponent(`P2P###${connId}`)); }
 
-// ==================== AES-GCM + GZIP ENCRYPTION ====================
-// Flow: Data > Gzip > AES-256-GCM > Base64  (SEC###iv_b64###ct_b64)
-const _aesKeyCache = new Map();
+// ==================== TRANSPORT (PeerJS DataConnection) ====================
+// WebRTC DataChannel zaten DTLS-SRTP ile uçtan uca şifrelidir; üstüne AES
+// koymak gereksizdi. Bu yüzden eski AES-GCM + Gzip katmanı tamamen kaldırıldı.
+// Tüm özel mesajlar PeerJS bağlantısı üzerinden düz metin (JSON/string) gider.
 
-async function deriveSharedKey(peerConnId) {
-    if (_aesKeyCache.has(peerConnId)) return _aesKeyCache.get(peerConnId);
-    const ids = [CONFIG.connectionId, peerConnId].sort();
-    const sharedSecret = ids.join('::SohbetPro::');
-    const keyMaterial = await crypto.subtle.importKey(
-        'raw', new TextEncoder().encode(sharedSecret), 'PBKDF2', false, ['deriveKey']
-    );
-    const key = await crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: new TextEncoder().encode('SohbetProAES256v1'), iterations: 100000, hash: 'SHA-256' },
-        keyMaterial, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
-    );
-    _aesKeyCache.set(peerConnId, key);
-    return key;
-}
-
-async function gzipCompress(text) {
-    try {
-        if (typeof CompressionStream === 'undefined') return new TextEncoder().encode(text);
-        const cs = new CompressionStream('gzip');
-        const writer = cs.writable.getWriter();
-        const reader = cs.readable.getReader();
-        writer.write(new TextEncoder().encode(text));
-        writer.close();
-        const chunks = [];
-        while (true) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
-        const totalLen = chunks.reduce((a, c) => a + c.length, 0);
-        const result = new Uint8Array(totalLen);
-        let offset = 0;
-        for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
-        return result;
-    } catch (e) { return new TextEncoder().encode(text); }
-}
-
-async function gzipDecompress(data) {
-    try {
-        if (typeof DecompressionStream === 'undefined') return new TextDecoder().decode(data);
-        const ds = new DecompressionStream('gzip');
-        const writer = ds.writable.getWriter();
-        const reader = ds.readable.getReader();
-        writer.write(data);
-        writer.close();
-        const chunks = [];
-        while (true) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
-        const totalLen = chunks.reduce((a, c) => a + c.length, 0);
-        const result = new Uint8Array(totalLen);
-        let offset = 0;
-        for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
-        return new TextDecoder().decode(result);
-    } catch (e) { return new TextDecoder().decode(data); }
-}
-
-async function secureEncode(plaintext, peerConnId) {
-    // Data > Gzip > AES-GCM > Base64
-    const compressed = await gzipCompress(plaintext);
-    const key = await deriveSharedKey(peerConnId);
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, compressed);
-    const ivB64 = btoa(String.fromCharCode(...iv));
-    const encB64 = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
-    return `SEC###${ivB64}###${encB64}`;
-}
-
-async function secureDecode(encoded, peerConnId) {
-    // Base64 > AES-GCM > Gzip > Data
-    if (!encoded.startsWith('SEC###')) return encoded;
-    const parts = encoded.split('###');
-    if (parts.length < 3) return encoded;
-    try {
-        const iv = Uint8Array.from(atob(parts[1]), c => c.charCodeAt(0));
-        const encData = Uint8Array.from(atob(parts[2]), c => c.charCodeAt(0));
-        const key = await deriveSharedKey(peerConnId);
-        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encData);
-        return await gzipDecompress(new Uint8Array(decrypted));
-    } catch (e) {
-        log("Şifre çözme hatası", "#ef4444");
-        return null;
+// Geriye uyumluluk: eski kodda `sendSecureP2PWhenReady` çağrıları var. Şimdi
+// düz `sendWhenP2PReady` ile aynı işi yapıyor.
+function sendSecureP2PWhenReady(targetConnId, payload, label, onSent, attempts = 24) {
+    if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) { if (onSent) onSent(false); return false; }
+    if (sendDataChannelText(targetConnId, payload)) {
+        if (label) log(`[P2P →] ${label}`, '#22c55e');
+        if (onSent) onSent(true);
+        return true;
     }
-}
-
-async function sendSecureP2PWhenReady(targetConnId, payload, label, onSent, attempts = 24) {
-    if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) return false;
-    let busy = false;
-    const trySend = async () => {
-        if (busy) return false; busy = true;
-        try {
-            const peer = peers[targetConnId];
-            if (peer?.dc?.readyState !== 'open') return false;
-            peer.dc.send(await secureEncode(payload, targetConnId));
-            if (label) log(`[P2P →] ${label}`, '#22c55e');
-            if (onSent) onSent(true);
-            return true;
-        } catch(e) { return false; }
-        finally { busy = false; }
-    };
-    if (await trySend()) return true;
     try { initP2P(targetConnId); } catch(e) {}
     let left = attempts;
-    const timer = setInterval(async () => {
-        if (await trySend()) clearInterval(timer);
-        else if (--left <= 0) { clearInterval(timer); if (label) log(`[P2P BEKLEME] ${label} gönderilmedi; WSS kullanılmadı`, '#fbbf24'); if (onSent) onSent(false); }
+    const timer = setInterval(() => {
+        if (sendDataChannelText(targetConnId, payload)) {
+            clearInterval(timer);
+            if (label) log(`[P2P →] ${label}`, '#22c55e');
+            if (onSent) onSent(true);
+        } else if (--left <= 0) {
+            clearInterval(timer);
+            if (label) log(`[P2P ✗] ${label} gönderilmedi (peer offline)`, '#fbbf24');
+            if (onSent) onSent(false);
+        }
     }, 250);
     return false;
 }
 
-// ==================== PACKET BUILDER ====================
-function createMsgPacket(text, targetConnId) {
-    const rawBody = `[${getMyB64()}] [${getTargetB64(targetConnId)}] ${text}`;
-    let encBody;
-    if (text.startsWith("[P2P_") || text.startsWith("NUMARA_TALEBI") || text.startsWith("NUMARA_CEVAP") ||
-        text.startsWith("MSG###") || text.startsWith("MSG_ACK###") || text.startsWith("LOG_ISTEGI") ||
-        text.startsWith("LOG_CEVAP") || text.startsWith("ADMIN_ONLINE") || text.startsWith("CALL_") ||
-        text.startsWith("SEC###") || text.startsWith("PROFILE_UPDATE###") ||
-        text.startsWith("LOOKUP###") || text.startsWith("LOOKUP_REPLY###") ||
-        text.startsWith("VOICE_PART###") || text.startsWith("VOICE_END###") ||
-        text === "GIRIS_YAPILDI" || text === "BURADAYIM") {
-        encBody = "P2PRAW:" + rawBody;
-    } else { encBody = encodeTxt(rawBody); }
-    const jsonB = new TextEncoder().encode(JSON.stringify({ content: encBody }));
-    const encodeVarint = (val) => { let res = []; while (val >= 0x80) { res.push((val & 0x7f) | 0x80); val >>>= 7; } res.push(val); return res; };
-    const lenField = encodeVarint(jsonB.length);
-    const baseB64 = "ChcxOWMzNzk5ZmQwYTUyOGMwMDA3ZDI1ZBoIMTQzNjYwMTYiIDkzZWIzMDU0OTFlNzdhODA4MDU3MTJhMWM3ZGYxMWI4MAU6CDE5YzM3OTlmSANQZFhlYhR7ImNvbnRlbnQiOiJBTktBUkEifYABqbni9MMziAEBogE0Chd5b3UgaGF2ZSBhIG5ldyBtZXNzYWdlLhIXeW91IGhhdmUgYSBuZXcgbWVzc2FnZS4oAQ==";
-    let bytes = Uint8Array.from(atob(baseB64), c => c.charCodeAt(0));
-    bytes.set(new TextEncoder().encode(CONFIG.uid), 2);
-    bytes.set(new TextEncoder().encode(CONFIG.roomId), 2 + CONFIG.uid.length + 2);
-    const jsonStart = Array.from(bytes).indexOf(123);
-    const finalP = new Uint8Array(jsonStart + lenField.length + jsonB.length + 500);
-    let cur = 0;
-    finalP.set(bytes.slice(0, jsonStart - 1), cur); cur = jsonStart - 1;
-    finalP.set(lenField, cur); cur += lenField.length;
-    finalP.set(jsonB, cur); cur += jsonB.length;
-    const trailer = bytes.slice(jsonStart + bytes[jsonStart - 1]);
-    finalP.set(trailer, cur);
-    return btoa(String.fromCharCode(...finalP.slice(0, cur + trailer.length)));
-}
+// Eski WSS gönderici — artık no-op. Kalan çağrı yerleri (eski kod yolları)
+// sessizce false döner; PeerJS gerekli yerlerde devreye giriyor.
+function wsSend(_text, _targetConnId) { return false; }
 
-function wsSend(text, targetConnId) {
-    if (!wsChat || wsChat.readyState !== 1) return false;
-    if (targetConnId && targetConnId !== "HERKES") {
-        // WSS artık sadece P2P kurulumu için: WebRTC sinyalleşmesi + numara lookup cevabı.
-        // Profil, isim, mesaj, okundu bilgisi ve arama sinyali hiçbir koşulda WSS'ye gönderilmez.
-        const allowedForSetupOnly = text.startsWith("[P2P_") || text.startsWith("LOOKUP_REPLY###");
-        if (!allowedForSetupOnly) {
-            log(`[WSS BLOCK] Özel bilgi WSS'ye gönderilmedi → ${targetConnId.substring(0,10)}`, "#fbbf24");
-            return false;
-        }
-    }
-    try { wsChat.send(new TextEncoder().encode(JSON.stringify({ reqIdentifier: 1003, sendID: CONFIG.uid, data: createMsgPacket(text, targetConnId) }))); return true; } catch (e) { return false; }
-}
+
 
 // ==================== LOG ====================
 function log(m, c = "#38bdf8") {
@@ -754,6 +648,45 @@ async function quickReply(msg) {
     document.getElementById('callScreen').classList.add('hidden'); state.incomingCallFrom = null; state.incomingCallType = "audio";
 }
 
+function sendCallSignal(targetConnId, text) {
+    if (!targetConnId || targetConnId === 'HERKES' || targetConnId === CONFIG.connectionId) return false;
+    return sendSecureP2PWhenReady(targetConnId, text, `Çağrı sinyali: ${String(text || '').split('###')[0]}`);
+}
+
+function handleCallSignal(senderConnId, text, viaP2P) {
+    const signal = String(text || '');
+    if (!signal) return;
+    if (signal === 'CALL_RING' || signal === 'CALL_RING_VIDEO') {
+        showIncomingCall(senderConnId, signal === 'CALL_RING_VIDEO' ? 'video' : 'audio');
+        return;
+    }
+    if (signal.startsWith('CALL_ACCEPT')) {
+        const acceptedAt = Number(signal.split('###')[1]) || Date.now();
+        const statusEl = document.getElementById('activeCallStatus');
+        if (statusEl) statusEl.innerText = 'Bağlandı';
+        try { window.__SOHBETO_CALL_CONNECTED_AT = acceptedAt; } catch (e) {}
+        startCallTimer(acceptedAt);
+        notifyParentCallState('sohbeto:call-accepted', { from: senderConnId, connectedAt: acceptedAt });
+        return;
+    }
+    if (signal === 'CALL_REJECT' || signal === 'CALL_END') {
+        if (state.incomingCallFrom === senderConnId) {
+            document.getElementById('callScreen').classList.add('hidden');
+            state.incomingCallFrom = null;
+            state.incomingCallType = 'audio';
+        }
+        endVideoCall(true);
+        endActiveCall(true);
+        try {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'sohbeto:incoming-call-cancelled', from: senderConnId }, '*');
+            }
+        } catch (e) {}
+        return;
+    }
+    log(`[CALL] Bilinmeyen sinyal: ${signal}${viaP2P ? ' (P2P)' : ''}`, '#fbbf24');
+}
+
 // GüneşOS köprüsü: parent overlay'den gelen kabul/red komutları
 try {
     window.addEventListener('message', function(ev){
@@ -861,33 +794,20 @@ async function renegotiatePeer(connId) {
     } catch (e) { log("P2P yenileme hatası: " + e.message, "#ef4444"); }
 }
 
-async function initP2P(targetConnId) {
-    const existing = peers[targetConnId];
-    if (existing?.pc && existing.pc.signalingState !== 'closed') {
-        const changed = addLocalMediaTracks(targetConnId);
-        if (existing.dc?.readyState === 'open') sendProfileUpdate(targetConnId);
-        if (changed) await renegotiatePeer(targetConnId);
-        return existing;
-    }
-    const existingQueue = existing?.iceQueue || [];
-    const pc = new RTCPeerConnection({ iceServers: CONFIG.iceServers });
-    peers[targetConnId] = { pc, dc: null, iceQueue: existingQueue };
-    configurePeerConnection(targetConnId, pc);
-    const dc = pc.createDataChannel("chat");
-    attachDataChannel(targetConnId, dc, 'out');
-    addLocalMediaTracks(targetConnId);
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    sendSignaling(targetConnId, "OFFER", JSON.stringify(offer));
-    return peers[targetConnId];
-}
-
+// ==================== P2P MESSAGE HANDLER ====================
 async function handleP2PMsg(senderConnId, data) {
     if (typeof data !== 'string') return;
-    if (data.startsWith("SEC###")) {
-        const decrypted = await secureDecode(data, senderConnId);
-        if (!decrypted) return;
-        return handleP2PMsg(senderConnId, decrypted);
+    // PeerJS data channel üzerinden gelen sinyalleşme (sesli/görüntülü arama media SDP/ICE)
+    if (data.startsWith("[P2P_")) {
+        const close = data.indexOf(']');
+        if (close > 5) {
+            const type = data.substring(5, close);
+            try {
+                const payload = decodeURIComponent(atob(data.substring(close + 1)));
+                return handleSignaling(senderConnId, type, payload);
+            } catch (e) { return; }
+        }
+        return;
     }
     if (data.startsWith("MSG###")) {
         const [, mid, ...rest] = data.split("###"); const text = rest.join("###");
@@ -897,248 +817,249 @@ async function handleP2PMsg(senderConnId, data) {
             peer.dc.send(`MSG_ACK###${mid}###DELIVERED`);
             if (state.chatMode === 'chat' && state.activeChat === senderConnId) setTimeout(() => peer.dc.send(`MSG_ACK###${mid}###READ`), 300);
         }
-    } else if (data.startsWith("MSG_ACK###")) { const parts = data.split("###"); handleAck(parts[1], parts[2]); }
-    else if (data.startsWith("PROFILE_UPDATE###")) {
+        return;
+    }
+    if (data.startsWith("MSG_ACK###")) { const parts = data.split("###"); return handleAck(parts[1], parts[2]); }
+    if (data.startsWith("PROFILE_UPDATE###")) {
         applyPeerProfileUpdate(senderConnId, decodeProfileUpdatePacket(data));
         log(`[P2P] Profil güncellendi: ${senderConnId.substring(0,8)}`, "#22d3ee");
+        return;
     }
-    else if (data.startsWith("CALL_")) { handleCallSignal(senderConnId, data, true); }
-    else if (data.startsWith("VOICE_PART###") || data.startsWith("VOICE_END###")) { handleVoicePacket(senderConnId, data); }
-    else { renderIncomingMsg(senderConnId, CONFIG.connectionId, data, true, null); }
+    if (data.startsWith("CALL_")) return handleCallSignal(senderConnId, data, true);
+    if (data.startsWith("VOICE_PART###") || data.startsWith("VOICE_END###")) return handleVoicePacket(senderConnId, data);
+    renderIncomingMsg(senderConnId, CONFIG.connectionId, data, true, null);
 }
 
-// ==================== CALL SIGNALING (P2P Öncelikli) ====================
-function sendCallSignal(targetConnId, text) {
-    // Arama sinyalleri de profil gibi WSS'ye gitmez; gerekirse önce P2P açılır.
-    return sendWhenP2PReady(targetConnId, text, text);
+// ==================== P2P INIT (PeerJS DataConnection) ====================
+// `peers[connId].dc` artık doğrudan RTCDataChannel değil; PeerJS
+// DataConnection'ı saran ince bir shim. API aynı kalsın diye `send()` ve
+// `readyState` taklit ediliyor.
+function makeDcShim(conn) {
+    return {
+        _conn: conn,
+        get readyState() { return conn.open ? 'open' : 'connecting'; },
+        send(data) { try { conn.send(data); return true; } catch (e) { return false; } },
+        close() { try { conn.close(); } catch (e) {} }
+    };
 }
 
-function notifyParentCallState(type, payload) {
+function bindPeerJSConnection(connId, conn, direction) {
+    conn.on('open', () => {
+        log(`P2P aktif (${direction})`, "#22c55e");
+        if (!state.users.has(connId)) {
+            const guess = String(connId || '').replace(/^sohbeto-/, '');
+            state.users.set(connId, guess || connId.substring(0, 10));
+        }
+        sendProfileUpdate(connId);
+        updateUI();
+        // LOOKUP cevabı: bu connId bir numaraya karşılık geliyorsa rehberi bilgilendir
+        try {
+            const num = normalizeNumber(String(connId).replace(/^sohbeto-/, ''));
+            if (num) handleLookupReply(num, connId);
+        } catch (e) {}
+    });
+    conn.on('data', (data) => handleP2PMsg(connId, data));
+    conn.on('close', () => {
+        log(`P2P kapandı: ${String(connId).substring(0, 12)}`, "#fbbf24");
+        if (peers[connId]) { peers[connId].dc = null; peers[connId].conn = null; }
+        updateUI();
+    });
+    conn.on('error', (e) => log(`P2P hata: ${e?.type || e?.message || 'bilinmiyor'}`, "#ef4444"));
+}
+
+async function initP2P(targetConnId) {
+    if (!targetConnId || targetConnId === CONFIG.connectionId || targetConnId === 'HERKES') return null;
+    if (!peerObj || peerObj.destroyed) { log("PeerJS hazır değil", "#ef4444"); return null; }
+    const existing = peers[targetConnId];
+    if (existing?.dc && existing.dc.readyState === 'open') return existing;
+    if (existing?.conn && !existing.conn.open) return existing; // bağlanıyor
     try {
-        if (window.parent && window.parent !== window) {
-            window.parent.postMessage(Object.assign({ type }, payload || {}), '*');
-        }
-    } catch (e) {}
+        const conn = peerObj.connect(targetConnId, { reliable: true });
+        if (!conn) return null;
+        peers[targetConnId] = {
+            conn,
+            dc: makeDcShim(conn),
+            pc: existing?.pc || null,
+            iceQueue: existing?.iceQueue || []
+        };
+        bindPeerJSConnection(targetConnId, conn, 'out');
+        return peers[targetConnId];
+    } catch (e) {
+        log(`PeerJS connect hatası: ${e.message}`, "#ef4444");
+        return null;
+    }
 }
 
-function handleCallSignal(senderConnId, text, viaP2P) {
-    const sNick = getDisplayName(senderConnId);
-    const via = viaP2P ? "P2P" : "WSS";
-    if (text === "CALL_RING" || text === "CALL_RING_VIDEO") {
-        const type = text === "CALL_RING_VIDEO" ? "video" : "audio";
-        showIncomingCall(senderConnId, type);
-        log(`${type === 'video' ? '📹' : '📞'} [${via}] ${sNick} arıyor`, "#6366f1");
-        return;
-    }
-    if (text === "CALL_ACCEPT" || text.startsWith("CALL_ACCEPT###")) {
-        const acceptedAt = Number(text.split("###")[1]) || Date.now();
-        log(`✅ [${via}] ${sNick} aramayı kabul etti`, "#22c55e");
-        // Tek kaynak status: tema/adapter'ler #activeCallStatus'u izleyebilsin diye
-        // sesli/görüntülü ayrımı olmadan "Bağlandı" yazıyoruz.
-        const acsEl = document.getElementById('activeCallStatus');
-        if (acsEl) acsEl.innerText = 'Bağlandı';
-        // Köprülerin (themes) tutunabilmesi için global ipucu
-        try { window.__SOHBETO_CALL_CONNECTED_AT = acceptedAt; } catch (e) {}
-        notifyParentCallState('sohbeto:call-accepted', { from: senderConnId, connectedAt: acceptedAt });
-        if (!document.getElementById('activeCallScreen').classList.contains('hidden')) {
-            startCallTimer(acceptedAt);
-            if (localAudioStream && peers[senderConnId]?.pc) {
-                const changed = addStreamTracksToPeer(senderConnId, localAudioStream);
-                if (changed) renegotiatePeer(senderConnId);
-            }
-        }
-        if (document.getElementById('videoContainer').classList.contains('active')) {
-            log(`📹 [${via}] Görüntülü arama bağlandı`, "#22c55e");
-            startCallTimer(acceptedAt);
-            addLocalMediaTracks(senderConnId);
-            renegotiatePeer(senderConnId);
-        }
-        return;
-    }
-    if (text === "CALL_REJECT") {
-        log(`❌ [${via}] ${sNick} aramayı reddetti`, "#ef4444");
-        // Karşı taraf reddetti — bizde gelen arama overlay'i açıksa onu da temizle.
-        if (state.incomingCallFrom) {
-            document.getElementById('callScreen').classList.add('hidden');
-            state.incomingCallFrom = null; state.incomingCallType = "audio";
-            notifyParentCallState('sohbeto:incoming-call-cancelled', { from: senderConnId });
-        }
-        endActiveCall(true); endVideoCall(true);
-        return;
-    }
-    if (text === "CALL_END") {
-        log(`📵 [${via}] ${sNick} aramayı bitirdi`, "#fbbf24");
-        // Karşı taraf bitirdi — bizdeki gelen arama overlay'i de düşmeli.
-        if (state.incomingCallFrom) {
-            document.getElementById('callScreen').classList.add('hidden');
-            state.incomingCallFrom = null; state.incomingCallType = "audio";
-            notifyParentCallState('sohbeto:incoming-call-cancelled', { from: senderConnId });
-        }
-        endActiveCall(true); endVideoCall(true);
-        return;
-    }
+// ==================== MEDIA RTC (sesli/görüntülü arama) ====================
+// Veri kanalı PeerJS üzerinden gidiyor; ses/görüntü için ayrı bir
+// RTCPeerConnection kuruyoruz ve SDP/ICE'i PeerJS DataConnection üstünden
+// taşıyoruz. Bu sayede aynı bağlantı üstünden hem mesaj hem media olabilir.
+async function ensureMediaPc(connId) {
+    if (!peers[connId]) peers[connId] = { iceQueue: [] };
+    let pc = peers[connId].pc;
+    if (pc && pc.signalingState !== 'closed') return pc;
+    pc = new RTCPeerConnection({ iceServers: CONFIG.iceServers });
+    peers[connId].pc = pc;
+    configurePeerConnection(connId, pc);
+    pc.ondatachannel = () => { /* veri kanalı PeerJS tarafında; burayı yoksay */ };
+    return pc;
+}
+
+async function renegotiateMediaPc(connId) {
+    const pc = peers[connId]?.pc;
+    if (!pc || pc.signalingState !== 'stable') return;
+    try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sendSignaling(connId, "OFFER", JSON.stringify(offer));
+    } catch (e) { log("Media yenileme hatası: " + e.message, "#ef4444"); }
 }
 
 async function handleSignaling(senderConnId, type, data) {
     let json; try { json = JSON.parse(data); } catch (e) { return; }
     if (type === "OFFER") {
-        const existing = peers[senderConnId];
-        const pc = existing?.pc && existing.pc.signalingState !== 'closed' ? existing.pc : new RTCPeerConnection({ iceServers: CONFIG.iceServers });
-        const existingQueue = existing?.iceQueue || [];
-        peers[senderConnId] = { pc, dc: existing?.dc || null, iceQueue: existingQueue };
-        configurePeerConnection(senderConnId, pc);
-        pc.ondatachannel = (e) => attachDataChannel(senderConnId, e.channel, 'in');
+        const pc = await ensureMediaPc(senderConnId);
         addLocalMediaTracks(senderConnId);
         await pc.setRemoteDescription(new RTCSessionDescription(json));
-        const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
         sendSignaling(senderConnId, "ANSWER", JSON.stringify(answer));
-        if (peers[senderConnId].iceQueue) { peers[senderConnId].iceQueue.forEach(ice => pc.addIceCandidate(new RTCIceCandidate(ice)).catch(() => {})); peers[senderConnId].iceQueue = []; }
-        if (peers[senderConnId].dc?.readyState === 'open') sendProfileUpdate(senderConnId);
+        const q = peers[senderConnId]?.iceQueue || [];
+        q.forEach(ice => pc.addIceCandidate(new RTCIceCandidate(ice)).catch(() => {}));
+        peers[senderConnId].iceQueue = [];
     } else if (type === "ANSWER") {
         const pc = peers[senderConnId]?.pc;
         if (pc) {
             await pc.setRemoteDescription(new RTCSessionDescription(json));
-            if (peers[senderConnId].iceQueue) { peers[senderConnId].iceQueue.forEach(ice => pc.addIceCandidate(new RTCIceCandidate(ice)).catch(() => {})); peers[senderConnId].iceQueue = []; }
-            sendProfileUpdate(senderConnId);
+            const q = peers[senderConnId]?.iceQueue || [];
+            q.forEach(ice => pc.addIceCandidate(new RTCIceCandidate(ice)).catch(() => {}));
+            peers[senderConnId].iceQueue = [];
         }
     } else if (type === "ICE") {
         if (!peers[senderConnId]) peers[senderConnId] = { iceQueue: [] };
-        if (peers[senderConnId].pc?.remoteDescription) peers[senderConnId].pc.addIceCandidate(new RTCIceCandidate(json)).catch(() => {});
-        else { if (!peers[senderConnId].iceQueue) peers[senderConnId].iceQueue = []; peers[senderConnId].iceQueue.push(json); }
+        const pc = peers[senderConnId].pc;
+        if (pc?.remoteDescription) pc.addIceCandidate(new RTCIceCandidate(json)).catch(() => {});
+        else { peers[senderConnId].iceQueue = peers[senderConnId].iceQueue || []; peers[senderConnId].iceQueue.push(json); }
     }
 }
-function sendSignaling(targetConnId, type, data) { wsSend(`[P2P_${type}]${btoa(encodeURIComponent(data))}`, targetConnId); }
 
-// ==================== CONNECTION ====================
-function connectCountServer(onReady) {
-    let pingInt = null, statInt = null;
-    function open() {
-        wsCount = new WebSocket(CONFIG.countHost);
-        wsCount.onopen = () => {
-            if (pingInt) clearInterval(pingInt); if (statInt) clearInterval(statInt);
-            pingInt = setInterval(() => { try { if (wsCount.readyState === 1) wsCount.send("ping"); } catch(e){} }, 15000);
-            statInt = setInterval(() => { try { if (wsCount.readyState === 1) wsCount.send(JSON.stringify({ "sportId": 1, "matchId": 571632 })); } catch(e){} }, 10000);
-        };
-        wsCount.onmessage = (e) => {
-            try { const j = JSON.parse(e.data);
-                if (j.messageType === "connected") { CONFIG.connectionId = j.connectionId; log(`Ağ ID: ${CONFIG.connectionId}`, "#a855f7"); wsCount.send(JSON.stringify({ "sportId": 1, "matchId": 571632 })); if (onReady) { onReady(); onReady = null; } }
-            } catch (ex) { }
-        };
-        wsCount.onclose = () => { setTimeout(open, 3000); };
-        wsCount.onerror = () => { try { wsCount.close(); } catch(e){} };
+// Renegotiate eski adıyla çağrılırsa da çalışsın
+// renegotiatePeer is the legacy alias kept above (line ~741); media path now uses renegotiateMediaPc.
+
+// sendSignaling artık PeerJS data channel üzerinden gider
+function sendSignaling(targetConnId, type, data) {
+    const peer = peers[targetConnId];
+    if (peer?.dc?.readyState === 'open') {
+        return peer.dc.send(`[P2P_${type}]${btoa(encodeURIComponent(data))}`);
     }
-    open();
+    // veri kanalı henüz açık değilse aç ve kısa süre sonra tekrar dene
+    initP2P(targetConnId);
+    let left = 24;
+    const timer = setInterval(() => {
+        const p = peers[targetConnId];
+        if (p?.dc?.readyState === 'open') {
+            clearInterval(timer);
+            p.dc.send(`[P2P_${type}]${btoa(encodeURIComponent(data))}`);
+        } else if (--left <= 0) { clearInterval(timer); }
+    }, 250);
+    return false;
 }
 
-let chatPingInt = null;
-let chatReconnectAttempts = 0;
-function connectChat(onReady) {
-    wsChat = new WebSocket(`${CONFIG.chatHost}?sendID=${CONFIG.uid}&token=${CONFIG.token}&platformID=5&operationID=${Date.now()}&sdkType=js`);
-    wsChat.binaryType = "arraybuffer";
-    wsChat.onopen = () => {
-        log("Sunucuya bağlandı", "#22c55e"); updateTopbarStatus(true);
-        chatReconnectAttempts = 0;
-        wsChat.send(new TextEncoder().encode(JSON.stringify({ reqIdentifier: 1006, sendID: CONFIG.uid, data: btoa(String.fromCharCode(...[0x0A, CONFIG.uid.length, ...new TextEncoder().encode(CONFIG.uid)])) })));
+// ==================== CONNECTION (PeerJS) ====================
+let peerReconnectAttempts = 0;
+function connectPeer(onReady) {
+    if (typeof window.Peer === 'undefined') {
+        log("PeerJS kütüphanesi yüklenemedi", "#ef4444");
+        setTimeout(() => connectPeer(onReady), 2000);
+        return;
+    }
+    // ID: numaraya bağlı (sohbeto-NUMARA). Numara yoksa rastgele oturum ID'si.
+    // ÖNEMLİ: PeerJS sunucusu ID'de '+' kabul etmez → peerIdFromNumber kullan.
+    const myId = CONFIG.virtualNo
+        ? peerIdFromNumber(CONFIG.virtualNo)
+        : `${CONFIG.peerPrefix}t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+    try { if (peerObj) { try { peerObj.destroy(); } catch(e){} peerObj = null; } } catch(e){}
+
+    try {
+        peerObj = new Peer(myId, {
+            host: CONFIG.peerHost,
+            port: CONFIG.peerPort,
+            path: CONFIG.peerPath,
+            secure: CONFIG.peerSecure,
+            debug: 1,
+            config: { iceServers: CONFIG.iceServers }
+        });
+    } catch (e) {
+        log(`PeerJS başlatılamadı: ${e.message}`, "#ef4444");
+        setTimeout(() => connectPeer(onReady), 3000);
+        return;
+    }
+
+    peerObj.on('open', (id) => {
+        CONFIG.connectionId = id;
+        peerReconnectAttempts = 0;
+        log(`Ağ ID: ${id}`, "#a855f7");
+        updateTopbarStatus(true);
+        try { document.getElementById('btnSend').disabled = false; } catch(e){}
+        setTimeout(flushOutboundQueue, 1500);
+        // Rehberdeki kişilere doğrudan bağlanmayı dene (online ise data channel açılır)
         setTimeout(() => {
-            // NOT: Genel duyuru (GIRIS_YAPILDI) artık gönderilmiyor.
-            // WSS sadece P2P kurulumu (signaling + lookup) için kullanılıyor.
-            document.getElementById('btnSend').disabled = false;
-            if (chatPingInt) clearInterval(chatPingInt);
-            chatPingInt = setInterval(() => { try { if (wsChat && wsChat.readyState === 1) wsChat.send('{"type":"ping"}'); } catch(e){} }, 9000);
-            setTimeout(flushOutboundQueue, 1500);
-            // Rehberdeki tüm kişiler için LOOKUP at (online olanları öğren)
-            setTimeout(() => {
-                contactsState.byNumber.forEach(c => { try { wsSend(`LOOKUP###${c.number}`, "HERKES"); } catch(e){} });
-            }, 1200);
-            if (onReady) onReady();
-        }, 700);
-    };
-    wsChat.onclose = () => {
-        updateTopbarStatus(false); log("Bağlantı kesildi - yeniden bağlanılıyor...", "#ef4444");
-        if (chatPingInt) { clearInterval(chatPingInt); chatPingInt = null; }
-        chatReconnectAttempts++;
-        const delay = Math.min(30000, 1000 * Math.pow(1.5, Math.min(chatReconnectAttempts, 8)));
-        setTimeout(() => { try { connectChat(); } catch(e){} }, delay);
-    };
-    wsChat.onerror = () => updateTopbarStatus(false);
-    wsChat.onmessage = async (e) => {
-        if (typeof e.data === "string") return;
+            try { contactsState.byNumber.forEach(c => { initP2P(peerIdFromNumber(c.number)); }); } catch(e){}
+        }, 1200);
+        if (onReady) onReady();
+    });
+
+    peerObj.on('connection', (conn) => {
+        const connId = conn.peer;
+        peers[connId] = {
+            conn,
+            dc: makeDcShim(conn),
+            pc: peers[connId]?.pc || null,
+            iceQueue: peers[connId]?.iceQueue || []
+        };
+        bindPeerJSConnection(connId, conn, 'in');
+    });
+
+    peerObj.on('call', async (mediaConn) => {
         try {
-            const j = JSON.parse(new TextDecoder().decode(e.data));
-            if (j.reqIdentifier !== 2001) return;
-            const b = Uint8Array.from(atob(j.data), c => c.charCodeAt(0));
-            const s = Array.from(b).indexOf(123);
-            const rawJson = new TextDecoder().decode(b.slice(s, b.lastIndexOf(125) + 1));
-            const msgJson = JSON.parse(rawJson);
-            let dec = msgJson.content;
-            if (dec.startsWith("P2PRAW:")) dec = dec.substring(7); else dec = decodeTxt(dec);
-            const match = dec.match(/^\[(.*?)\]\s*\[(.*?)\]\s*(.*)$/);
-            if (!match) return;
-            const [_, senderB64, targetB64, text] = match;
-            let sNick, sConnId, sVirtualNo = '';
-            try { const decSender = decodeURIComponent(atob(senderB64)); [sNick, sConnId, sVirtualNo] = decSender.split("###"); } catch (er) { return; }
-            if (sConnId === CONFIG.connectionId) return;
-            let tConnId = "HERKES";
-            if (targetB64 !== "HERKES") { try { const dt = decodeURIComponent(atob(targetB64)); tConnId = dt.split("###")[1]; } catch (er) { return; } }
-            if (text.startsWith("[P2P_") && tConnId === CONFIG.connectionId) { if (!state.users.has(sConnId)) { state.users.set(sConnId, sVirtualNo || (String(sNick || '').replace(/^P2P$/i, '').trim()) || sConnId.substring(0, 10)); updateUI(); } const pType = text.substring(5, text.indexOf("]")); const pData = decodeURIComponent(atob(text.substring(text.indexOf("]") + 1))); handleSignaling(sConnId, pType, pData); return; }
-            if (text.startsWith("ADMIN_ONLINE") || text.startsWith("NUMARA_TALEBI") || text.startsWith("LOG_ISTEGI") || text.startsWith("NUMARA_CEVAP###")) return;
-            if (text.startsWith("LOG_CEVAP###")) { const parts = text.split("###"); if (parts.length >= 3) { try { log(`[Sunucu]: ${decodeURIComponent(atob(parts.slice(2).join("###")))}`, "#fbbf24"); } catch (er) {} } return; }
+            let stream = localVideoStream || localAudioStream;
+            if (!stream) {
+                try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); localAudioStream = stream; } catch(e){}
+            }
+            mediaConn.answer(stream || undefined);
+            mediaConn.on('stream', (remote) => attachRemoteStream(mediaConn.peer, remote));
+            mediaConn.on('close', () => updateUI());
+        } catch (e) { log(`Çağrı yanıtlanamadı: ${e.message}`, "#ef4444"); }
+    });
 
-            if (text.startsWith("PROFILE_UPDATE###")) { log("[WSS BLOCK] WSS profil güncellemesi yok sayıldı", "#fbbf24"); return; }
-            if (text.startsWith("CALL_")) { log("[WSS BLOCK] WSS arama sinyali yok sayıldı", "#fbbf24"); return; }
+    peerObj.on('disconnected', () => {
+        updateTopbarStatus(false);
+        log("PeerJS sunucu bağlantısı koptu, yeniden bağlanılıyor...", "#fbbf24");
+        try { peerObj.reconnect(); } catch(e){}
+    });
 
-            // Encrypted WSS message: SEC###iv###ct
-            if (text.startsWith("SEC###")) {
-                if (tConnId !== "HERKES") { log("[WSS BLOCK] WSS özel mesaj yok sayıldı", "#fbbf24"); return; }
-                const decrypted = await secureDecode(text, sConnId);
-                if (!decrypted) return;
-                // Re-process the decrypted payload as if it came via WSS
-                if (decrypted.startsWith("MSG###")) {
-                    const firstSep = decrypted.indexOf("###", 6); if (firstSep === -1) return;
-                    const mid = decrypted.substring(6, firstSep); const body = decrypted.substring(firstSep + 3);
-                    if (tConnId !== "HERKES" && tConnId !== CONFIG.connectionId) return;
-                    renderIncomingMsg(sConnId, tConnId, body, false, mid);
-                    wsSend(`MSG_ACK###${mid}###DELIVERED`, sConnId);
-                    const isPrivate = tConnId !== "HERKES";
-                    const sameOpen = (isPrivate && state.chatMode === 'chat' && state.activeChat === sConnId) || (!isPrivate && state.chatMode === 'chat' && state.activeChat === 'genel');
-                    if (sameOpen) setTimeout(() => wsSend(`MSG_ACK###${mid}###READ`, sConnId), 400);
-                }
-                return;
-            }
+    peerObj.on('close', () => { updateTopbarStatus(false); });
 
-            if (text.startsWith("MSG_ACK###")) { log("[WSS BLOCK] WSS okundu bilgisi yok sayıldı", "#fbbf24"); return; }
-            if (text.startsWith("MSG###")) {
-                if (tConnId !== "HERKES") { log("[WSS BLOCK] WSS özel mesaj yok sayıldı", "#fbbf24"); return; }
-                const firstSep = text.indexOf("###", 6); if (firstSep === -1) return;
-                const mid = text.substring(6, firstSep); const body = text.substring(firstSep + 3);
-                if (tConnId !== "HERKES" && tConnId !== CONFIG.connectionId) return;
-                renderIncomingMsg(sConnId, tConnId, body, false, mid);
-                wsSend(`MSG_ACK###${mid}###DELIVERED`, sConnId);
-                const isPrivate = tConnId !== "HERKES";
-                const sameOpen = (isPrivate && state.chatMode === 'chat' && state.activeChat === sConnId) || (!isPrivate && state.chatMode === 'chat' && state.activeChat === 'genel');
-                if (sameOpen) setTimeout(() => wsSend(`MSG_ACK###${mid}###READ`, sConnId), 400);
-                return;
-            }
-            if (text === "GIRIS_YAPILDI") { sendProfileUpdate(sConnId); return; } // legacy
-            if (text === "BURADAYIM") { sendProfileUpdate(sConnId); return; }
-            // LOOKUP: numarayla peer arama (broadcast)
-            if (text.startsWith("LOOKUP###")) {
-                const askedNum = text.substring(9);
-                if (CONFIG.virtualNo && normalizeNumber(askedNum) === normalizeNumber(CONFIG.virtualNo)) {
-                    wsSend(`LOOKUP_REPLY###${CONFIG.virtualNo}`, sConnId);
-                }
-                return;
-            }
-            if (text.startsWith("LOOKUP_REPLY###")) {
-                const num = normalizeNumber(text.substring(15));
-                handleLookupReply(num, sConnId);
-                return;
-            }
-            if (tConnId !== "HERKES" && tConnId !== CONFIG.connectionId) return;
-            renderIncomingMsg(sConnId, tConnId, text, false, null);
-        } catch (ex) { }
-    };
+    peerObj.on('error', (err) => {
+        const t = err?.type || '';
+        log(`PeerJS: ${t || err?.message || 'hata'}`, "#fbbf24");
+        // Bir başka peer'a bağlanırken offline ise sadece sessizce geç
+        if (t === 'peer-unavailable') return;
+        // ID çakışması: rastgele ID ile tekrar dene
+        if (t === 'unavailable-id') {
+            CONFIG.virtualNo = '';
+            setTimeout(() => connectPeer(onReady), 1500);
+            return;
+        }
+        if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'disconnected') {
+            peerReconnectAttempts++;
+            const delay = Math.min(30000, 1000 * Math.pow(1.5, Math.min(peerReconnectAttempts, 8)));
+            setTimeout(() => connectPeer(onReady), delay);
+        }
+    });
 }
+
 
 function updateTopbarStatus(online) {
     const s = document.getElementById('topbarStatus');
@@ -1406,9 +1327,10 @@ async function sendCurrentMessage() {
             if (queued && sent) { queued.attempts = (queued.attempts || 0) + 1; saveOutbox(); }
         });
     } else {
-        // Genel sohbet kaldırıldı ama geriye uyumluluk için açık kanal davranışı korunur.
-        if (!wsChat || wsChat.readyState !== 1) { state.outboundQueue.set(msgId, { msgId, targetConnId: target, text, ts: Date.now(), attempts: 0 }); saveOutbox(); renderOwnMsg(target, text, msgId, false); log(`Mesaj kuyrukta`, "#f59e0b"); }
-        else { wsSend(`MSG###${msgId}###${text}`, target); state.outboundQueue.set(msgId, { msgId, targetConnId: target, text, ts: Date.now(), attempts: 1 }); saveOutbox(); renderOwnMsg(target, text, msgId, false); }
+        // "HERKES" (genel sohbet) artık desteklenmiyor — eskiden WSS sunucusu üstünden yayın yapıyordu.
+        // Şimdi sadece P2P var, bu yüzden hedefsiz mesajı sessizce yoksay.
+        renderOwnMsg(target, text, msgId, false);
+        log("Genel sohbet bu sürümde devre dışı (sadece P2P)", "#fbbf24");
     }
     inp.value = ''; inp.style.height = 'auto';
 }
@@ -1420,9 +1342,8 @@ async function flushOutboundQueue() {
                 if (sent) { m.attempts = (m.attempts || 0) + 1; saveOutbox(); }
             });
         } else {
-            if (!wsChat || wsChat.readyState !== 1) continue;
-            wsSend(`MSG###${m.msgId}###${m.text}`, m.targetConnId);
-            m.attempts = (m.attempts || 0) + 1;
+            // HERKES (genel) artık desteklenmiyor
+            continue;
         }
     }
     saveOutbox();
@@ -1557,7 +1478,7 @@ async function openContactByNumber(number) {
     }
     // Henüz connId yok ya da peer offline → LOOKUP yayımla
     log(`[LOOKUP] ${c.number} aranıyor...`, '#fbbf24');
-    wsSend(`LOOKUP###${c.number}`, "HERKES");
+    initP2P(peerIdFromNumber(c.number));
     showNotif(`🔎 ${escapeHtml(c.name)} (${escapeHtml(c.number)}) çevrimiçi mi diye bakıyoruz...`, 4000);
     // 5 sn içinde reply gelirse handleLookupReply otomatik açar
     if (!window._pendingLookups) window._pendingLookups = new Map();
@@ -1604,7 +1525,7 @@ async function saveNewContact() {
     log(`Kişi eklendi: ${name} (${number})`, '#22c55e');
     updateContactList();
     // Hemen LOOKUP at, online ise connId'yi öğren
-    wsSend(`LOOKUP###${number}`, "HERKES");
+    initP2P(peerIdFromNumber(number));
 }
 
 document.getElementById('btnAddContact').onclick = () => {
@@ -1643,7 +1564,7 @@ function cardSendGroupInvite(){
     try {
         var payload = 'GROUP_INVITE###' + (state.virtualNo||'') + '###' + Date.now();
         if (typeof sendToPeer === 'function') sendToPeer(connId, payload);
-        else if (wsChat && wsChat.readyState === 1) wsChat.send('TO###' + connId + '###' + btoa(unescape(encodeURIComponent(payload))));
+        else sendWhenP2PReady(connId, payload, 'Grup daveti');
         log('Grup daveti gönderildi', '#6366f1');
     } catch(e){ log('Grup daveti gönderilemedi: '+e.message, '#f87171'); }
 }
@@ -1884,17 +1805,22 @@ async function startAudioCall(connId, isIncoming, connectedAt) {
         }
     }
 
-    // Now init P2P - localAudioStream is available so tracks will be added
+    // Şimdilik sadece sinyal/data kanalı hazır olsun; gerçek media PC'yi kabulde açıyoruz.
     await initP2P(connId);
+    let audioChanged = false;
+    if (isIncoming) {
+        await ensureMediaPc(connId);
+        audioChanged = addLocalMediaTracks(connId);
+    }
 
     if (isIncoming) {
         // Incoming call accepted - start timer immediately since both sides are ready
         document.getElementById('activeCallStatus').innerText = 'Bağlandı';
         startCallTimer(connectedAt || Date.now());
+        if (audioChanged) await renegotiateMediaPc(connId);
     } else {
         // Outgoing call - show "Çalıyor..." and wait for CALL_ACCEPT
         document.getElementById('activeCallStatus').innerText = 'Çalıyor...';
-        // Do NOT start timer yet - wait for CALL_ACCEPT
         sendCallSignal(connId, "CALL_RING");
     }
 }
@@ -1997,12 +1923,15 @@ async function startVideoCall(connId, isIncoming, connectedAt) {
         const acDuration = document.getElementById('activeCallDuration');
         if (acDuration) acDuration.innerText = '00:00';
 
-        // Init P2P first so peer connection exists, then add tracks
+        // Sinyal/data kanalı hazır olsun; media PC'yi kabul edilmiş akışta kur.
         await initP2P(connId);
 
-        // Add/replace all tracks (audio + video) and renegotiate when needed
-        const changed = addStreamTracksToPeer(connId, localVideoStream);
-        if (changed) await renegotiatePeer(connId);
+        let changed = false;
+        if (isIncoming) {
+            await ensureMediaPc(connId);
+            changed = addStreamTracksToPeer(connId, localVideoStream);
+            if (changed) await renegotiateMediaPc(connId);
+        }
 
         if (isIncoming) {
             // Incoming/switching from audio - start timer immediately
@@ -2130,13 +2059,11 @@ document.getElementById('btnStart').onclick = async () => {
     const seed = await generateSeed(state.nick, virtualNo);
     await saveVirtualNo(virtualNo, seed);
     hideNotif();
-    connectCountServer(() => {
-        connectChat(async () => {
-            log(`Sanal numara: ${virtualNo}`, "#22c55e");
-            await dbPut("firstSessionDone", true);
-            try { window.parent && window.parent.postMessage({ type: 'sohbeto:registered', number: virtualNo }, '*'); } catch(e){}
-            setTimeout(() => enterChatScreen(), 1500);
-        });
+    connectPeer(async () => {
+        log(`Sanal numara: ${virtualNo}`, "#22c55e");
+        await dbPut("firstSessionDone", true);
+        try { window.parent && window.parent.postMessage({ type: 'sohbeto:registered', number: virtualNo }, '*'); } catch(e){}
+        setTimeout(() => enterChatScreen(), 1500);
     });
     try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume(); } catch (e) { }
 };
@@ -2186,7 +2113,11 @@ document.getElementById('loginNumber').addEventListener('keydown', e => { if (e.
 
 function connectAndChat() {
     enterChatScreen();
-    if (!wsChat || wsChat.readyState !== 1) { connectCountServer(() => connectChat()); try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume(); } catch (e) { } }
+    const needsConnect = !peerObj || peerObj.destroyed || peerObj.disconnected || !peerObj.id;
+    if (needsConnect) {
+        connectPeer();
+        try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume(); } catch (e) { }
+    }
 }
 
 document.getElementById('btnSend').onclick = sendCurrentMessage;
@@ -2205,8 +2136,8 @@ document.getElementById('menuLogout').onclick = async () => {
     endActiveCall();
     endVideoCall();
     // Close WebSocket connections
-    if (wsChat) try { wsChat.close(); wsChat = null; } catch (e) { }
-    if (wsCount) try { wsCount.close(); wsCount = null; } catch (e) { }
+    // Close PeerJS connection
+    if (peerObj) { try { peerObj.destroy(); } catch (e) {} peerObj = null; }
     // Clear all runtime state
     state.users.clear();
     state.conversations.clear();

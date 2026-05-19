@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <title>Sohbeto</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
   :root{
     --bg1:#eaf6ff; --bg2:#cfe9f7; --bg3:#bfe1ef;
@@ -288,6 +289,49 @@
   .welcome-foot{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:12px;color:#7d8a96;letter-spacing:1.5px;font-weight:600}
 
   .app-shell{flex:1;display:flex;flex-direction:column;min-height:0}
+
+  /* ---- Fluid tab pager (sohbeto-fluid-tabs.js mantığı, A2'ye uyarlandı) ---- */
+  .tab-stack{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:pan-y;overscroll-behavior-x:none;}
+  .tab-stack > .page{position:absolute;inset:0;display:flex !important;flex-direction:column;
+    transition:transform 240ms cubic-bezier(0.33, 1, 0.68, 1);
+    will-change:transform;backface-visibility:hidden;}
+  .tab-stack.dragging > .page{transition:none !important;}
+  .tab-stack.instant > .page{transition:none !important;}
+  .tab-stack > .page.tab-inactive{pointer-events:none;}
+  .app-shell.chatroom-mode .tab-stack{display:none;}
+
+  /* ---- A2 bottom sheets (Kişi / Grup ekle) ---- */
+  .a2-sheet-back{position:fixed;inset:0;z-index:9000;background:rgba(11,58,85,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;transition:opacity .25s ease;display:flex;align-items:flex-end;justify-content:center;}
+  .a2-sheet-back.in{opacity:1;}
+  .a2-sheet{width:100%;max-width:480px;background:linear-gradient(180deg,#fafdff,#e7f3fa);
+    border-radius:24px 24px 0 0;padding:14px 18px 22px;color:var(--ink);
+    box-shadow:0 -20px 60px -20px rgba(11,58,85,.45);
+    transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.9,.25,1);
+    max-height:86vh;overflow-y:auto;}
+  .a2-sheet-back.in .a2-sheet{transform:translateY(0);}
+  .a2-sheet-handle{width:42px;height:4px;border-radius:999px;background:rgba(11,58,85,.18);margin:2px auto 12px;}
+  .a2-sheet h3{margin:0 0 4px;font-size:18px;font-weight:800;}
+  .a2-sheet .sub{font-size:12px;color:var(--muted);margin-bottom:14px;}
+  .a2-field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
+  .a2-field label{font-size:11.5px;color:var(--muted);font-weight:600;padding-left:4px;}
+  .a2-field input{padding:12px 14px;border-radius:14px;border:1px solid var(--line);
+    background:var(--card-strong);font-size:14px;color:var(--ink);outline:none;
+    box-shadow:var(--shadow);font-family:inherit;}
+  .a2-field input:focus{border-color:var(--accent);}
+  .a2-sheet-actions{display:flex;gap:8px;margin-top:6px;}
+  .a2-btn{flex:1;padding:13px;border-radius:14px;border:0;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .a2-btn.primary{background:linear-gradient(135deg,#2aa6c8,#67d6c4);color:#fff;box-shadow:0 12px 24px -12px rgba(42,166,200,.7);}
+  .a2-btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);}
+  .a2-btn:active{transform:scale(.97);}
+  .a2-picker{max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;}
+  .a2-pick-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;cursor:pointer;}
+  .a2-pick-row:hover{background:rgba(255,255,255,.6);}
+  .a2-pick-row.on{background:linear-gradient(135deg,rgba(42,166,200,.18),rgba(103,214,196,.18));}
+  .a2-pick-row .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#bfe1ef,#2aa6c8);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;}
+  .a2-pick-row .nm{flex:1;font-size:13px;}
+  .a2-pick-row .ck{width:20px;height:20px;border-radius:6px;border:2px solid rgba(11,58,85,.25);display:grid;place-items:center;color:#fff;font-size:12px;}
+  .a2-pick-row.on .ck{background:linear-gradient(135deg,#2aa6c8,#67d6c4);border-color:transparent;}
+  .a2-picker-empty{padding:18px;text-align:center;color:var(--muted);font-size:12px;}
 </style>
 </head>
 <body>
@@ -388,7 +432,17 @@
         <div class="page active" data-page="chats">
           <div class="bighead">
             <div><h2>Sohbetler</h2><div class="sub">Henüz mesaj yok</div></div>
-            <div class="iconbtn" title="Yeni sohbet">✎</div>
+            <div class="iconrow">
+              <div class="iconbtn a2-hdr" id="a2HdrInbox" title="Gelen Kutusu" aria-label="Gelen Kutusu">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
+                <span class="a2-hdr-badge" id="a2HdrInboxBadge" hidden>0</span>
+              </div>
+              <div class="iconbtn a2-hdr" id="a2HdrCalls" title="Aramalar" aria-label="Aramalar">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                <span class="a2-hdr-badge" id="a2HdrCallsBadge" hidden>0</span>
+              </div>
+              <div class="iconbtn a2-hdr" id="a2HdrNotes" title="Not Defteri" aria-label="Not Defteri">✎</div>
+            </div>
           </div>
           <div class="search">🔎 <input placeholder="İsim veya mesaj ara…" /></div>
           <div class="tabs">
@@ -429,10 +483,10 @@
         <div class="page" data-page="people">
           <div class="bighead">
             <div><h2>Kişiler</h2><div class="sub">Rehberinden ekle</div></div>
-            <div class="iconbtn" title="Kişi ekle">+</div>
+            <div class="iconbtn" id="addContactBtn" title="Kişi ekle">+</div>
           </div>
-          <div class="search">🔎 <input placeholder="Kişi ara…" /></div>
-          <div class="listwrap">
+          <div class="search">🔎 <input id="peopleSearch" placeholder="Kişi ara…" /></div>
+          <div class="listwrap" id="peopleList">
             <div class="empty-state">
               <div class="em">👥</div>
               <b>Henüz kişi yok</b>
@@ -445,10 +499,10 @@
         <div class="page" data-page="groups">
           <div class="bighead">
             <div><h2>Gruplar</h2><div class="sub">Topluluklarını yönet</div></div>
-            <div class="iconbtn" title="Grup oluştur">+</div>
+            <div class="iconbtn" id="addGroupBtn" title="Grup oluştur">+</div>
           </div>
-          <div class="search">🔎 <input placeholder="Grup ara…" /></div>
-          <div class="listwrap">
+          <div class="search">🔎 <input id="groupsSearch" placeholder="Grup ara…" /></div>
+          <div class="listwrap" id="groupsList">
             <div class="empty-state">
               <div class="em">🐠</div>
               <b>Henüz grup yok</b>
@@ -649,6 +703,7 @@ verifyBtn.addEventListener('click', () => {
 // otomatik doğrula: 6 hane dolunca
 otpInputs.forEach(inp => {
   inp.addEventListener('input', () => {
+    if (window.__a2AutoFilling) return; // autofill kendi 2.5s gecikmesiyle doğrular
     const all = [...otpInputs].map(i=>i.value).join('');
     if (all.length === 6) verifyBtn.click();
   });
@@ -730,10 +785,26 @@ function a2Notify(opts){
 function a2FillOtp(code){
   code = String(code||'').replace(/\D/g,'').slice(0,6);
   if (code.length !== 6) return;
+  window.__a2AutoFilling = true;
   otpInputs.forEach(function(i){ i.value=''; i.classList.remove('a2-fill-pulse'); });
   var k = 0;
   (function step(){
-    if (k >= 6) return;
+    if (k >= 6) {
+      // OO davranışı: 6 hane dolduktan sonra 2.5 sn bekle, sonra doğrula.
+      // Bu süre boyunca buton "Doğrulanıyor…" gözükür ki kullanıcı hemen
+      // içeri dalmadığını hissetsin.
+      try { setBusy(verifyBtn, true, 'Doğrulanıyor…'); } catch(e){}
+      setTimeout(function(){
+        window.__a2AutoFilling = false;
+        var allCode = [...otpInputs].map(function(i){ return i.value; }).join('');
+        if (allCode.length === 6) {
+          a2Post('verifyCode', { code: allCode });
+        } else {
+          try { setBusy(verifyBtn, false, '', 'Doğrula ve devam et'); } catch(e){}
+        }
+      }, 2500);
+      return;
+    }
     var inp = otpInputs[k];
     if (inp){
       inp.value = code[k];
@@ -748,11 +819,35 @@ function a2FillOtp(code){
 }
 function a2WelcomeBurst(){
   var msgs = [
-    { title:'Mesajlar · Sohbeto', text:'Sohbeto’ya hoş geldin! 🎉' },
-    { title:'Mesajlar · Sohbeto', text:'Hesabın hazır — dünyanın en özgür sohbeti seni bekliyor.' },
-    { title:'Mesajlar · Sohbeto', text:'İlk kişini ekleyerek başlayabilirsin.' }
+    { title: 'Mesajlar · Sohbeto', text: '👋 Merhaba ve hoş geldin!\nHesabın hazır — dünyanın en özgür sohbeti seni bekliyor.' },
+    { title: 'Mesajlar · Sohbeto', text: 'Sohbeto\u2019ya başarıyla kaydoldun. Artık güvenli, hızlı ve uçtan uca şifreli mesajlaşmanın keyfini çıkarabilirsin.' },
+    { title: 'Mesajlar · Sohbeto', text: '💡 İpucu: Profil resmini ve adını Sohbeto > Ayarlar bölümünden güncelleyebilirsin. İyi sohbetler! 🌟' }
   ];
-  msgs.forEach(function(m,i){ setTimeout(function(){ a2Notify({ title:m.title, text:m.text, duration:1400 }); }, 600 + i*2500); });
+  // OO davranışı: önceki bildirim(ler) ekrandaysa hoş geldin akışı başlarken
+  // temizlenir; böylece doğrulama kodu balonu ile karşılama balonu çakışmaz.
+  a2ClearNotifs();
+  // OO ile birebir: 800 ms + i*5000 ms, her biri 4500 ms ekranda.
+  // Mesajlar uygulamasına yazmayı A2 yapmaz; GüneşOS ana pencere zaten
+  // `sohbeto:registered` olayını dinleyip aynı 3 mesajı tek kaynak olarak yazar.
+  // A2 burada yalnızca üst bildirimi gösterir; aksi halde Mesajlar'da 4 mesaj 8'e çıkar.
+  msgs.forEach(function(m, i){
+    setTimeout(function(){
+      // Yeni bildirim düşmeden, sıradakine yer açmak için varsa açık balonu kapat.
+      a2ClearNotifs();
+      a2Notify({ title: m.title, text: m.text, duration: 4500 });
+    }, 800 + i * 5000);
+  });
+}
+
+/* Ekranda açık tüm A2 bildirimlerini anında kapat. */
+function a2ClearNotifs(){
+  var layer = document.getElementById('a2NotifLayer'); if (!layer) return;
+  var nodes = layer.querySelectorAll('.a2-toast');
+  nodes.forEach(function(el){
+    el.classList.remove('in');
+    el.classList.add('out');
+    setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 220);
+  });
 }
 
 /* Parent → A2 mesajları */
@@ -760,7 +855,10 @@ window.addEventListener('message', (ev) => {
   const d = ev.data || {};
   if (!d || !d.__sohbeto_a2_ack) return;
   if (d.action === 'code' && d.code){
-    a2Notify({ title:'Mesajlar · Sohbeto', text:'Doğrulama kodun: '+d.code, duration:2000 });
+    var codeText = '🔐 Sohbeto Doğrulama Kodun: ' + d.code + '\nKodu kimseyle paylaşma. Bu kod 5 dakika geçerlidir.';
+    a2Notify({ title:'Mesajlar · Sohbeto', text: codeText, duration: 4500 });
+    // Mesajlar uygulamasına kayıt GüneşOS ana dinleyicisinden tek kez yapılır.
+    // A2 tekrar yazarsa ekran görüntüsündeki gibi doğrulama + 3 hoş geldin mesajı çiftlenir.
     a2FillOtp(d.code);
     return;
   }
@@ -796,13 +894,356 @@ window.addEventListener('message', (ev) => {
 a2Post('checkAuth');
 
 /* ---------- Navigation ---------- */
-const pages = document.querySelectorAll('.page');
+/* Tab pager (sohbeto-fluid-tabs.js mantığı, A2'ye gömülü). */
+const TAB_ORDER = ['chats','people','groups','settings'];
+const appShell = document.getElementById('appShell');
 const navItems = document.querySelectorAll('.navitem');
+const chatroomPage = appShell.querySelector('[data-page="chatroom"]');
+
+/* 4 tab'i .tab-stack içine taşı.
+   ÖNEMLİ: insertBefore'dan ÖNCE her sayfaya başlangıç transform'unu ver,
+   yoksa ilk frame'de tüm sayfalar translate(0) ile üst üste binip son sayfa
+   (ayarlar) bir an "flash" eder. */
+const tabStack = document.createElement('div');
+tabStack.className = 'tab-stack instant';
+TAB_ORDER.forEach((name, i) => {
+  const el = appShell.querySelector('[data-page="'+name+'"]');
+  if (!el) return;
+  el.style.transform = 'translate3d(' + (i * 100) + '%,0,0)';
+  if (i !== 0) el.classList.add('tab-inactive');
+  tabStack.appendChild(el);
+});
+appShell.insertBefore(tabStack, appShell.firstChild);
+requestAnimationFrame(() => requestAnimationFrame(() => tabStack.classList.remove('instant')));
+
+let activeTab = 0;
+let containerWidth = 0;
+let dragging = false, pointerId = null;
+let dragStartX = 0, dragStartY = 0, dragLastX = 0, dragLastT = 0;
+let dragVelocity = 0, dragDx = 0, horizontalLocked = null;
+let rafId = 0, pendingDx = 0;
+
+const DURATION_MS = 240, SWIPE_DISTANCE_RATIO = 0.24, SWIPE_VELOCITY = 0.22;
+const DRAG_RUBBER = 0.42, LOCK_START_PX = 2, VERTICAL_LOCK_PX = 10;
+const HORIZONTAL_BIAS = 0.72, VERTICAL_BIAS = 1.25;
+
+function paintPager(dx){
+  const w = containerWidth || tabStack.clientWidth || appShell.clientWidth || window.innerWidth;
+  TAB_ORDER.forEach((name, i) => {
+    const el = appShell.querySelector('[data-page="'+name+'"]');
+    if (!el) return;
+    el.style.transform = 'translate3d(' + ((i - activeTab) * w + dx) + 'px,0,0)';
+  });
+}
+function scheduleDraw(dx){
+  pendingDx = dx;
+  if (rafId) return;
+  rafId = requestAnimationFrame(() => { rafId = 0; paintPager(pendingDx); });
+}
+function setActiveTab(idx, animate){
+  idx = Math.max(0, Math.min(TAB_ORDER.length - 1, idx));
+  activeTab = idx;
+  appShell.classList.remove('chatroom-mode');
+  chatroomPage.classList.remove('active');
+  TAB_ORDER.forEach((name, i) => {
+    const el = appShell.querySelector('[data-page="'+name+'"]');
+    if (!el) return;
+    el.classList.toggle('tab-inactive', i !== activeTab);
+  });
+  containerWidth = tabStack.clientWidth || appShell.clientWidth || window.innerWidth;
+  if (animate === false){
+    tabStack.classList.add('instant');
+    paintPager(0);
+    requestAnimationFrame(() => requestAnimationFrame(() => tabStack.classList.remove('instant')));
+  } else {
+    paintPager(0);
+  }
+  navItems.forEach(n => n.classList.toggle('on', n.dataset.go === TAB_ORDER[activeTab]));
+}
 function goTo(name){
-  pages.forEach(p => p.classList.toggle('active', p.dataset.page === name));
-  navItems.forEach(n => n.classList.toggle('on', n.dataset.go === name));
+  const idx = TAB_ORDER.indexOf(name);
+  if (idx !== -1){
+    setActiveTab(idx, false);
+    return;
+  }
+  if (name === 'chatroom'){
+    appShell.classList.add('chatroom-mode');
+    chatroomPage.classList.add('active');
+    return;
+  }
 }
 navItems.forEach(n => n.addEventListener('click', () => goTo(n.dataset.go)));
+
+/* --- Pointer / touch handlers --- */
+function shouldIgnoreTarget(target){
+  if (!target) return false;
+  const tag = (target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || tag === 'button') return true;
+  if (target.isContentEditable) return true;
+  let el = target;
+  while (el && el !== tabStack){
+    try {
+      const ov = getComputedStyle(el).overflowX;
+      if ((ov === 'auto' || ov === 'scroll') && el.scrollWidth > el.clientWidth + 1) return true;
+    } catch(e){}
+    el = el.parentElement;
+  }
+  return false;
+}
+function getX(e){ return e.touches ? e.touches[0].clientX : e.clientX; }
+function getY(e){ return e.touches ? e.touches[0].clientY : e.clientY; }
+function onPagerStart(e){
+  if (appShell.classList.contains('chatroom-mode')) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (e.touches && e.touches.length > 1) return;
+  if (shouldIgnoreTarget(e.target)) return;
+  dragStartX = dragLastX = getX(e);
+  dragStartY = getY(e);
+  dragLastT = performance.now();
+  dragVelocity = 0; dragDx = 0; horizontalLocked = null; dragging = true;
+  pointerId = e.pointerId != null ? e.pointerId : null;
+  containerWidth = tabStack.clientWidth || window.innerWidth;
+}
+function onPagerMove(e){
+  if (!dragging) return;
+  const x = getX(e), y = getY(e);
+  const dx = x - dragStartX, dy = y - dragStartY;
+  if (horizontalLocked === null){
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    if (ax < LOCK_START_PX && ay < VERTICAL_LOCK_PX) return;
+    if (ay > VERTICAL_LOCK_PX && ay > ax * VERTICAL_BIAS){ horizontalLocked = false; dragging = false; return; }
+    if (ax >= LOCK_START_PX && ax >= ay * HORIZONTAL_BIAS){
+      horizontalLocked = true;
+      tabStack.classList.add('dragging');
+      if (pointerId != null && tabStack.setPointerCapture){
+        try { tabStack.setPointerCapture(pointerId); } catch(err){}
+      }
+    } else { horizontalLocked = false; dragging = false; return; }
+  }
+  if (!horizontalLocked) return;
+  if (e.cancelable) e.preventDefault();
+  const atLeft = activeTab === 0 && dx > 0;
+  const atRight = activeTab === TAB_ORDER.length - 1 && dx < 0;
+  const effDx = (atLeft || atRight) ? dx * DRAG_RUBBER : dx;
+  dragDx = effDx;
+  scheduleDraw(effDx);
+  const now = performance.now();
+  const dt = now - dragLastT;
+  if (dt > 0) dragVelocity = (x - dragLastX) / dt;
+  dragLastX = x; dragLastT = now;
+}
+function onPagerEnd(){
+  if (!dragging){ horizontalLocked = null; return; }
+  const wasHoriz = horizontalLocked === true;
+  dragging = false; horizontalLocked = null;
+  if (rafId){ cancelAnimationFrame(rafId); rafId = 0; paintPager(dragDx); }
+  tabStack.classList.remove('dragging');
+  if (pointerId != null && tabStack.releasePointerCapture){
+    try { tabStack.releasePointerCapture(pointerId); } catch(err){}
+  }
+  pointerId = null;
+  if (!wasHoriz) return;
+  const rawDx = dragLastX - dragStartX;
+  const ratio = Math.abs(dragDx) / (containerWidth || 1);
+  const fastFlick = Math.abs(dragVelocity) > SWIPE_VELOCITY && Math.abs(rawDx) > 8;
+  let nextIdx = activeTab;
+  if (ratio > SWIPE_DISTANCE_RATIO || fastFlick){
+    if (rawDx < 0 && activeTab < TAB_ORDER.length - 1) nextIdx = activeTab + 1;
+    else if (rawDx > 0 && activeTab > 0) nextIdx = activeTab - 1;
+  }
+  setActiveTab(nextIdx, true);
+}
+if (window.PointerEvent){
+  tabStack.addEventListener('pointerdown', onPagerStart, { passive: true });
+  tabStack.addEventListener('pointermove', onPagerMove, { passive: false });
+  tabStack.addEventListener('pointerup', onPagerEnd, { passive: true });
+  tabStack.addEventListener('pointercancel', onPagerEnd, { passive: true });
+} else {
+  tabStack.addEventListener('touchstart', onPagerStart, { passive: true });
+  tabStack.addEventListener('touchmove', onPagerMove, { passive: false });
+  tabStack.addEventListener('touchend', onPagerEnd, { passive: true });
+  tabStack.addEventListener('touchcancel', onPagerEnd, { passive: true });
+}
+window.addEventListener('resize', () => {
+  if (appShell.style.display === 'none') return;
+  containerWidth = tabStack.clientWidth || window.innerWidth;
+  paintPager(0);
+});
+
+/* appShell görünür olduğunda pager'ı ilk kez boya */
+const _origShowAppShell = showAppShell;
+showAppShell = function(){
+  _origShowAppShell();
+  requestAnimationFrame(() => {
+    containerWidth = tabStack.clientWidth || window.innerWidth;
+    setActiveTab(0, false);
+    renderContacts();
+    renderGroups();
+  });
+};
+
+/* ---------- Kişiler & Gruplar: storage + render + sheets ---------- */
+const A2_CONTACTS_KEY = 'sohbetoA2_contacts';
+const A2_GROUPS_KEY = 'sohbetoA2_groups';
+function readContacts(){
+  try { return JSON.parse(localStorage.getItem(A2_CONTACTS_KEY) || '[]'); } catch(e){ return []; }
+}
+function writeContacts(arr){ localStorage.setItem(A2_CONTACTS_KEY, JSON.stringify(arr)); }
+function readGroups(){
+  try { return JSON.parse(localStorage.getItem(A2_GROUPS_KEY) || '[]'); } catch(e){ return []; }
+}
+function writeGroups(arr){ localStorage.setItem(A2_GROUPS_KEY, JSON.stringify(arr)); }
+function initials(s){
+  return (s||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase() || '?';
+}
+function avClass(i){ return ['','av-b','av-c','av-d','av-e'][i % 5]; }
+
+function renderContacts(filter){
+  const list = document.getElementById('peopleList');
+  if (!list) return;
+  const items = readContacts();
+  const q = (filter||'').trim().toLowerCase();
+  const filtered = q ? items.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q)) : items;
+  if (!items.length){
+    list.innerHTML = '<div class="empty-state"><div class="em">👥</div><b>Henüz kişi yok</b><p>Üstteki + butonuna dokunarak yeni kişi ekleyebilirsin.</p></div>';
+    return;
+  }
+  if (!filtered.length){
+    list.innerHTML = '<div class="empty-state"><div class="em">🔎</div><b>Eşleşen kişi yok</b><p>Farklı bir arama dene.</p></div>';
+    return;
+  }
+  list.innerHTML = filtered.map((c,i) =>
+    '<div class="listcard" data-contact-id="'+c.id+'">'+
+      '<div class="avatar '+avClass(i)+'">'+initials(c.name)+'</div>'+
+      '<div class="lc-meta"><b>'+escapeHtml(c.name)+'</b><span>'+escapeHtml(c.phone||'')+'</span></div>'+
+      '<div class="time">'+escapeHtml(c.added||'')+'</div>'+
+    '</div>'
+  ).join('');
+}
+function renderGroups(filter){
+  const list = document.getElementById('groupsList');
+  if (!list) return;
+  const items = readGroups();
+  const q = (filter||'').trim().toLowerCase();
+  const filtered = q ? items.filter(g => (g.name||'').toLowerCase().includes(q)) : items;
+  if (!items.length){
+    list.innerHTML = '<div class="empty-state"><div class="em">🐠</div><b>Henüz grup yok</b><p>Üstteki + ile yeni grup oluştur.</p></div>';
+    return;
+  }
+  if (!filtered.length){
+    list.innerHTML = '<div class="empty-state"><div class="em">🔎</div><b>Eşleşen grup yok</b><p>Farklı bir arama dene.</p></div>';
+    return;
+  }
+  list.innerHTML = filtered.map((g,i) =>
+    '<div class="listcard" data-group-id="'+g.id+'">'+
+      '<div class="avatar '+avClass(i+1)+'">'+initials(g.name)+'</div>'+
+      '<div class="lc-meta"><b>'+escapeHtml(g.name)+'</b><span>'+(g.members?g.members.length:0)+' üye</span></div>'+
+      '<div class="time">'+escapeHtml(g.added||'')+'</div>'+
+    '</div>'
+  ).join('');
+}
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function nowDate(){ try { return new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'short'}); } catch(e){ return ''; } }
+
+/* Sheet helpers */
+function openSheet(html){
+  const back = document.createElement('div');
+  back.className = 'a2-sheet-back';
+  back.innerHTML = '<div class="a2-sheet"><div class="a2-sheet-handle"></div>'+html+'</div>';
+  document.body.appendChild(back);
+  back.addEventListener('click', e => { if (e.target === back) closeSheet(back); });
+  requestAnimationFrame(() => back.classList.add('in'));
+  return back;
+}
+function closeSheet(back){
+  back.classList.remove('in');
+  setTimeout(() => { if (back.parentNode) back.parentNode.removeChild(back); }, 300);
+}
+
+/* Kişi ekle sheet */
+function openAddContactSheet(){
+  const back = openSheet(
+    '<h3>Yeni kişi</h3>'+
+    '<div class="sub">Bir isim ve telefon numarası ekle. Akvaryumdaki balıklar bu kişiyle sohbet etmek için hazır.</div>'+
+    '<div class="a2-field"><label>İsim</label><input id="acName" type="text" placeholder="Örn. Ahmet Yılmaz" autocomplete="off" /></div>'+
+    '<div class="a2-field"><label>Telefon</label><input id="acPhone" type="tel" inputmode="tel" placeholder="+90 555 123 45 67" /></div>'+
+    '<div class="a2-sheet-actions">'+
+      '<button class="a2-btn ghost" id="acCancel">Vazgeç</button>'+
+      '<button class="a2-btn primary" id="acSave">Kaydet</button>'+
+    '</div>'
+  );
+  const nameEl = back.querySelector('#acName');
+  const phoneEl = back.querySelector('#acPhone');
+  setTimeout(() => nameEl.focus(), 200);
+  back.querySelector('#acCancel').onclick = () => closeSheet(back);
+  function save(){
+    const name = (nameEl.value||'').trim();
+    const phone = (phoneEl.value||'').trim();
+    if (!name){ nameEl.style.borderColor = '#ff6a85'; setTimeout(()=>nameEl.style.borderColor='',1200); nameEl.focus(); return; }
+    const items = readContacts();
+    items.unshift({
+      id: 'c-' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      name, phone, added: nowDate()
+    });
+    writeContacts(items);
+    renderContacts();
+    a2Notify({ title:'Kişiler · Sohbeto', text:name+' kişilere eklendi.', duration:1600 });
+    closeSheet(back);
+  }
+  back.querySelector('#acSave').onclick = save;
+  [nameEl, phoneEl].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') save(); }));
+}
+
+/* Grup oluştur sheet */
+function openAddGroupSheet(){
+  const contacts = readContacts();
+  const pickerHtml = contacts.length
+    ? '<div class="a2-picker" id="agPicker">' + contacts.map((c,i) =>
+        '<div class="a2-pick-row" data-id="'+c.id+'">'+
+          '<div class="av '+avClass(i)+'">'+initials(c.name)+'</div>'+
+          '<div class="nm">'+escapeHtml(c.name)+'</div>'+
+          '<div class="ck">✓</div>'+
+        '</div>'
+      ).join('') + '</div>'
+    : '<div class="a2-picker"><div class="a2-picker-empty">Önce Kişiler sekmesinden kişi ekle.</div></div>';
+  const back = openSheet(
+    '<h3>Yeni grup</h3>'+
+    '<div class="sub">Bir isim ver ve aşağıdaki kişilerden üye seç.</div>'+
+    '<div class="a2-field"><label>Grup adı</label><input id="agName" type="text" placeholder="Örn. Aile" autocomplete="off" /></div>'+
+    '<div class="a2-field"><label>Üyeler</label>'+pickerHtml+'</div>'+
+    '<div class="a2-sheet-actions">'+
+      '<button class="a2-btn ghost" id="agCancel">Vazgeç</button>'+
+      '<button class="a2-btn primary" id="agSave">Oluştur</button>'+
+    '</div>'
+  );
+  const nameEl = back.querySelector('#agName');
+  setTimeout(() => nameEl.focus(), 200);
+  back.querySelectorAll('.a2-pick-row').forEach(r => {
+    r.addEventListener('click', () => r.classList.toggle('on'));
+  });
+  back.querySelector('#agCancel').onclick = () => closeSheet(back);
+  function save(){
+    const name = (nameEl.value||'').trim();
+    if (!name){ nameEl.style.borderColor = '#ff6a85'; setTimeout(()=>nameEl.style.borderColor='',1200); nameEl.focus(); return; }
+    const selected = [...back.querySelectorAll('.a2-pick-row.on')].map(r => r.dataset.id);
+    const items = readGroups();
+    items.unshift({
+      id: 'g-' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      name, members: selected, added: nowDate()
+    });
+    writeGroups(items);
+    renderGroups();
+    a2Notify({ title:'Gruplar · Sohbeto', text:'"'+name+'" grubu oluşturuldu ('+selected.length+' üye).', duration:1800 });
+    closeSheet(back);
+  }
+  back.querySelector('#agSave').onclick = save;
+  nameEl.addEventListener('keydown', e => { if (e.key === 'Enter') save(); });
+}
+
+document.getElementById('addContactBtn').addEventListener('click', openAddContactSheet);
+document.getElementById('addGroupBtn').addEventListener('click', openAddGroupSheet);
+document.getElementById('peopleSearch').addEventListener('input', e => renderContacts(e.target.value));
+document.getElementById('groupsSearch').addEventListener('input', e => renderGroups(e.target.value));
 
 /* Sohbet ekranı geri */
 document.getElementById('backToChats').addEventListener('click', () => goTo('chats'));
@@ -851,6 +1292,850 @@ function a2LogoutDialog(){
   document.getElementById('a2LoWipe').onclick = () => { wrap.remove(); a2Post('logout', { mode: 'wipe' }); };
 }
 document.getElementById('logoutRow').addEventListener('click', a2LogoutDialog);
+
+/* =========================================================================
+   ADIM 5 — Sohbetler başlığı 3 ikon + Aramalar tam ekran (A2 sürümü)
+   --------------------------------------------------------------------------
+   Mantık (motor/adapter dosyalarına dokunulmaz):
+     - Veri kaynağı: aynı sandık (engine'in yazdığı yer)
+         · localStorage  : "oo_offline_call_queue_v1__<num>"  (cevapsız çağrı kuyruğu)
+         · GunesOSStore  : ".gunesos/sohbeto/<num>/calls"     (zenginleştirilmiş log)
+     - A2 yalnızca okur; engine.js/adapter.js'a yazma sorumluluğu kalır.
+     - Gelen Kutusu ve Yeni Sohbet ikonları görünür ama bu adımda henüz pasif
+       (kullanıcı isteği: "sayfa sayfa gidelim, önce aramalar").
+   ========================================================================= */
+(function a2ExtrasInit(){
+  // 1) Motor-yan store'u (read-only kullanım) yükle. Aynı klasörde, sibling dosya.
+  if (!window.GunesOSStore) {
+    try {
+      var s = document.createElement('script');
+      s.src = './gunesos-store.js';
+      s.async = true;
+      document.head.appendChild(s);
+    } catch(e){}
+  }
+
+  // 2) Header üç ikon + tam ekran katman stilleri
+  var css = ''
+    + '.iconrow{display:flex;gap:6px;align-items:center}'
+    + '.iconbtn.a2-hdr{position:relative;width:34px;height:34px;color:var(--accent);background:rgba(255,255,255,.85)}'
+    + '.iconbtn.a2-hdr:active{transform:scale(.94)}'
+    + '.a2-hdr-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;'
+    +   'background:linear-gradient(135deg,#ff8a73,#ff6a85);color:#fff;font-size:9.5px;font-weight:800;display:grid;place-items:center;'
+    +   'box-shadow:0 4px 8px -4px rgba(255,138,115,.7)}'
+    + '.a2-fs{position:absolute;inset:0;z-index:50;background:linear-gradient(180deg,#eaf6ff 0%,#cfe9f7 100%);'
+    +   'display:flex;flex-direction:column;transform:translateY(100%);transition:transform .28s cubic-bezier(.22,.61,.36,1);}'
+    + '.a2-fs.open{transform:translateY(0)}'
+    + '.a2-fs-head{display:flex;align-items:center;gap:10px;padding:14px 14px 8px}'
+    + '.a2-fs-back{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.85);'
+    +   'border:1px solid var(--line);color:var(--accent);cursor:pointer;font-size:18px}'
+    + '.a2-fs-back:active{transform:scale(.94)}'
+    + '.a2-fs-title{flex:1;font-size:18px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}'
+    + '.a2-fs-act{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.85);'
+    +   'border:1px solid var(--line);color:var(--coral);cursor:pointer;font-size:14px}'
+    + '.a2-fs-act:active{transform:scale(.94)}'
+    + '.a2-fs-body{flex:1;min-height:0;overflow-y:auto;padding:6px 12px 18px;display:flex;flex-direction:column;gap:8px}'
+    + '.a2-row{display:flex;align-items:center;gap:12px;padding:10px;border-radius:16px;background:var(--card);'
+    +   'border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(10px)}'
+    + '.a2-row-av{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;color:#fff;font-size:16px;flex:none;'
+    +   'background:linear-gradient(135deg,#ff8a73,#ff6a85);box-shadow:0 8px 16px -10px rgba(255,138,115,.7)}'
+    + '.a2-row-av svg{width:18px;height:18px}'
+    + '.a2-row-info{flex:1;min-width:0}'
+    + '.a2-row-name{font-size:13.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    + '.a2-row-sub{font-size:11px;color:var(--muted);margin-top:2px}'
+    + '.a2-row-meta{font-size:10.5px;color:var(--muted);flex:none;margin-left:8px}'
+    + '.a2-empty{margin:auto;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.6;padding:24px 16px}'
+    + '.a2-empty .a2-empty-ico{width:64px;height:64px;border-radius:20px;margin:0 auto 12px;display:grid;place-items:center;'
+    +   'background:linear-gradient(135deg,#7bd1e8,#67d6c4);color:#fff;font-size:26px;box-shadow:0 14px 28px -14px rgba(42,166,200,.6)}'
+    + '.a2-note-card{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:18px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(10px);cursor:pointer;transition:transform .15s ease}'
+    + '.a2-note-card:active{transform:scale(.98)}'
+    + '.a2-note-title{font-size:14px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    + '.a2-note-snip{font-size:12px;color:var(--muted);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}'
+    + '.a2-note-meta{display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--muted);margin-top:2px}'
+    + '.a2-note-del{color:var(--coral);font-size:13px;padding:4px 8px;border-radius:8px;background:rgba(255,138,115,.12)}'
+    + '.a2-row-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;padding-left:54px}'
+    + '.a2-act{font-size:11px;font-weight:700;padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.7);color:var(--ink);cursor:pointer}'
+    + '.a2-act.primary{background:linear-gradient(135deg,var(--accent),#67d6c4);color:#fff;border:none}'
+    + '.a2-act.danger{background:linear-gradient(135deg,#ff8a73,#ff6a85);color:#fff;border:none}'
+    /* Not editörü: tam ekran katman, "+" ile yukarıdan kayarak açılır */
+    + '.a2-note-editor{position:absolute;inset:0;background:linear-gradient(180deg,#eaf6ff 0%,#cfe9f7 100%);z-index:60;display:flex;flex-direction:column;'
+    +   'transform:translateY(-110%);opacity:0;pointer-events:none;visibility:hidden;'
+    +   'transition:transform .36s cubic-bezier(.22,.9,.28,1.2), opacity .26s ease, visibility 0s linear .36s}'
+    + '.a2-note-editor.open{transform:translateY(0);opacity:1;pointer-events:auto;visibility:visible;transition:transform .42s cubic-bezier(.22,.9,.28,1.2), opacity .22s ease, visibility 0s linear 0s}'
+    + '.a2-ne-title{margin:10px 14px 6px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:#fff;font-size:15px;font-weight:700;color:var(--ink);outline:none;box-shadow:0 6px 16px -10px rgba(42,166,200,.35)}'
+    + '.a2-ne-title:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(42,166,200,.18)}'
+    + '.a2-ne-meta{margin:0 18px;font-size:10.5px;color:var(--muted)}'
+    + '.a2-ne-body{flex:1;margin:10px 14px 16px;padding:14px;border-radius:16px;border:1px solid var(--line);background:#fff;font-size:14px;color:var(--ink);line-height:1.55;outline:none;resize:none;font-family:inherit;box-shadow:0 8px 22px -14px rgba(42,166,200,.35)}'
+    + '.a2-ne-body:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(42,166,200,.18)}'
+    ;
+  var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+
+  // 3) Aramalar tam-ekran katmanı
+  var phone = document.querySelector('.phone .screen') || document.querySelector('.phone') || document.body;
+  var callsFs = document.createElement('div');
+  callsFs.className = 'a2-fs';
+  callsFs.id = 'a2FsCalls';
+  callsFs.innerHTML = ''
+    + '<div class="a2-fs-head">'
+    +   '<div class="a2-fs-back" id="a2CallsBack" aria-label="Geri">‹</div>'
+    +   '<div class="a2-fs-title">Aramalar</div>'
+    +   '<div class="a2-fs-act" id="a2CallsClear" title="Temizle" aria-label="Temizle">🗑</div>'
+    + '</div>'
+    + '<div class="a2-fs-body" id="a2CallsBody"></div>';
+  phone.appendChild(callsFs);
+
+  // 3b) Gelen Kutusu tam-ekran katmanı
+  var inboxFs = document.createElement('div');
+  inboxFs.className = 'a2-fs'; inboxFs.id = 'a2FsInbox';
+  inboxFs.innerHTML = ''
+    + '<div class="a2-fs-head">'
+    +   '<div class="a2-fs-back" id="a2InboxBack" aria-label="Geri">‹</div>'
+    +   '<div class="a2-fs-title">Gelen Kutusu</div>'
+    +   '<div class="a2-fs-act" id="a2InboxClear" title="Temizle" aria-label="Temizle">🗑</div>'
+    + '</div>'
+    + '<div class="a2-fs-body" id="a2InboxBody"></div>';
+  phone.appendChild(inboxFs);
+
+  // 3c) Not Defteri tam-ekran katmanı (kalem ikonu)
+  var notesFs = document.createElement('div');
+  notesFs.className = 'a2-fs'; notesFs.id = 'a2FsNotes';
+  notesFs.innerHTML = ''
+    + '<div class="a2-fs-head">'
+    +   '<div class="a2-fs-back" id="a2NotesBack" aria-label="Geri">‹</div>'
+    +   '<div class="a2-fs-title">Not Defteri</div>'
+    +   '<div class="a2-fs-act" id="a2NotesNew" title="Yeni not" aria-label="Yeni not" style="color:var(--accent)">＋</div>'
+    + '</div>'
+    + '<div class="a2-fs-body" id="a2NotesBody"></div>'
+    + '<div class="a2-note-editor" id="a2NoteEditor">'
+    +   '<div class="a2-fs-head">'
+    +     '<div class="a2-fs-back" id="a2NeBack" aria-label="Geri">‹</div>'
+    +     '<div class="a2-fs-title">Not</div>'
+    +     '<div class="a2-fs-act" id="a2NeSave" title="Kaydet" aria-label="Kaydet" style="color:var(--accent);font-weight:800;font-size:12px">KAYDET</div>'
+    +   '</div>'
+    +   '<input class="a2-ne-title" id="a2NeTitle" placeholder="Başlık" maxlength="120">'
+    +   '<div class="a2-ne-meta" id="a2NeMeta">—</div>'
+    +   '<textarea class="a2-ne-body" id="a2NeBody" placeholder="Notunu buraya yaz…"></textarea>'
+    + '</div>';
+  phone.appendChild(notesFs);
+
+  // 4) Yardımcılar
+  function myNumberA2(){
+    try {
+      return (window.GunesOSStore && window.GunesOSStore.__profileNumber__)
+        || localStorage.getItem('sohbeto.oo.profile.number')
+        || localStorage.getItem('sohbet_my_number_v1')
+        || '_anon';
+    } catch(e){ return '_anon'; }
+  }
+  function callsPathA2(){ return '.gunesos/sohbeto/' + myNumberA2() + '/calls'; }
+  function escA2(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+  });}
+  function fmtDTA2(ts){
+    try {
+      var d = new Date(ts);
+      var pad = function(n){ return String(n).padStart(2,'0'); };
+      var sameDay = (function(){ var n = new Date(); return n.getFullYear()===d.getFullYear() && n.getMonth()===d.getMonth() && n.getDate()===d.getDate(); })();
+      if (sameDay) return pad(d.getHours())+':'+pad(d.getMinutes());
+      return pad(d.getDate())+'.'+pad(d.getMonth()+1)+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+    } catch(e){ return ''; }
+  }
+  function loadOfflineCallsFromAdapterA2(){
+    var out = [];
+    try {
+      for (var i=0;i<localStorage.length;i++){
+        var k = localStorage.key(i);
+        if (k && k.indexOf('oo_offline_call_queue_v1__') === 0){
+          try {
+            var arr = JSON.parse(localStorage.getItem(k) || '[]');
+            if (Array.isArray(arr)) arr.forEach(function(x){ out.push(x); });
+          } catch(e){}
+        }
+      }
+    } catch(e){}
+    return out;
+  }
+  function loadStoreCallsA2(){
+    if (!window.GunesOSStore) return Promise.resolve([]);
+    try {
+      return window.GunesOSStore.get(callsPathA2()).then(function(v){ return Array.isArray(v)?v:[]; });
+    } catch(e){ return Promise.resolve([]); }
+  }
+  var PHONE_ICO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+
+  function renderCallsA2(){
+    var body = document.getElementById('a2CallsBody'); if (!body) return;
+    var fromAdapter = loadOfflineCallsFromAdapterA2();
+    loadStoreCallsA2().then(function(extra){
+      var all = fromAdapter.concat(extra).sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+      if (!all.length){
+        body.innerHTML = '<div class="a2-empty"><div class="a2-empty-ico">📞</div>'
+          + 'Henüz arama yok.<br>Çevrimdışıyken seni arayanlar burada listelenir.</div>';
+        updateCallsBadgeA2(0);
+        return;
+      }
+      var html = '';
+      all.forEach(function(c){
+        var name = c.name || c.number || 'Bilinmeyen';
+        var kind = c.kind === 'video' ? 'Görüntülü arama' : 'Sesli arama';
+        html += '<div class="a2-row">'
+          +   '<div class="a2-row-av">'+PHONE_ICO+'</div>'
+          +   '<div class="a2-row-info">'
+          +     '<div class="a2-row-name">'+escA2(name)+'</div>'
+          +     '<div class="a2-row-sub">Cevapsız · '+escA2(kind)+'</div>'
+          +   '</div>'
+          +   '<div class="a2-row-meta">'+fmtDTA2(c.ts||Date.now())+'</div>'
+          + '</div>';
+      });
+      body.innerHTML = html;
+      updateCallsBadgeA2(all.length);
+    });
+  }
+  function clearCallsA2(){
+    // localStorage adapter kuyruklarını temizle
+    try {
+      var rm = [];
+      for (var i=0;i<localStorage.length;i++){
+        var k = localStorage.key(i);
+        if (k && k.indexOf('oo_offline_call_queue_v1__') === 0) rm.push(k);
+      }
+      rm.forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+    } catch(e){}
+    // GunesOSStore tarafını temizle
+    var p = (window.GunesOSStore && window.GunesOSStore.set) ? window.GunesOSStore.set(callsPathA2(), []) : Promise.resolve();
+    Promise.resolve(p).then(renderCallsA2);
+  }
+  function updateCallsBadgeA2(n){
+    var b = document.getElementById('a2HdrCallsBadge'); if (!b) return;
+    if (n>0){ b.textContent = n>99?'99+':String(n); b.hidden = false; }
+    else { b.hidden = true; }
+  }
+
+  // 5) Aç / Kapat
+  function openCallsFs(){
+    var el = document.getElementById('a2FsCalls'); if (!el) return;
+    renderCallsA2();
+    requestAnimationFrame(function(){ el.classList.add('open'); });
+  }
+  function closeCallsFs(){
+    var el = document.getElementById('a2FsCalls'); if (!el) return;
+    el.classList.remove('open');
+  }
+
+  // =================== GELEN KUTUSU (read-only) ===================
+  // OO/extras.js engine'i sardığı için rehberde olmayanlardan gelen mesaj/arama
+  // istekleri .gunesos/sohbeto/<num>/inbox altına IndexedDB'ye düşer.
+  // A2 burayı sadece okur — yazma sorumluluğu motor/extras tarafında kalır.
+  function inboxPathA2(){ return '.gunesos/sohbeto/' + myNumberA2() + '/inbox'; }
+  function loadInboxA2(){
+    if (!window.GunesOSStore) return Promise.resolve([]);
+    try { return window.GunesOSStore.get(inboxPathA2()).then(function(v){ return Array.isArray(v)?v:[]; }); }
+    catch(e){ return Promise.resolve([]); }
+  }
+  function saveInboxA2(arr){
+    if (!window.GunesOSStore) return Promise.resolve(false);
+    try { return window.GunesOSStore.set(inboxPathA2(), arr||[]); } catch(e){ return Promise.resolve(false); }
+  }
+  function markInboxSeenA2(){
+    loadInboxA2().then(function(arr){
+      var changed=false; arr.forEach(function(e){ if(!e.seen){ e.seen=true; changed=true; }});
+      if (changed) saveInboxA2(arr).then(refreshInboxBadge);
+    });
+  }
+  var ENV_ICO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>';
+  var CALL_ICO = PHONE_ICO;
+  var GRP_ICO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5"/><path d="M14 20c.2-2 2-3.5 4-3.5s3.8 1.5 4 3.5"/></svg>';
+  function renderInboxA2(){
+    var body = document.getElementById('a2InboxBody'); if (!body) return;
+    loadInboxA2().then(function(arr){
+      if (!arr.length){
+        body.innerHTML = '<div class="a2-empty"><div class="a2-empty-ico">✉</div>'
+          + 'Gelen kutun boş.<br>Rehberinde olmayan kişilerin mesaj ve arama istekleri burada görünür.</div>';
+        updateInboxBadgeA2(0);
+        return;
+      }
+      var html = '';
+      arr.forEach(function(e, idx){
+        var name = e.name || e.number || 'Bilinmeyen';
+        var isGrp = e.kind === 'group_invite';
+        var sub;
+        if (isGrp) sub = 'Grup daveti: ' + escA2(e.groupName || e.groupId || '');
+        else if (e.kind === 'call') sub = (e.callType==='video'?'Görüntülü arama':'Sesli arama') + ' isteği';
+        else sub = (e.text || 'Mesaj').slice(0,140);
+        var ico = isGrp ? GRP_ICO : (e.kind==='call' ? CALL_ICO : ENV_ICO);
+        var actions = '<button class="a2-act danger" data-iact="del" data-i="'+idx+'">Sil</button>';
+        html += '<div class="a2-row" style="flex-direction:column;align-items:stretch">'
+          + '<div style="display:flex;align-items:center;gap:12px;width:100%">'
+          +   '<div class="a2-row-av">'+ico+'</div>'
+          +   '<div class="a2-row-info">'
+          +     '<div class="a2-row-name">'+escA2(name)+'</div>'
+          +     '<div class="a2-row-sub">'+escA2(sub)+'</div>'
+          +     (e.number?'<div class="a2-row-sub" style="opacity:.7;font-size:10px">'+escA2(e.number)+'</div>':'')
+          +   '</div>'
+          +   '<div class="a2-row-meta">'+fmtDTA2(e.ts||Date.now())+'</div>'
+          + '</div>'
+          + '<div class="a2-row-actions">'+actions+'</div>'
+          + '</div>';
+      });
+      body.innerHTML = html;
+      updateInboxBadgeA2(arr.length);
+      markInboxSeenA2();
+    });
+  }
+  function updateInboxBadgeA2(n){
+    var b = document.getElementById('a2HdrInboxBadge'); if (!b) return;
+    if (n>0){ b.textContent = n>99?'99+':String(n); b.hidden=false; } else { b.hidden=true; }
+  }
+  function refreshInboxBadge(){
+    loadInboxA2().then(function(arr){
+      var unread = arr.filter(function(e){ return !e.seen; }).length;
+      updateInboxBadgeA2(unread || arr.length);
+    });
+  }
+  function clearInboxA2(){ saveInboxA2([]).then(renderInboxA2).then(refreshInboxBadge); }
+  function openInboxFs(){ var el=document.getElementById('a2FsInbox'); if(!el)return; renderInboxA2(); requestAnimationFrame(function(){ el.classList.add('open'); }); }
+  function closeInboxFs(){ var el=document.getElementById('a2FsInbox'); if(el) el.classList.remove('open'); }
+
+  // =================== NOT DEFTERİ ===================
+  // OO ile birebir aynı kalıcılık: IndexedDB (GunesOSStore) üzerinden
+  //   .gunesos/sohbeto/<num>/notes/__index__   → { ids:[], byId:{} }
+  //   .gunesos/sohbeto/<num>/notes/<id>        → { id, title, body, createdAt, updatedAt }
+  // Böylece OO'da yazılan not A2'de de görünür, A2'de yazılan OO'da da.
+  function notesIdxPathA2(){ return '.gunesos/sohbeto/' + myNumberA2() + '/notes/__index__'; }
+  function notePathA2(id){ return '.gunesos/sohbeto/' + myNumberA2() + '/notes/' + id; }
+  function loadNotesIndexA2(){
+    if (!window.GunesOSStore) return Promise.resolve({ids:[], byId:{}});
+    return window.GunesOSStore.get(notesIdxPathA2()).then(function(v){
+      if (v && v.ids && v.byId) return v; return {ids:[], byId:{}};
+    });
+  }
+  function saveNotesIndexA2(idx){ return window.GunesOSStore.set(notesIdxPathA2(), idx); }
+  function loadNoteA2(id){ return window.GunesOSStore.get(notePathA2(id)); }
+  function saveNoteA2(n){ return window.GunesOSStore.set(notePathA2(n.id), n); }
+  function deleteNoteA2(id){
+    return window.GunesOSStore.del(notePathA2(id))
+      .then(loadNotesIndexA2)
+      .then(function(idx){ idx.ids = idx.ids.filter(function(x){return x!==id;}); delete idx.byId[id]; return saveNotesIndexA2(idx); });
+  }
+
+  var _editingNoteA2 = null;
+  function renderNotesA2(){
+    var body = document.getElementById('a2NotesBody'); if (!body) return;
+    body.innerHTML = '<div class="a2-empty"><div class="a2-empty-ico">…</div>Yükleniyor…</div>';
+    loadNotesIndexA2().then(function(idx){
+      if (!idx.ids.length){
+        body.innerHTML = '<div class="a2-empty"><div class="a2-empty-ico">✎</div>'
+          + 'Henüz notun yok.<br>Sağ üstteki <b>＋</b> ile yeni not ekleyebilirsin.</div>';
+        return;
+      }
+      var html = '';
+      idx.ids.slice().sort(function(a,b){
+        var na=idx.byId[a], nb=idx.byId[b];
+        return ((nb&&nb.updatedAt)||0) - ((na&&na.updatedAt)||0);
+      }).forEach(function(id){
+        var n = idx.byId[id]; if (!n) return;
+        html += '<div class="a2-note-card" data-nid="'+escA2(id)+'">'
+          +   '<div class="a2-note-title">'+escA2(n.title||'(Başlıksız)')+'</div>'
+          +   '<div class="a2-note-snip">'+escA2(n.snip||'')+'</div>'
+          +   '<div class="a2-note-meta">'
+          +     '<span>'+fmtDTA2(n.updatedAt||n.createdAt)+'</span>'
+          +     '<span class="a2-note-del" data-ndel="'+escA2(id)+'">🗑</span>'
+          +   '</div>'
+          + '</div>';
+      });
+      body.innerHTML = html;
+    });
+  }
+  function openNoteEditorA2(note){
+    _editingNoteA2 = note || {
+      id: 'n_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      title:'', body:'', createdAt: Date.now(), updatedAt: Date.now()
+    };
+    var ed = document.getElementById('a2NoteEditor'); if (!ed) return;
+    document.getElementById('a2NeTitle').value = _editingNoteA2.title || '';
+    document.getElementById('a2NeBody').value  = _editingNoteA2.body  || '';
+    document.getElementById('a2NeMeta').textContent = _editingNoteA2.createdAt
+      ? ('Oluşturma: ' + fmtDTA2(_editingNoteA2.createdAt)
+          + (_editingNoteA2.updatedAt && _editingNoteA2.updatedAt !== _editingNoteA2.createdAt
+              ? '   ·   Son değişiklik: ' + fmtDTA2(_editingNoteA2.updatedAt) : ''))
+      : '—';
+    ed.classList.add('open');
+    setTimeout(function(){ try { document.getElementById('a2NeTitle').focus(); } catch(e){} }, 80);
+  }
+  function closeNoteEditorA2(){ var ed=document.getElementById('a2NoteEditor'); if(ed) ed.classList.remove('open'); _editingNoteA2 = null; }
+  function saveCurrentNoteA2(){
+    if (!_editingNoteA2) return;
+    var t = (document.getElementById('a2NeTitle').value||'').trim();
+    var b = (document.getElementById('a2NeBody').value ||'').trim();
+    if (!t && !b){ closeNoteEditorA2(); return; }
+    _editingNoteA2.title = t || '(Başlıksız)';
+    _editingNoteA2.body  = b;
+    _editingNoteA2.updatedAt = Date.now();
+    var snip = b.split('\n').slice(0,2).join(' ').slice(0,140);
+    var copy = _editingNoteA2;
+    saveNoteA2(copy).then(loadNotesIndexA2).then(function(idx){
+      if (!idx.byId[copy.id]) idx.ids.push(copy.id);
+      idx.byId[copy.id] = { id:copy.id, title:copy.title, snip:snip, createdAt:copy.createdAt, updatedAt:copy.updatedAt };
+      return saveNotesIndexA2(idx);
+    }).then(function(){ closeNoteEditorA2(); renderNotesA2(); a2Notify({title:'Not Defteri', text:'Not kaydedildi.', duration:1400}); });
+  }
+  function openNotesFs(){ var el=document.getElementById('a2FsNotes'); if(!el)return; renderNotesA2(); requestAnimationFrame(function(){ el.classList.add('open'); }); }
+  function closeNotesFs(){ var el=document.getElementById('a2FsNotes'); if(el) el.classList.remove('open'); closeNoteEditorA2(); }
+
+  // 6) Header bağla (delegasyon — calls + inbox + notes + editor)
+  document.addEventListener('click', function(ev){
+    var t = ev.target && ev.target.closest && ev.target.closest(
+      '#a2HdrCalls, #a2HdrInbox, #a2HdrNotes, #a2CallsBack, #a2CallsClear, '
+      + '#a2InboxBack, #a2InboxClear, [data-iact], '
+      + '#a2NotesBack, #a2NotesNew, [data-nid], [data-ndel], '
+      + '#a2NeBack, #a2NeSave'
+    );
+    if (!t) return;
+    // Calls
+    if (t.id === 'a2HdrCalls'){ openCallsFs(); return; }
+    if (t.id === 'a2CallsBack'){ closeCallsFs(); return; }
+    if (t.id === 'a2CallsClear'){ clearCallsA2(); return; }
+    // Inbox
+    if (t.id === 'a2HdrInbox'){ openInboxFs(); return; }
+    if (t.id === 'a2InboxBack'){ closeInboxFs(); return; }
+    if (t.id === 'a2InboxClear'){
+      if (confirm('Gelen kutusunu temizlemek istiyor musun?')) clearInboxA2();
+      return;
+    }
+    if (t.hasAttribute && t.hasAttribute('data-iact')){
+      var iact = t.getAttribute('data-iact');
+      var ii = parseInt(t.getAttribute('data-i'),10);
+      if (iact === 'del'){
+        loadInboxA2().then(function(arr){ arr.splice(ii,1); return saveInboxA2(arr); }).then(renderInboxA2).then(refreshInboxBadge);
+      }
+      return;
+    }
+    // Notes
+    if (t.id === 'a2HdrNotes'){ openNotesFs(); return; }
+    if (t.id === 'a2NotesBack'){ closeNotesFs(); return; }
+    if (t.id === 'a2NotesNew'){ openNoteEditorA2(null); return; }
+    if (t.hasAttribute && t.hasAttribute('data-ndel')){
+      ev.stopPropagation();
+      var did = t.getAttribute('data-ndel');
+      if (confirm('Bu notu silmek istiyor musun?')) deleteNoteA2(did).then(renderNotesA2);
+      return;
+    }
+    if (t.hasAttribute && t.hasAttribute('data-nid')){
+      var nid = t.getAttribute('data-nid');
+      loadNoteA2(nid).then(function(n){ if (n) openNoteEditorA2(n); });
+      return;
+    }
+    if (t.id === 'a2NeBack'){ closeNoteEditorA2(); return; }
+    if (t.id === 'a2NeSave'){ saveCurrentNoteA2(); return; }
+  });
+
+  // 7) İlk açılışta + storage değişimlerinde rozeti güncelle
+  function refreshCallsBadge(){
+    var n = loadOfflineCallsFromAdapterA2().length;
+    loadStoreCallsA2().then(function(extra){ updateCallsBadgeA2(n + (extra?extra.length:0)); });
+  }
+  window.addEventListener('storage', function(e){
+    if (!e || !e.key) return;
+    if (e.key.indexOf('oo_offline_call_queue_v1__') === 0) refreshCallsBadge();
+  });
+  setTimeout(function(){ refreshCallsBadge(); refreshInboxBadge(); }, 600);
+  setTimeout(function(){ refreshCallsBadge(); refreshInboxBadge(); }, 2500);
+})();
+
+/* ============================================================================
+   A2 — Kişi Kartı (iskelet) + Ayarlar›Tema (kart boyut + animasyon)
+   ----------------------------------------------------------------------------
+   Bu blok yalnızca A2'ye eklenmiştir. Motor/adapter/extras dosyalarına
+   dokunulmaz. Veri kaynağı: GunesOSStore (IndexedDB).
+     - Kişiler: .gunesos/sohbeto/<num>/contacts  (array)
+     - Boyut:   .gunesos/sohbeto/_global/a2.cardSize  ("lg"|"md"|"sm")
+     - Anim:    .gunesos/sohbeto/_global/a2.cardAnim  ("default"|"spin"|"flip")
+   Mevcut localStorage ('sohbetoA2_contacts') ↔ IndexedDB iki yönlü ayna:
+   ilk açılışta hangisi doluysa diğerine seed eder; her writeContacts() çağrısı
+   sonrası IDB'ye yazılır. Render kodu eskisi gibi localStorage'dan okumaya
+   devam eder; OO ile aynı IDB sandığına yazıldığı için kalıcılık sağlanır.
+   ========================================================================== */
+(function a2ContactCardInit(){
+  'use strict';
+
+  // -------- 1) GunesOSStore'u yükle (yalnızca okuma/yazma için) --------
+  function ensureStore(cb){
+    if (window.GunesOSStore) return cb();
+    var s = document.createElement('script');
+    s.src = './gunesos-store.js';
+    s.onload = function(){ cb(); };
+    s.onerror = function(){ cb(); };
+    document.head.appendChild(s);
+  }
+
+  function ccMyNumber(){
+    try {
+      return (window.GunesOSStore && window.GunesOSStore.__profileNumber__)
+        || localStorage.getItem('sohbeto.oo.profile.number')
+        || localStorage.getItem('sohbet_my_number_v1')
+        || '_anon';
+    } catch(e){ return '_anon'; }
+  }
+  function ccContactsPath(){ return '.gunesos/sohbeto/' + ccMyNumber() + '/contacts'; }
+  function ccSizePath(){ return '.gunesos/sohbeto/_global/a2.cardSize'; }
+  function ccAnimPath(){ return '.gunesos/sohbeto/_global/a2.cardAnim'; }
+
+  // -------- 2) localStorage ↔ IndexedDB iki yönlü ayna --------
+  function ccMigrateContacts(){
+    if (!window.GunesOSStore) return Promise.resolve();
+    return window.GunesOSStore.get(ccContactsPath()).then(function(idbList){
+      var lsRaw = localStorage.getItem('sohbetoA2_contacts');
+      var lsList = [];
+      try { lsList = JSON.parse(lsRaw || '[]'); } catch(e){ lsList = []; }
+      if (Array.isArray(idbList) && idbList.length){
+        // IDB kazanır: localStorage'ı eşitle
+        try { localStorage.setItem('sohbetoA2_contacts', JSON.stringify(idbList)); } catch(e){}
+        if (typeof window.renderContacts === 'function') try { window.renderContacts(); } catch(e){}
+        return;
+      }
+      if (lsList.length){
+        return window.GunesOSStore.set(ccContactsPath(), lsList);
+      }
+    });
+  }
+
+  // writeContacts'ı sar: her yazımdan sonra IDB'ye de yansıt
+  function ccWrapWriteContacts(){
+    if (typeof window.writeContacts !== 'function') {
+      // writeContacts script-scope'ta tanımlı; window'a bağlamak için bir köprü
+      try { window.writeContacts = writeContacts; } catch(e){}
+    }
+    var orig = window.writeContacts;
+    if (!orig || orig.__a2Wrapped) return;
+    var wrapped = function(arr){
+      var r = orig(arr);
+      try {
+        if (window.GunesOSStore) window.GunesOSStore.set(ccContactsPath(), arr||[]);
+      } catch(e){}
+      return r;
+    };
+    wrapped.__a2Wrapped = true;
+    try { window.writeContacts = wrapped; } catch(e){}
+    // İçeride çağrılan plain `writeContacts(...)` referansını da yamala:
+    try { writeContacts = wrapped; } catch(e){}
+  }
+
+  // -------- 3) CSS + DOM (Kart overlay + Tema overlay) --------
+  var css = ''
+    + '.a2-cc-overlay{position:absolute;inset:0;z-index:62;display:flex;align-items:center;justify-content:center;'
+    +   'background:rgba(10,30,40,0);transition:background .25s ease,backdrop-filter .25s ease;'
+    +   'pointer-events:none;visibility:hidden;opacity:1}'
+    + '.a2-cc-overlay.open{pointer-events:auto;visibility:visible;background:rgba(10,30,40,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}'
+    + '.a2-cc-overlay.closing{pointer-events:none;visibility:visible;background:rgba(10,30,40,0);backdrop-filter:none;-webkit-backdrop-filter:none}'
+    + '.a2-cc{background:linear-gradient(180deg,#ffffff 0%,#eaf6ff 100%);border:1px solid var(--line);'
+    +   'border-radius:24px;padding:22px 20px 18px;box-shadow:0 30px 70px -16px rgba(10,60,100,.45);'
+    +   'transform-origin:var(--tx,50%) var(--ty,50%);opacity:0;text-align:center;'
+    +   'transition:transform .42s cubic-bezier(.22,.9,.28,1.15),opacity .26s ease}'
+    + '.a2-cc{width:86%;max-width:320px}'
+    + '.a2-cc-overlay.size-lg .a2-cc{width:86%;max-width:320px;padding:22px 20px 18px;border-radius:24px}'
+    + '.a2-cc-overlay.size-md .a2-cc{width:74%;max-width:266px;padding:18px 16px 14px;border-radius:20px}'
+    + '.a2-cc-overlay.size-sm .a2-cc{width:64%;max-width:220px;padding:14px 12px 10px;border-radius:18px}'
+    + '.a2-cc-av{width:96px;height:96px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;'
+    +   'font-size:34px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--accent),#67d6c4);'
+    +   'box-shadow:0 16px 30px -14px rgba(42,166,200,.6)}'
+    + '.a2-cc-overlay.size-md .a2-cc-av{width:78px;height:78px;font-size:28px;margin-bottom:10px}'
+    + '.a2-cc-overlay.size-sm .a2-cc-av{width:60px;height:60px;font-size:22px;margin-bottom:8px}'
+    + '.a2-cc-name{font-size:17px;font-weight:800;color:var(--ink)}'
+    + '.a2-cc-overlay.size-md .a2-cc-name{font-size:15px}'
+    + '.a2-cc-overlay.size-sm .a2-cc-name{font-size:13.5px}'
+    + '.a2-cc-phone{font-size:12px;color:var(--muted);margin-top:2px}'
+    + '.a2-cc-overlay.size-sm .a2-cc-phone{font-size:11px}'
+    + '.a2-cc-acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}'
+    + '.a2-cc-overlay.size-sm .a2-cc-acts{margin-top:12px;gap:6px}'
+    /* Aksiyon butonları: Mesaj Gönder ile aynı accent renk ailesi (açık tint + accent ikon) */
+    + '.a2-cc-act{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border-radius:14px;'
+    +   'border:none;background:rgba(42,166,200,.10);color:var(--accent);cursor:pointer;font-family:inherit;'
+    +   'transition:transform .15s ease,background .15s ease}'
+    + '.a2-cc-act:hover{transform:translateY(-2px);background:rgba(42,166,200,.16)}'
+    + '.a2-cc-act:active{transform:translateY(0)}'
+    + '.a2-cc-act i{font-size:17px;line-height:1;color:var(--accent)}'
+    + '.a2-cc-act span{font-size:11px;font-weight:700;color:var(--accent)}'
+    + '.a2-cc-overlay.size-sm .a2-cc-act{padding:8px 4px;border-radius:12px}'
+    + '.a2-cc-overlay.size-sm .a2-cc-act span{font-size:10px}'
+    + '.a2-cc-msg{width:100%;margin-top:14px;padding:12px;border-radius:14px;border:none;cursor:pointer;font-family:inherit;'
+    +   'font-size:13.5px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--accent),#67d6c4);'
+    +   'box-shadow:0 10px 22px -10px rgba(42,166,200,.55);display:inline-flex;align-items:center;justify-content:center;gap:8px}'
+    + '.a2-cc-msg i{font-size:14px}'
+    + '.a2-cc-overlay.size-sm .a2-cc-msg{padding:10px;font-size:12px;margin-top:10px}'
+    /* Animasyon 1 — Klasik: tıklanan noktadan büyür */
+    + '.a2-cc-overlay.anim-default .a2-cc{transform:scale(.05) translate(var(--dx,0),var(--dy,0))}'
+    + '.a2-cc-overlay.anim-default.open .a2-cc{transform:scale(1) translate(0,0);opacity:1}'
+    + '.a2-cc-overlay.anim-default.closing .a2-cc{transform:scale(.05) translate(var(--dx,0),var(--dy,0));opacity:0}'
+    /* Animasyon 2 — Dönerek */
+    + '.a2-cc-overlay.anim-spin{perspective:1200px}'
+    + '.a2-cc-overlay.anim-spin .a2-cc{transform:scale(.05) rotate(-540deg);transition:transform .58s cubic-bezier(.18,.85,.25,1.08),opacity .35s ease}'
+    + '.a2-cc-overlay.anim-spin.open .a2-cc{transform:scale(1) rotate(0deg);opacity:1}'
+    + '.a2-cc-overlay.anim-spin.closing .a2-cc{transform:scale(.05) rotate(540deg);opacity:0}'
+    /* Animasyon 3 — Sürpriz (3B flip) */
+    + '.a2-cc-overlay.anim-flip{perspective:1500px}'
+    + '.a2-cc-overlay.anim-flip .a2-cc{transform-style:preserve-3d;transform:rotateY(115deg) rotateX(-14deg) translateY(-36px) scale(.82);'
+    +   'transition:transform .6s cubic-bezier(.2,.85,.25,1.05),opacity .35s ease;box-shadow:0 30px 80px -10px rgba(0,0,0,.5)}'
+    + '.a2-cc-overlay.anim-flip.open .a2-cc{transform:rotateY(0deg) rotateX(0deg) translateY(0) scale(1);opacity:1}'
+    + '.a2-cc-overlay.anim-flip.closing .a2-cc{transform:rotateY(-115deg) rotateX(14deg) translateY(-36px) scale(.82);opacity:0}'
+    /* Tema overlay */
+    + '.a2-theme-fs{position:absolute;inset:0;z-index:64;display:none;flex-direction:column;'
+    +   'background:linear-gradient(180deg,#eaf6ff 0%,#cfe9f7 100%);'
+    +   'transform:translateY(100%);opacity:0;transition:transform .36s cubic-bezier(.22,.9,.28,1.15),opacity .26s ease}'
+    + '.a2-theme-fs.open{display:flex;transform:translateY(0);opacity:1}'
+    + '.a2-theme-head{display:flex;align-items:center;gap:10px;padding:14px 16px 6px}'
+    + '.a2-theme-head .back{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#fff;'
+    +   'border:1px solid var(--line);color:var(--ink);cursor:pointer;font-size:18px;font-weight:800}'
+    + '.a2-theme-head .ttl{font-size:16px;font-weight:800;color:var(--ink)}'
+    + '.a2-theme-body{flex:1;overflow:auto;padding:8px 16px 18px}'
+    + '.a2-theme-sec{margin-top:14px}'
+    + '.a2-theme-sec h4{margin:0 0 8px 4px;font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}'
+    + '.a2-pickgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}'
+    + '.a2-tile{border:2px solid transparent;border-radius:16px;background:rgba(255,255,255,.7);padding:12px 8px;'
+    +   'text-align:center;cursor:pointer;font-family:inherit;transition:transform .15s,border-color .15s,background .15s}'
+    + '.a2-tile:hover{transform:translateY(-2px)}'
+    + '.a2-tile.active{border-color:var(--accent);background:#fff;box-shadow:0 8px 18px -10px rgba(42,166,200,.45)}'
+    + '.a2-tile .demo{width:100%;aspect-ratio:1/1;max-width:60px;margin:0 auto 6px;border-radius:14px;'
+    +   'background:linear-gradient(135deg,var(--accent),#67d6c4);color:#fff;display:grid;place-items:center;font-weight:800;font-size:20px}'
+    + '.a2-tile .demo.md{max-width:46px;font-size:16px}'
+    + '.a2-tile .demo.sm{max-width:34px;font-size:13px}'
+    + '.a2-tile .lab{font-size:12px;font-weight:800;color:var(--ink)}'
+    + '.a2-tile .sub{font-size:10px;color:var(--muted);margin-top:2px}'
+    ;
+  var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+
+  // DOM: kart + tema overlay'ini phone içine ekle
+  var phone = document.querySelector('.phone');
+  if (!phone) return;
+
+  var ccOverlay = document.createElement('div');
+  ccOverlay.className = 'a2-cc-overlay';
+  ccOverlay.id = 'a2CcOverlay';
+  ccOverlay.innerHTML = ''
+    + '<div class="a2-cc" id="a2Cc">'
+    +   '<div class="a2-cc-av" id="a2CcAv">?</div>'
+    +   '<div class="a2-cc-name" id="a2CcName">—</div>'
+    +   '<div class="a2-cc-phone" id="a2CcPhone">—</div>'
+    +   '<div class="a2-cc-acts">'
+    +     '<button class="a2-cc-act" data-cc="call"><i class="fa-solid fa-phone"></i><span>Sesli</span></button>'
+    +     '<button class="a2-cc-act" data-cc="video"><i class="fa-solid fa-video"></i><span>Görüntülü</span></button>'
+    +     '<button class="a2-cc-act" data-cc="info"><i class="fa-solid fa-circle-info"></i><span>Bilgi</span></button>'
+    +   '</div>'
+    +   '<button class="a2-cc-msg" data-cc="msg"><i class="fa-regular fa-comment"></i>Mesaj Gönder</button>'
+    + '</div>';
+  phone.appendChild(ccOverlay);
+
+  var themeFs = document.createElement('div');
+  themeFs.className = 'a2-theme-fs';
+  themeFs.id = 'a2ThemeFs';
+  themeFs.innerHTML = ''
+    + '<div class="a2-theme-head">'
+    +   '<div class="back" id="a2ThemeBack" aria-label="Geri">‹</div>'
+    +   '<div class="ttl">Tema</div>'
+    + '</div>'
+    + '<div class="a2-theme-body">'
+    +   '<div class="a2-theme-sec">'
+    +     '<h4>Kişi Kartı — Boyut</h4>'
+    +     '<div class="a2-pickgrid" id="a2SizePicker">'
+    +       '<button type="button" class="a2-tile" data-size="lg"><div class="demo">A</div><div class="lab">Büyük</div><div class="sub">Varsayılan</div></button>'
+    +       '<button type="button" class="a2-tile" data-size="md"><div class="demo md">A</div><div class="lab">Orta</div><div class="sub">Dengeli</div></button>'
+    +       '<button type="button" class="a2-tile" data-size="sm"><div class="demo sm">A</div><div class="lab">Küçük</div><div class="sub">Minimal</div></button>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="a2-theme-sec">'
+    +     '<h4>Kişi Kartı — Animasyon</h4>'
+    +     '<div class="a2-pickgrid" id="a2AnimPicker">'
+    +       '<button type="button" class="a2-tile" data-anim="default"><div class="demo">⤢</div><div class="lab">Klasik</div><div class="sub">Tıklanan noktadan</div></button>'
+    +       '<button type="button" class="a2-tile" data-anim="spin"><div class="demo">↻</div><div class="lab">Dönerek</div><div class="sub">Aç/Kapat dönüşü</div></button>'
+    +       '<button type="button" class="a2-tile" data-anim="flip"><div class="demo">✦</div><div class="lab">Sürpriz</div><div class="sub">3B kart çevirme</div></button>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>';
+  phone.appendChild(themeFs);
+
+  // Ayarlar›Tema satırını menüye ekle (Akvaryum satırından önce)
+  try {
+    var menu = document.querySelector('.page[data-page="settings"] .menu');
+    if (menu && !menu.querySelector('#a2ThemeRow')){
+      var row = document.createElement('div');
+      row.className = 'row';
+      row.id = 'a2ThemeRow';
+      row.innerHTML = '<div class="ic">🎨</div><span>Tema</span><em>›</em>';
+      var akv = Array.prototype.find.call(menu.children, function(c){
+        return c.textContent && c.textContent.indexOf('Akvaryum') !== -1;
+      });
+      if (akv) menu.insertBefore(row, akv); else menu.appendChild(row);
+    }
+  } catch(e){}
+
+  // -------- 4) Kart aç/kapa --------
+  var _ccTarget = null;
+  var _ccPrefs = { size:'lg', anim:'default' };
+
+  function applyCcPrefs(){
+    ccOverlay.classList.remove('size-lg','size-md','size-sm','anim-default','anim-spin','anim-flip');
+    ccOverlay.classList.add('size-' + (_ccPrefs.size||'lg'));
+    ccOverlay.classList.add('anim-' + (_ccPrefs.anim||'default'));
+    // Tema tile'larını işaretle
+    document.querySelectorAll('#a2SizePicker .a2-tile').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-size') === _ccPrefs.size);
+    });
+    document.querySelectorAll('#a2AnimPicker .a2-tile').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-anim') === _ccPrefs.anim);
+    });
+  }
+
+  function loadCcPrefs(){
+    if (!window.GunesOSStore) return Promise.resolve();
+    return Promise.all([
+      window.GunesOSStore.get(ccSizePath()),
+      window.GunesOSStore.get(ccAnimPath())
+    ]).then(function(r){
+      if (r[0]) _ccPrefs.size = r[0];
+      if (r[1]) _ccPrefs.anim = r[1];
+      applyCcPrefs();
+    });
+  }
+
+  function openContactCardA2(contact, evt){
+    if (!contact) return;
+    _ccTarget = contact;
+    var av = document.getElementById('a2CcAv');
+    var nm = document.getElementById('a2CcName');
+    var ph = document.getElementById('a2CcPhone');
+    if (av) av.textContent = (contact.name||'?').trim().split(/\s+/).map(function(w){return w[0];}).slice(0,2).join('').toUpperCase() || '?';
+    if (nm) nm.textContent = contact.name || '—';
+    if (ph) ph.textContent = contact.phone || '—';
+    // Tıklanan noktayı transform-origin yap (klasik animasyon için)
+    var card = document.getElementById('a2Cc');
+    var rect = ccOverlay.getBoundingClientRect();
+    if (evt && card){
+      var x = (evt.clientX||0) - rect.left;
+      var y = (evt.clientY||0) - rect.top;
+      card.style.setProperty('--tx', x + 'px');
+      card.style.setProperty('--ty', y + 'px');
+    }
+    applyCcPrefs();
+    ccOverlay.classList.remove('closing','open');
+    // Force layout — initial transform (scale .05, rotate -540deg, flip vb.) hesaplansın
+    // sonra .open eklenince transition tetiklensin (yoksa anim-spin/flip "snap" gibi görünür)
+    // eslint-disable-next-line no-unused-expressions
+    ccOverlay.offsetWidth;
+    if (card) card.offsetWidth;
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        ccOverlay.classList.add('open');
+      });
+    });
+  }
+  function closeContactCardA2(){
+    if (!ccOverlay.classList.contains('open')) return;
+    ccOverlay.classList.add('closing');
+    ccOverlay.classList.remove('open');
+    setTimeout(function(){ ccOverlay.classList.remove('closing'); _ccTarget = null; }, 480);
+  }
+
+  // -------- 5) Tema overlay aç/kapa --------
+  function openThemeFs(){ themeFs.classList.add('open'); applyCcPrefs(); }
+  function closeThemeFs(){ themeFs.classList.remove('open'); }
+
+  // -------- 5b) Kişi → A2 chatroom köprüsü --------
+  // OO'daki ccOpenChat() → openChatFromCardData() mantığının A2 muadili.
+  // A2 chatroom'u (data-page="chatroom") basit bir UI; kişi adı/avatarı + boş stream
+  // ile aç ve goTo('chatroom') ile geçiş yap. Mesaj akışı Step 8c'de motora bağlanacak.
+  function openA2ChatFor(contact){
+    if (!contact) { try { a2Notify({title:'Sohbeto', text:'Kişi bulunamadı.', duration:1500}); } catch(e){} return; }
+    try {
+      var nameEl = document.getElementById('chatName');
+      var avEl   = document.getElementById('chatAvatar');
+      var streamEl = document.getElementById('stream');
+      var nm = (contact.name || contact.phone || 'Sohbet').toString();
+      if (nameEl) nameEl.textContent = nm;
+      if (avEl){
+        var ini = nm.trim().split(/\s+/).map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase() || '?';
+        avEl.textContent = ini;
+      }
+      if (streamEl){
+        // Aynı kişi tekrar açılırsa eski mesajları koru; farklı kişi ise temizle.
+        if (streamEl.getAttribute('data-peer') !== (contact.id||contact.phone||nm)){
+          streamEl.innerHTML = '<div class="day">Bugün</div>';
+          streamEl.setAttribute('data-peer', contact.id||contact.phone||nm);
+        }
+      }
+      if (typeof goTo === 'function') goTo('chatroom');
+    } catch(e){ console.error('[A2] openA2ChatFor', e); }
+  }
+  try { window.openA2ChatFor = openA2ChatFor; } catch(e){}
+
+  // -------- 6) Click delegasyonu --------
+  document.addEventListener('click', function(ev){
+    var t = ev.target;
+    if (!t) return;
+
+    // Tema satırı
+    var trow = t.closest && t.closest('#a2ThemeRow');
+    if (trow){ openThemeFs(); return; }
+    if (t.id === 'a2ThemeBack' || (t.closest && t.closest('#a2ThemeBack'))){ closeThemeFs(); return; }
+
+    // Tema picker tile'ları
+    var szTile = t.closest && t.closest('#a2SizePicker .a2-tile');
+    if (szTile){
+      _ccPrefs.size = szTile.getAttribute('data-size') || 'lg';
+      applyCcPrefs();
+      try { window.GunesOSStore && window.GunesOSStore.set(ccSizePath(), _ccPrefs.size); } catch(e){}
+      return;
+    }
+    var anTile = t.closest && t.closest('#a2AnimPicker .a2-tile');
+    if (anTile){
+      _ccPrefs.anim = anTile.getAttribute('data-anim') || 'default';
+      applyCcPrefs();
+      try { window.GunesOSStore && window.GunesOSStore.set(ccAnimPath(), _ccPrefs.anim); } catch(e){}
+      return;
+    }
+
+    // Kart overlay backdrop → kapat
+    if (t === ccOverlay){ closeContactCardA2(); return; }
+
+    // Kart aksiyon butonları
+    var ccBtn = t.closest && t.closest('[data-cc]');
+    if (ccBtn && ccOverlay.contains(ccBtn)){
+      var act = ccBtn.getAttribute('data-cc');
+      var target = _ccTarget;
+      var who = target ? (target.name || target.phone || '') : '';
+      closeContactCardA2();
+      if (act === 'msg'){
+        // Mesaj Gönder → A2 chatroom'unu bu kişi için aç
+        setTimeout(function(){ openA2ChatFor(target); }, 60);
+        return;
+      }
+      if (typeof a2Notify === 'function'){
+        var msg = { call:'Sesli arama yakında bağlanacak', video:'Görüntülü arama yakında bağlanacak',
+                    info:'Bilgi sayfası yakında' }[act] || 'Yakında';
+        a2Notify({ title:'Kişi · '+(who||'Sohbeto'), text:msg, duration:1600 });
+      }
+      return;
+    }
+
+    // Kişi satırı → kart aç
+    var row = t.closest && t.closest('#peopleList [data-contact-id]');
+    if (row){
+      var id = row.getAttribute('data-contact-id');
+      var list = [];
+      try { list = JSON.parse(localStorage.getItem('sohbetoA2_contacts')||'[]'); } catch(e){}
+      var c = list.filter(function(x){ return x.id === id; })[0];
+      if (c) openContactCardA2(c, ev);
+      return;
+    }
+  });
+
+  // -------- 7) İlk açılış: store'u yükle, migrate et, prefs uygula --------
+  ensureStore(function(){
+    ccWrapWriteContacts();
+    ccMigrateContacts().then(loadCcPrefs).then(function(){
+      if (typeof window.renderContacts === 'function') try { window.renderContacts(); } catch(e){}
+    });
+  });
+})();
+
 </script>
 </body>
 </html>
